@@ -11,8 +11,6 @@ api_key = ''
 api_secret = ''
 poloniex = poloniex.Poloniex(api_key, api_secret)
 
-
-
 class Lazy:
 
     getcontext().prec = 8
@@ -28,16 +26,14 @@ class Lazy:
         self.buy_orders_temp = []
         self.new_buy_orders = []
         self.temp_buy_orders = []
-        self.new_buy_price_max = Decimal('0')
         self.buy_price_min = Decimal('0.00100')
-        self.buy_price_max = Decimal('0.00193')
+        self.buy_price_max = Decimal('0.00196')
         self.sell_orders = []
         self.sell_orders_temp = []
         self.new_sell_orders = []
         self.temp_sell_orders = []
-        self.sell_price_min = Decimal('0.00204')
-        self.sell_price_max = Decimal('0.00206')
-        self.new_sell_price_min = Decimal('0')
+        self.sell_price_min = Decimal('0.00207')
+        self.sell_price_max = Decimal('0.00225')
         self.nb_orders_to_display = Decimal('1')
 
     def api_sleep(self):
@@ -250,12 +246,14 @@ class Lazy:
         Do the same for buy orders.
         """
         self.get_orders()
+        sell_orders2 = self.new_sell_orders[:]
+        buy_orders2 = self.new_buy_orders[:]
         # check sell orders
         print 'self.sell_orders[-1][2]', self.sell_orders[-1][2], \
-            'self.new_sell_orders[0][2]', self.new_sell_orders[0][2]
-        if self.sell_orders[-1][2] - self.new_sell_orders[0][2] \
+            'sell_orders2[0][2]', sell_orders2[0][2]
+        if self.sell_orders[-1][2] - sell_orders2[0][2] \
             > self.increment * self.nb_orders_to_display:
-            i = int((self.sell_orders[-1][2] - (self.new_sell_orders[0][2] \
+            i = int((self.sell_orders[-1][2] - (sell_orders2[0][2] \
                 + self.increment * self.nb_orders_to_display)) / self.increment)
             print 'i :', i
             while i > 0:
@@ -264,15 +262,15 @@ class Lazy:
                 print time.strftime('%X'), 'SELL canceled :', self.sell_orders[-1]
                 for item in self.sell_orders[-1]:
                     order.append(item)
-                self.new_sell_orders.remove(order)
+                sell_orders2.remove(order)
                 self.sell_orders.remove(order)
                 i -= 1
-        elif self.sell_orders[-1][2] - self.new_sell_orders[0][2] \
+        elif self.sell_orders[-1][2] - sell_orders2[0][2] \
             < self.increment * self.nb_orders_to_display:
             if self.sell_orders[-1][2] + self.nb_orders_to_display \
                 * self.increment < self.sell_price_max:
                 i = int( self.nb_orders_to_display - (self.sell_orders[-1][2] \
-                    - self.new_sell_orders[0][2]) / self.increment)
+                    - sell_orders2[0][2]) / self.increment)
             elif self.sell_orders[-1][2] + self.nb_orders_to_display \
                 * self.increment >= self.sell_price_max:
                 i = int((self.sell_price_max - self.sell_orders[-1][2]) \
@@ -284,11 +282,11 @@ class Lazy:
         else:
             print 'orders ok'
         # check buy orders
-        print 'self.new_buy_orders[-1][2]', self.new_buy_orders[-1][2], \
+        print 'buy_orders2[-1][2]', buy_orders2[-1][2], \
             'self.buy_orders[0][2]', self.buy_orders[0][2]
-        if self.new_buy_orders[-1][2] - self.buy_orders[0][2] \
+        if buy_orders2[-1][2] - self.buy_orders[0][2] \
             > self.increment * self.nb_orders_to_display:
-            i = int((self.new_buy_orders[-1][2] - (self.buy_orders[0][2] \
+            i = int((buy_orders2[-1][2] - (self.buy_orders[0][2] \
                 + self.increment * self.nb_orders_to_display)) / self.increment)
             print 'i', i
             while i > 0:
@@ -297,14 +295,14 @@ class Lazy:
                 print time.strftime('%X'), 'BUY canceled :', self.buy_orders[0]
                 for item in self.buy_orders[0]:
                     order.append(item)
-                self.new_buy_orders.remove(order)
+                buy_orders2.remove(order)
                 self.buy_orders.remove(order)
                 i -= 1
-        elif self.new_buy_orders[-1][2] - self.buy_orders[0][0] \
+        elif buy_orders2[-1][2] - self.buy_orders[0][0] \
             < self.increment * self.nb_orders_to_display:
             if self.buy_orders[0][0] - self.nb_orders_to_display \
                 * self.increment > self.buy_price_min:
-                i = int(self.nb_orders_to_display - (self.new_buy_orders[-1][2] \
+                i = int(self.nb_orders_to_display - (buy_orders2[-1][2] \
                     - self.buy_orders[0][2]) / self.increment)
             elif self.buy_orders[0][0] - self.nb_orders_to_display \
                 * self.increment <= self.buy_price_min:
@@ -419,9 +417,11 @@ class Lazy:
         Do the same for buy orders."""
         # Get actives orders from marketplace
         self.get_orders()
+        sell_orders2 = self.new_sell_orders[:]
+        buy_orders2 = self.new_buy_orders[:]
         # Set nb of sell order to put
         i = 0
-        if self.new_sell_orders == []:
+        if sell_orders2 == []:
             print 'Current date & time ', time.strftime('%x'), time.strftime('%X'), \
                 'no active sell orders'
             if (self.sell_price_max - self.sell_price_min) / self.increment \
@@ -429,21 +429,21 @@ class Lazy:
                 i = int(self.nb_orders_to_display)
             else:
                 i = int((self.sell_price_max - self.sell_price_min) / self.increment)
-        elif self.new_sell_orders[0][2] != self.sell_price_min:
+        elif sell_orders2[0][2] != self.sell_price_min:
             print 'Current date & time ', time.strftime('%x'), time.strftime('%X'), \
-                'Add sell orders from', self.new_sell_orders[0][2], 'to', self.sell_price_min
-            i = int((self.new_sell_orders[0][2] - self.sell_price_min) / self.increment)
-            self.sell_orders = self.new_sell_orders[:]
+                'Add sell orders from', sell_orders2[0][2], 'to', self.sell_price_min
+            i = int((sell_orders2[0][2] - self.sell_price_min) / self.increment)
+            self.sell_orders = sell_orders2[:]
         else:
             print 'Sell orders already set'
-            self.sell_orders = self.new_sell_orders[:]
+            self.sell_orders = sell_orders2[:]
         if i != 0:
             price_start = self.sell_price_min
             self.set_several_sell_orders(self.currency_pair, price_start, \
                 self.amount, i)
         # Set nb of buy order to put
         i = 0
-        if self.new_buy_orders == []:
+        if buy_orders2 == []:
             print 'Current date & time ', time.strftime('%x'), time.strftime('%X'), \
                 'No active buy orders'
             if (self.buy_price_max - self.buy_price_min) / self.increment \
@@ -451,14 +451,14 @@ class Lazy:
                 i = int(self.nb_orders_to_display)
             else:
                 i = int((self.buy_price_max - self.buy_price_min) / self.increment)
-        elif self.new_buy_orders[-1][2] != self.buy_price_max:
+        elif buy_orders2[-1][2] != self.buy_price_max:
             print 'Current date & time ', time.strftime('%x'), time.strftime('%X'), \
-                'Add sell orders from', self.new_buy_orders[-1][2], 'to', self.buy_price_max
-            i = int((self.new_buy_orders[-1][2] - self.buy_price_max) / self.increment)
-            self.buy_orders = self.new_buy_orders[:]
+                'Add sell orders from', buy_orders2[-1][2], 'to', self.buy_price_max
+            i = int((buy_orders2[-1][2] - self.buy_price_max) / self.increment)
+            self.buy_orders = buy_orders2[:]
         else:
             print 'Sell orders already set'
-            self.buy_orders = self.new_buy_orders[:]
+            self.buy_orders = buy_orders2[:]
         if i != 0:
             price_start = self.buy_price_max
             self.set_several_buy_orders(self.currency_pair, price_start, \
