@@ -23,17 +23,17 @@ class Lazy:
         self.increment = Decimal('0.00001000')
         self.orders = []
         self.buy_orders = []
-        self.buy_orders_temp = []
+        self.buy_orders_missing = []
         self.new_buy_orders = []
-        self.temp_buy_orders = []
-        self.buy_price_min = Decimal('0.00153')
-        self.buy_price_max = Decimal('0.00155')
+        self.buy_orders_executed = []
+        self.buy_price_min = Decimal('0.00150')
+        self.buy_price_max = Decimal('0.00152')
         self.sell_orders = []
-        self.sell_orders_temp = []
+        self.sell_orders_missing = []
         self.new_sell_orders = []
-        self.temp_sell_orders = []
-        self.sell_price_min = Decimal('0.00166')
-        self.sell_price_max = Decimal('0.00168')
+        self.sell_orders_executed = []
+        self.sell_price_min = Decimal('0.00163')
+        self.sell_price_max = Decimal('0.00165')
         self.nb_orders_to_display = Decimal('2')
 
     def api_sleep(self):
@@ -248,17 +248,17 @@ class Lazy:
         add item to sell_orders.
         """
         print 'update_sell_orders(self):'
-        #print time.strftime('%X'), 'self.temp_sell_orders', self.temp_sell_orders, \
-        #    'buy_orders_temp', self.buy_orders_temp
+        #print time.strftime('%X'), 'self.sell_orders_executed', self.sell_orders_executed, \
+        #    'buy_orders_missing', self.buy_orders_missing
 
         # remove from buy_orders item in buy_orers_temps
-        for item in self.buy_orders_temp:
+        for item in self.buy_orders_missing:
             if item in self.buy_orders:
                 self.buy_orders.remove(item)
 
-        #add self.temp_sell_orders to sell_orders
+        #add self.sell_orders_executed to sell_orders
         i = 0
-        for item in self.temp_sell_orders:
+        for item in self.sell_orders_executed:
             self.sell_orders.insert(i, item)
             i += 1
 
@@ -269,16 +269,16 @@ class Lazy:
         add item to buy_orders.
         """
         print 'update_buy_orders(self):'
-        #print time.strftime('%X'), 'temp_buy_orders', self.temp_buy_orders, \
-        #    'sell_orders_temp', self.sell_orders_temp
+        #print time.strftime('%X'), 'buy_orders_executed', self.buy_orders_executed, \
+        #    'sell_orders_missing', self.sell_orders_missing
         
-        # remove from sell_orders item in sell_orders_temp
-        for item in self.sell_orders_temp:
+        # remove from sell_orders item in sell_orders_missing
+        for item in self.sell_orders_missing:
             if item in self.sell_orders:
                 self.sell_orders.remove(item)
         
-        # add temp_buy_orders to buy_orders
-        for item in self.temp_buy_orders:
+        # add buy_orders_executed to buy_orders
+        for item in self.buy_orders_executed:
             self.buy_orders.append(item)
 
     def limit_nb_orders_displayed(self):
@@ -311,57 +311,62 @@ class Lazy:
             pass
         
         else:
-            price_start = self.sell_orders[-1][2] + self.increment
-            print 'self.sell_orders[-1][2]', self.sell_orders[-1], \
-                'sell_orders2[0][2]', sell_orders2[0][2]
-            
-            if self.sell_orders[-1][2] - sell_orders2[0][2] \
-                > self.increment * self.nb_orders_to_display:
-                
-                i = int((self.sell_orders[-1][2] - (sell_orders2[0][2] \
-                    + self.increment * self.nb_orders_to_display)) / self.increment)
-                
-                print 'i :', i
-                
-                while i > 0:
-                    print time.strftime('%X'), 'SELL to cancel :', self.sell_orders[-1]
+            if sell_orders2 == []:
+                print 'sell orders not ok, waiting for the newt round'
 
-                    if self.sell_orders[-1][0] == 0:
-                        del self.sell_orders[-1]
-
-                    else:
-                        order = []
-
-                        for item in self.sell_orders[-1]:
-                            order.append(item)
-                    
-                        sell_orders2.remove(order)
-                        self.sell_orders.remove(order)
-                    
-                    i -= 1
-            
-            elif self.sell_orders[-1][2] - sell_orders2[0][2] \
-                < self.increment * self.nb_orders_to_display:
-                
-                if self.sell_orders[-1][2] + self.nb_orders_to_display \
-                    * self.increment < self.sell_price_max:
-                    
-                    i = int((self.sell_orders[0][2] + self.nb_orders_to_display \
-                        * self.increment - self.sell_orders[-1][2]) / self.increment)
-                
-                elif self.sell_orders[-1][2] + self.nb_orders_to_display \
-                    * self.increment >= self.sell_price_max:
-                    
-                    i = int((self.sell_price_max - self.sell_orders[-1][2]) \
-                        / self.increment)
-                    print 'sel price max almost reached'
-                
-                print 'nb of sell orders to put : i =', i, 'from :', price_start
-                self.set_several_sell_orders(self.currency_pair, price_start, \
-                    self.amount, i)
-            
             else:
-                print 'sell orders ok'
+                price_start = self.sell_orders[-1][2] + self.increment
+                print 'self.sell_orders[-1][2]', self.sell_orders[-1], \
+                    'sell_orders2[0][2]', sell_orders2[0][2]
+                
+                if self.sell_orders[-1][2] - sell_orders2[0][2] \
+                    > self.increment * self.nb_orders_to_display:
+                    
+                    i = int((self.sell_orders[-1][2] - (sell_orders2[0][2] \
+                        + self.increment * self.nb_orders_to_display)) / self.increment)
+                    
+                    print 'i :', i
+                    
+                    while i > 0:
+                        print time.strftime('%X'), 'SELL to cancel :', self.sell_orders[-1]
+
+                        if self.sell_orders[-1][0] == 0:
+                            del self.sell_orders[-1]
+
+                        else:
+                            order = []
+                            self.cancel_order(self.currency_pair, self.sell_orders[-1][0])
+
+                            for item in self.sell_orders[-1]:
+                                order.append(item)
+                        
+                            sell_orders2.remove(order)
+                            self.sell_orders.remove(order)
+                        
+                        i -= 1
+                
+                elif self.sell_orders[-1][2] - sell_orders2[0][2] \
+                    <= self.increment * self.nb_orders_to_display:
+                    
+                    if self.sell_orders[-1][2] + self.nb_orders_to_display \
+                        * self.increment < self.sell_price_max:
+                        
+                        i = int((self.sell_orders[0][2] + self.nb_orders_to_display \
+                            * self.increment - self.sell_orders[-1][2]) / self.increment)
+                    
+                    elif self.sell_orders[-1][2] + self.nb_orders_to_display \
+                        * self.increment >= self.sell_price_max:
+                        
+                        i = int((self.sell_price_max - self.sell_orders[-1][2]) \
+                            / self.increment)
+                        print 'sel price max almost reached'
+                    
+                    print 'nb of sell orders to put : i =', i, 'from :', price_start
+                    self.set_several_sell_orders(self.currency_pair, price_start, \
+                        self.amount, i)
+                
+                else:
+                    print 'sell orders ok'
         
         # check buy orders
         if self.buy_orders ==[]:
@@ -375,56 +380,60 @@ class Lazy:
             pass
         
         else:
-            price_start = self.buy_orders[0][2] - self.increment
-            print 'buy_orders2[-1][2]', buy_orders2[-1][2], \
-                'self.buy_orders[0][2]', self.buy_orders[0][2]
-            
-            if buy_orders2[-1][2] - self.buy_orders[0][2] \
-                > self.increment * self.nb_orders_to_display:
-                
-                i = int((buy_orders2[-1][2] - (self.buy_orders[0][2] \
-                    + self.increment * self.nb_orders_to_display)) / self.increment)
-                
-                print 'i', i
-                
-                while i > 0:
-                    print time.strftime('%X'), 'BUY to cancel :', self.buy_orders[0]
+            if buy_orders2 == []:
+                print 'Buy orders not ok, waiting for the next round'
 
-                    if self.buy_orders[0][0] == 0:
-                        del self.buy_orders[0]
-
-                    else:
-                        order = []
-                    
-                        for item in self.buy_orders[0]:
-                            order.append(item)
-                    
-                        buy_orders2.remove(order)
-                        self.buy_orders.remove(order)
-                    
-                    i -= 1
-            
-            elif buy_orders2[-1][2] - self.buy_orders[0][0] \
-                < self.increment * self.nb_orders_to_display:
-                
-                if self.buy_orders[0][0] - self.nb_orders_to_display \
-                    * self.increment > self.buy_price_min:
-                    
-                    i = int((self.buy_orders[0][2] + self.nb_orders_to_display \
-                        * self.increment - self.buy_orders[-1][2]) / self.increment)
-                
-                elif self.buy_orders[0][0] - self.nb_orders_to_display \
-                    * self.increment <= self.buy_price_min:
-                    
-                    i = int((self.buy_orders[0][0] - self.buy_price_min) \
-                        / self.increment)
-                    print 'buy_price_min almost reached'
-                
-                print 'nb of buy orders to put : i =', i, 'from :', price_start
-                self.set_several_buy_orders(self.currency_pair, price_start, self.amount, i)
-            
             else:
-                print 'buy orders ok'
+                price_start = self.buy_orders[0][2] - self.increment
+                print 'buy_orders2[-1][2]', buy_orders2[-1][2], \
+                    'self.buy_orders[0][2]', self.buy_orders[0][2]
+                
+                if buy_orders2[-1][2] - self.buy_orders[0][2] \
+                    > self.increment * self.nb_orders_to_display:
+                    
+                    i = int((buy_orders2[-1][2] - (self.buy_orders[0][2] \
+                        + self.increment * self.nb_orders_to_display)) / self.increment)
+                    
+                    print 'i', i
+                    
+                    while i > 0:
+                        print time.strftime('%X'), 'BUY to cancel :', self.buy_orders[0]
+
+                        if self.buy_orders[0][0] == 0:
+                            del self.buy_orders[0]
+
+                        else:
+                            order = []
+                            self.cancel_order(self.currency_pair, self.buy_orders[0][0])
+                            for item in self.buy_orders[0]:
+                                order.append(item)
+                        
+                            buy_orders2.remove(order)
+                            self.buy_orders.remove(order)
+                        
+                        i -= 1
+                
+                elif buy_orders2[-1][2] - self.buy_orders[0][0] \
+                    <= self.increment * self.nb_orders_to_display:
+                    
+                    if self.buy_orders[0][0] - self.nb_orders_to_display \
+                        * self.increment > self.buy_price_min:
+                        
+                        i = int((self.buy_orders[0][2] + self.nb_orders_to_display \
+                            * self.increment - self.buy_orders[-1][2]) / self.increment)
+                    
+                    elif self.buy_orders[0][0] - self.nb_orders_to_display \
+                        * self.increment <= self.buy_price_min:
+                        
+                        i = int((self.buy_orders[0][0] - self.buy_price_min) \
+                            / self.increment)
+                        print 'buy_price_min almost reached'
+                    
+                    print 'nb of buy orders to put : i =', i, 'from :', price_start
+                    self.set_several_buy_orders(self.currency_pair, price_start, self.amount, i)
+                
+                else:
+                    print 'buy orders ok'
 
     def check_if_no_orders(self):
         """Put orders if there is no user orders active on the marketplace.
@@ -494,7 +503,7 @@ class Lazy:
         Call check_if_no_orders().
         Clear temp_..._orders, assign ..._orders_temp and ..._orders2.
         Compare between user actives sell orders and actives sell orders from the marketplace.
-        Regroup sell order to remove from user active sell orders in sell_orders_temp.
+        Regroup sell order to remove from user active sell orders in sell_orders_missing.
         Set the price from where buy will sart.
         Set the number of buy order to do (i) but no more than necessary to reach buy_price_min.
         For i orders, put order, update user buy orders book, decrement i, increment price.
@@ -504,9 +513,9 @@ class Lazy:
         """
         self.check_if_no_orders()
         
-        self.temp_buy_orders, self.temp_sell_orders = [], []
-        self.buy_orders_temp = self.buy_orders[:]
-        self.sell_orders_temp = self.sell_orders[:]
+        self.buy_orders_executed, self.sell_orders_executed = [], []
+        self.buy_orders_missing = self.buy_orders[:]
+        self.sell_orders_missing = self.sell_orders[:]
         sell_orders2 = self.new_sell_orders[:]
         buy_orders2 = self.new_buy_orders[:]
         print time.strftime('%X'), 'sell orders :', self.sell_orders, '\n', \
@@ -517,10 +526,10 @@ class Lazy:
             print 'a sell has occured'
             
             # check wich item in sell_orders need to be removed and store it 
-            # in sell_orders_temp
+            # in sell_orders_missing
             for item in self.sell_orders:
                 if item in sell_orders2:
-                    self.sell_orders_temp.remove(item)
+                    self.sell_orders_missing.remove(item)
             
             # set the new buy price_start to target
             price_start = buy_orders2[-1][2] + self.increment
@@ -528,7 +537,7 @@ class Lazy:
                 <= self.buy_price_min:
                 
                 if self.buy_orders[-1][0] == 0:
-                    i = int((sell_orders2[0][2] - self.sell_orders[0][2]) / self.increment)
+                    i = int((self.sell_orders[0][2] - sell_orders2[0][2]) / self.increment)
                 
                 else:
                     i = int((price_start - self.buy_price_min) / self.increment)
@@ -541,8 +550,8 @@ class Lazy:
             # put buy orders
             while i > 0:
                 order = self.set_buy_order(self.currency_pair, price_start, self.amount)
-                self.temp_buy_orders.append(order)
-                #print 'temp_buy_orders :', self.temp_buy_orders
+                self.buy_orders_executed.append(order)
+                #print 'buy_orders_executed :', self.buy_orders_executed
                 i -= 1
                 price_start += self.increment
         
@@ -552,10 +561,10 @@ class Lazy:
         # check if a buy occured
         if buy_orders2[-1][0] != self.buy_orders[-1][0]:
             print 'a buy has occured'
-            # check wich item in buy_orders need to be removed and store it in buy_orders_temp
+            # check wich item in buy_orders need to be removed and store it in buy_orders_missing
             for item in self.buy_orders:
                 if item in buy_orders2:
-                    self.buy_orders_temp.remove(item)
+                    self.buy_orders_missing.remove(item)
             
             # set the new sell price_start to target
             price_start = sell_orders2[0][2] - self.increment
@@ -576,17 +585,17 @@ class Lazy:
             # put sell orders
             while i > 0:
                 order = self.set_sell_order(self.currency_pair, price_start, self.amount)
-                self.temp_sell_orders.insert(0, order)
-                #print 'temp_sell_orders :', self.temp_sell_orders
+                self.sell_orders_executed.insert(0, order)
+                #print 'sell_orders_executed :', self.sell_orders_executed
                 i -= 1
                 price_start -= self.increment
         
         # if a sell order occured
-        if self.temp_sell_orders != []:
+        if self.sell_orders_executed != []:
             self.update_sell_orders()
         
         # if a buy order occured
-        if self.temp_buy_orders != []:
+        if self.buy_orders_executed != []:
             self.update_buy_orders()
         
         # limit the n° of order in the book
