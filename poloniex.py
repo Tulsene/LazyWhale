@@ -142,6 +142,10 @@ class Poloniex:
         return self.api_query('buy',{"currencyPair":currencyPair,"rate":rate,\
             "amount":amount})
 
+    def marginBuy(self,currencyPair,rate,amount):
+        return self.api_query('marginBuy',{"currencyPair":currencyPair,"rate":rate,\
+            "amount":amount})
+
     # Places a sell order in a given market. Required POST parameters are "currencyPair", \
     # "rate", and "amount". If successful, the method will return the order number.
     # Inputs:
@@ -152,6 +156,10 @@ class Poloniex:
     # orderNumber   The order number
     def sell(self,currencyPair,rate,amount):
         return self.api_query('sell',{"currencyPair":currencyPair,"rate":rate,\
+            "amount":amount})
+
+    def marginSell(self,currencyPair,rate,amount):
+        return self.api_query('marginSell',{"currencyPair":currencyPair,"rate":rate,\
             "amount":amount})
 
     def createLoanOffer(self,currency,amount,duration,autoRenew,lendingRate):
