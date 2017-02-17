@@ -12,15 +12,15 @@ class Lazy:
     getcontext().prec = 8
 
     def __init__(self):
+        self.buy_orders = []
+        self.sell_orders = []
         self.currency_pair = 'BTC_SDC'
         self.buy_pair = 'BTC'
         self.sell_pair = 'SDC'
         self.amount = Decimal('1.00000000')
         self.increment = Decimal('0.00001000')
-        self.buy_orders = []
         self.buy_price_min = Decimal('0.00148')
         self.buy_price_max = Decimal('0.00150')
-        self.sell_orders = []
         self.sell_price_min = Decimal('0.00161')
         self.sell_price_max = Decimal('0.00163')
         self.nb_orders_to_display = Decimal('2')
