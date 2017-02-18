@@ -3,8 +3,9 @@
 # market making script for lazy whale  market maker
 # if you don't get it, don't use it
 
-import apiInterface
+import logging
 import time
+import apiInterface
 from decimal import *
 
 class Lazy:
@@ -19,10 +20,10 @@ class Lazy:
         self.sell_pair = 'SDC'
         self.amount = Decimal('1.00000000')
         self.increment = Decimal('0.00001000')
-        self.buy_price_min = Decimal('0.00148')
-        self.buy_price_max = Decimal('0.00150')
-        self.sell_price_min = Decimal('0.00161')
-        self.sell_price_max = Decimal('0.00163')
+        self.buy_price_min = Decimal('0.00144')
+        self.buy_price_max = Decimal('0.00146')
+        self.sell_price_min = Decimal('0.00157')
+        self.sell_price_max = Decimal('0.00159')
         self.nb_orders_to_display = Decimal('2')
 
     def compare_orders(self):
@@ -613,19 +614,27 @@ class Lazy:
                 self.buy_orders.append(item)
 
     def strat(self):
-        """Simple execution loop."""
+        """Do the lazy whale strategy.
+
+        Simple execution loop.
+        """
         while True:
-            print time.strftime('%x'), time.strftime('%X'), 'CYCLE START'
+            logging.warning('CYCLE START')
             self.compare_orders()
-            print time.strftime('%x'), time.strftime('%X'), 'CYCLE STOP'
+            logging.warning('CYCLE STOP')
             api.api_sleep()
+
+    def main(self):
+        logging.basicConfig(filename='Lazy.log', format='%(asctime)s %(levelname)s:\
+            %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p', level=logging.INFO)
+        
+        self.set_orders()
+        self.strat()
+
 
 
 api = apiInterface.ApiInterface()
 lazy = Lazy()
 
-#lazy.cancel_all()
-
-lazy.set_orders()
-lazy.strat()
-
+if __name__ == '__main__':
+    lazy.main()

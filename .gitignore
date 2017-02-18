@@ -1,0 +1,6 @@
+# gitignore
+
+Lazy.pyc
+apiInterface.pyc
+poloniex.pyc
+*.log
