@@ -9,8 +9,8 @@ import urllib2
 import poloniex
 from decimal import *
 
-api_key = '5CBI259W-ICXSDANU-A23FNKQE-NNVNIJFD'
-api_secret = 'ea6b3f50fdf1a14d80d2d86fc70e25d761b517ec9ed0dd283b6db4402c62be50678b8354800dd18d92fc8b75d908844eb4c596c38a589255768a580573bb50b8'
+api_key = '7JDLBZMI-HPWMRUVZ-D968SXSP-RJ92NSQK'
+api_secret = 'ff745921a6e73eef13b9f72a4ab05f0a77a311f4cfa40a5b968e0ce3229626471cf4b832627791eb1c5e4352e7770dbd684d75d78f2acf3aa8fdb9ed21b63119'
 poloniex = poloniex.Poloniex(api_key, api_secret)
 
 class ApiInterface:
@@ -39,13 +39,13 @@ class ApiInterface:
             return buy_balance, sell_balance
         
         except urllib2.HTTPError as e:
-            logging.warning(e.code)
+            logging.error(e.code)
             
             self.api.sleep()
             self.get_balance()
         
         except urllib2.URLError as e:
-            logging.warning(e.args)
+            logging.error(e.args)
             
             self.api.sleep()
             self.get_balance()
@@ -66,13 +66,13 @@ class ApiInterface:
             new_buy_orders, new_sell_orders = self.fetch_orders(orders)
 
         except urllib2.HTTPError as e:
-            logging.warning(e.code)
+            logging.error(e.code)
             
             self.api.sleep()
             new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
         
         except urllib2.URLError as e:
-            logging.warning(e.args)
+            logging.error(e.args)
             
             self.api.sleep()
             new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
@@ -119,12 +119,12 @@ class ApiInterface:
             return result
 
         except urllib2.HTTPError as e:
-            logging.warning(e.code)
+            logging.error(e.code)
             
             return self.retry_set_sell_order(currency_pair, rate, amount)
         
         except urllib2.URLError as e:
-            logging.warning(e.args)
+            logging.error(e.args)
             
             return self.retry_set_sell_order(currency_pair, rate, amount)
 
@@ -146,12 +146,12 @@ class ApiInterface:
             return result
 
         except urllib2.HTTPError as e:
-            logging.warning(e.code)
+            logging.error(e.code)
             
             return self.retry_set_margin_sell_order(currency_pair, rate, amount)
         
         except urllib2.URLError as e:
-            logging.warning(e.args)
+            logging.error(e.args)
             
             return self.retry_set_margin_sell_order(currency_pair, rate, amount)
 
@@ -254,12 +254,12 @@ class ApiInterface:
             return result
         
         except urllib2.HTTPError as e:
-            logging.warning(e.code)
+            logging.error(e.code)
             
             return self.retry_set_buy_order(currency_pair, rate, amount)
         
         except urllib2.URLError as e:
-            logging.warning(e.args)
+            logging.error(e.args)
             
             return self.retry_set_buy_order(currency_pair, rate, amount)
 
@@ -281,12 +281,12 @@ class ApiInterface:
             return result
         
         except urllib2.HTTPError as e:
-            logging.warning(e.code)
+            logging.error(e.code)
             
             return self.retry_set_margin_buy_order(currency_pair, rate, amount)
         
         except urllib2.URLError as e:
-            logging.warning(e.args)
+            logging.error(e.args)
             
             return self.retry_set_margin_buy_order(currency_pair, rate, amount)
 
@@ -384,12 +384,12 @@ class ApiInterface:
             return result
         
         except urllib2.HTTPError as e:
-            logging.warning(e.code)
+            logging.error(e.code)
 
             return self.retry_cancel_order(currency_pair, order_number)
         
         except urllib2.URLError as e:
-            logging.warning(e.args)
+            logging.error(e.args)
 
             return self.retry_cancel_order(currency_pair, order_number)
 
