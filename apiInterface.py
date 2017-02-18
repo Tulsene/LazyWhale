@@ -15,7 +15,7 @@ poloniex = poloniex.Poloniex(api_key, api_secret)
 
 class ApiInterface:
 
-    getcontext().prec = 8
+    getcontext().prec = 8 # Set the precision for decimal
 
     def api_sleep(self):
         """Sleeping function, call it to make a break in the code execution.
@@ -53,7 +53,7 @@ class ApiInterface:
     def get_orders(self, currency_pair):
         """Get the user actives orders.
 
-        Get the balance from the marketplace.
+        Get orders from the marketplace.
         Call the function fetch_orders to organize the user buy and sell order book.
         Return new_buy_orders and new_sell_orders.
         """
@@ -104,7 +104,7 @@ class ApiInterface:
     def set_sell_order(self, currency_pair, rate, amount):
         """Set sell order.
 
-        Catch response, fetch datas.
+        Catch result, fetch it.
         Return result.
         """
         try:
@@ -129,9 +129,9 @@ class ApiInterface:
             return self.retry_set_sell_order(currency_pair, rate, amount)
 
     def set_margin_sell_order(self, currency_pair, rate, amount):
-        """Set sell order.
+        """Set margin sell order.
 
-        Catch response, fetch datas.
+        Catch result, fetch it.
         Return result.
         """
         try:
@@ -159,7 +159,7 @@ class ApiInterface:
         """Retry to set a sell order.
 
         Assign new_sell_orders by calling get_orders(currency_pair).
-        Search for rate in new_buy_orders and return correspondign item.
+        Search for the same rate in new_buy_orders and return correspondign item.
         Otherwise return set_sell_order().
         """
         self.api_sleep()
@@ -177,10 +177,10 @@ class ApiInterface:
         return self.set_sell_order(currency_pair, rate, amount)
 
     def retry_set_margin_sell_order(self, currency_pair, rate, amount):
-        """Retry to set a sell order.
+        """Retry to set a margin sell order.
 
         Assign new_sell_orders by calling get_orders(currency_pair).
-        Search for rate in new_buy_orders and return correspondign item.
+        Search for the same rate in new_buy_orders and return correspondign item.
         Otherwise return set_margin_sell_order().
         """
         self.api_sleep()
@@ -198,10 +198,10 @@ class ApiInterface:
         return self.set_margin_sell_order(currency_pair, rate, amount)
 
     def set_several_sell_orders(self, currency_pair, price_start, amount, nb_orders, increment):
-        """Set as much as set_sell_order() is needed.
+        """Call as much as set_sell_order() is needed.
 
 
-        Call i times set_sell_order() and add the response to sell_orders
+        Call nb_orders times set_sell_order() and add the response to sell_orders
         Return sell_orders ordered with the smallest rate @0 
         """
         sell_orders = []
@@ -218,9 +218,9 @@ class ApiInterface:
         return sell_orders
 
     def set_several_margin_sell_orders(self, currency_pair, price_start, amount, nb_orders, increment):
-        """Set as much as set_sell_order() is needed.
+        """Call as much as set_sell_order() is needed.
 
-		Call i times set_sell_order() and add the response to sell_orders
+		Call nb_orders times set_sell_order() and add the response to sell_orders
         Return sell_orders ordered with the smallest rate @0 
         """
         sell_orders = []
@@ -239,7 +239,7 @@ class ApiInterface:
     def set_buy_order(self, currency_pair,rate, amount):
         """Set buy order.
 
-        Catch response, fetch datas.
+        Catch result, fetch it.
         Return result.
         """
         try:
@@ -266,7 +266,7 @@ class ApiInterface:
     def set_margin_buy_order(self, currency_pair,rate, amount):
         """Set margin buy order.
 
-        Catch response, fetch datas.
+        Catch result, fetch it.
         Return result.
         """
         try:
@@ -294,7 +294,7 @@ class ApiInterface:
         """Retry to set a buy order.
 
         Assign new_buy_orders by calling get_orders(currency_pair).
-        Search for rate in new_buy_orders and return correspondign item.
+        Search for the same rate in new_buy_orders and return correspondign item.
         Otherwise return set_buy_order().
         """
         self.api_sleep()
@@ -315,7 +315,7 @@ class ApiInterface:
         """Retry to set a margin buy order.
 
         Assign new_buy_orders by calling get_orders(currency_pair).
-        Search for rate in new_buy_orders and return correspondign item.
+        Search for the same rate in new_buy_orders and return correspondign item.
         Otherwise return set_margin_buy_order().
         """
         self.api_sleep()
@@ -335,7 +335,7 @@ class ApiInterface:
     def set_several_buy_orders(self, currency_pair, price_start, amount, nb_orders, increment):
         """Call i times set_buy_order().
 
-        Call i times set_buy_order() and add the response to sell_orders
+        Call nb_orders times set_buy_order() and add the response to sell_orders
         Return buy_orders ordered with the smallest rate @0 
         """
         buy_orders = []
@@ -354,7 +354,7 @@ class ApiInterface:
     def set_several_margin_buy_orders(self, currency_pair, price_start, amount, nb_orders, increment):
         """Call i times set_buy_order().
 
-        Call i times set_buy_order() and add the response to sell_orders
+        Call nb_orders times set_buy_order() and add the response to sell_orders
         Return buy_orders ordered with the smallest rate @0
         """
         buy_orders = []
@@ -378,17 +378,19 @@ class ApiInterface:
         try:
             result = poloniex.cancel(currency_pair, order_number)
 
-            log = 'cancel_order(', currency_pair, ', ', order_number, ')'
+            log = 'cancel_order(', currency_pair, ', ', order_number, '), result : ', result
             logging.warning(log)
 
-            return poloniex.cancel(currency_pair, order_number)
+            return result
         
         except urllib2.HTTPError as e:
             logging.warning(e.code)
+
             return self.retry_cancel_order(currency_pair, order_number)
         
         except urllib2.URLError as e:
             logging.warning(e.args)
+
             return self.retry_cancel_order(currency_pair, order_number)
 
     def cancel_all(self, currency_pair):
