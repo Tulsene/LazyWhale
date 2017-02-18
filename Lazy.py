@@ -168,7 +168,7 @@ class Lazy:
 
             elif price_start > self.sell_price_max:
                 new_sell_orders.append([0, Decimal('0'), price_start])
-                logging.info('new_sell_orders.append([0, Decimal('0'), price_start])')
+                logging.info('new_sell_orders.append([0, Decimal(\'0\'), price_start])')
 
             else:
                 if price_start + self.increment * self.nb_orders_to_display \
@@ -204,7 +204,7 @@ class Lazy:
             
             elif price_start < self.buy_price_min:
                 new_buy_orders.append([0, Decimal('0'), price_start])
-                logging.info('new_buy_orders.append([0, Decimal('0'), price_start])')
+                logging.info('new_buy_orders.append([0, Decimal(\'0\'), price_start])')
             
             else:
                 if price_start - self.increment * self.nb_orders_to_display \
@@ -512,6 +512,8 @@ class Lazy:
                         new_sell_orders.insert(i2, item)
                         i -= 1
 
+                    log = 'buy_orders : ', self.sell_orders, 'new_buy_orders : ', new_sell_orders
+                    logging.info(log)
                 
                 if new_sell_orders[0][2] == self.sell_price_min:
                     nb_of_orders = len(new_sell_orders)
@@ -608,7 +610,7 @@ class Lazy:
                         nb_of_orders += 1
                         i -= 1
 
-                    log = 'buy_orders : ', buy_orders, 'new_buy_orders : ', new_buy_orders
+                    log = 'buy_orders : ', self.buy_orders, 'new_buy_orders : ', new_buy_orders
                     logging.info(log)
 
                 if new_buy_orders[-1][2] == self.buy_price_max:

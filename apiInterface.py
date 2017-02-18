@@ -9,8 +9,8 @@ import urllib2
 import poloniex
 from decimal import *
 
-api_key = ''
-api_secret = ''
+api_key = '5CBI259W-ICXSDANU-A23FNKQE-NNVNIJFD'
+api_secret = 'ea6b3f50fdf1a14d80d2d86fc70e25d761b517ec9ed0dd283b6db4402c62be50678b8354800dd18d92fc8b75d908844eb4c596c38a589255768a580573bb50b8'
 poloniex = poloniex.Poloniex(api_key, api_secret)
 
 class ApiInterface:
@@ -110,7 +110,7 @@ class ApiInterface:
         try:
             result = poloniex.sell(currency_pair, rate, amount)
             
-            log = 'set_sell_order(', currency_pair, ', ', rate, ', ', amount') : ', result
+            log = 'set_sell_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
             logging.warning(log)
             
             result = int(result['orderNumber'])
@@ -137,7 +137,7 @@ class ApiInterface:
         try:
             result = poloniex.sell(currency_pair, rate, amount)
             
-            log = 'set_margin_sell_order(', currency_pair, ', ', rate, ', ', amount') : ', result
+            log = 'set_margin_sell_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
             logging.warning(log)
             
             result = int(result['orderNumber'])
@@ -164,7 +164,7 @@ class ApiInterface:
         """
         self.api_sleep()
         
-        log = 'retry_set_sell_order(', currency_pair, ', ', rate, ', ', amount') : ', result
+        log = 'retry_set_sell_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
         logging.warning(log)
         
         new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
@@ -185,7 +185,7 @@ class ApiInterface:
         """
         self.api_sleep()
         
-        log = 'retry_set_margin_sell_order(', currency_pair, ', ', rate, ', ', amount') : ', result
+        log = 'retry_set_margin_sell_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
         logging.warning(log)
         
         new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
@@ -245,7 +245,7 @@ class ApiInterface:
         try:
             result = poloniex.buy(currency_pair, rate, amount)
             
-            log = 'set_buy_order(', currency_pair, ', ', rate, ', ', amount') : ', result
+            log = 'set_buy_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
             logging.warning(log)
             
             result = int(result['orderNumber'])
@@ -272,7 +272,7 @@ class ApiInterface:
         try:
             result = poloniex.buy(currency_pair, rate, amount)
             
-            log = 'set_margin_buy_order(', currency_pair, ', ', rate, ', ', amount') : ', result
+            log = 'set_margin_buy_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
             logging.warning(log)
             
             result = int(result['orderNumber'])
@@ -299,7 +299,7 @@ class ApiInterface:
         """
         self.api_sleep()
         
-        log = 'retry_set_buy_order(', currency_pair, ', ', rate, ', ', amount') : ', result
+        log = 'retry_set_buy_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
         logging.warning(log)
         
         new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
@@ -320,7 +320,7 @@ class ApiInterface:
         """
         self.api_sleep()
         
-        log = 'retry_set_margin_buy_order(', currency_pair, ', ', rate, ', ', amount') : ', result
+        log = 'retry_set_margin_buy_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
         logging.warning(log)
         
         new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
