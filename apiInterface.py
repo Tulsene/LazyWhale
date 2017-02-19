@@ -7,10 +7,17 @@ import logging
 import time
 import urllib2
 import poloniex
+import os
+import sys
 from decimal import *
 
-api_key = '7JDLBZMI-HPWMRUVZ-D968SXSP-RJ92NSQK'
-api_secret = 'ff745921a6e73eef13b9f72a4ab05f0a77a311f4cfa40a5b968e0ce3229626471cf4b832627791eb1c5e4352e7770dbd684d75d78f2acf3aa8fdb9ed21b63119'
+if not "API_KEY" in os.environ or not "API_SECRET" in os.environ:
+	print "Please set the environment variables api_secret and api_key"
+	sys.exit(1)
+else:
+	api_key = os.environ["API_KEY"]
+	api_secret = os.environ["API_SECRET"]
+	
 poloniex = poloniex.Poloniex(api_key, api_secret)
 
 class ApiInterface:
