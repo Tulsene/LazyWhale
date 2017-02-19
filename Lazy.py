@@ -20,10 +20,10 @@ class Lazy:
         self.sell_pair = 'SDC'
         self.amount = Decimal('1.00000000')
         self.increment = Decimal('0.00001000')
-        self.buy_price_min = Decimal('0.00147')
-        self.buy_price_max = Decimal('0.00149')
-        self.sell_price_min = Decimal('0.00160')
-        self.sell_price_max = Decimal('0.00162')
+        self.buy_price_min = Decimal('0.00151')
+        self.buy_price_max = Decimal('0.00154')
+        self.sell_price_min = Decimal('0.00165')
+        self.sell_price_max = Decimal('0.00167')
         self.nb_orders_to_display = Decimal('2') # Have to be a int entry
 
     def compare_orders(self):
@@ -640,7 +640,6 @@ class Lazy:
                         target += 1
 
                 while i < target:
-                    if new_buy_orders
                     if i + 1 < len(new_buy_orders):
                         order = api.set_buy_order(self.currency_pair, (new_buy_orders[i][2] \
                             + self.increment), self.amount)
