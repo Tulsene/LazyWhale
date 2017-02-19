@@ -14,7 +14,21 @@ python Lazy.py
 
 ### Configuration
 
-In the File apiInterface put your API key & secret for poloniex
+Proposal for handling API Keys in ENV_VARS
+Exemple usage on windows (on a .bat file)
+
+```
+SET API_KEY="7JDLBZMI-HPWMRUVZ-D968SXSP-RJ92NSQK"&& SET API_SECRET="f745921a6e73eef13b9f72a4ab05f0a77a311f4cfa40a5b968e0ce3229626471cf4b832627791eb1c5e4352e7770dbd684d75d78f2acf3aa8fdb9ed21b63119"&& python Lazy.py
+```
+
+Equivalent for Debian (in a .sh for exemple)
+
+```
+#!/bin/sh
+export API_KEY=7JDLBZMI-HPWMRUVZ-D968SXSP-RJ92NSQK
+export API_SECRET=f745921a6e73eef13b9f72a4ab05f0a77a311f4cfa40a5b968e0ce3229626471cf4b832627791eb1c5e4352e7770dbd684d75d78f2acf3aa8fdb9ed21b63119
+python Lazy.py
+```
 
 In the file Lazy.py setup setup globals variables for your strategy
 

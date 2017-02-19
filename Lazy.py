@@ -479,8 +479,8 @@ class Lazy:
             if new_sell_orders[-1][2] > self.sell_price_min + self.increment \
                 * self.nb_orders_to_display:
                 
-                price_target = self.sell_price_min + (self.increment \
-                    * self.nb_orders_to_display) - self.increment
+                price_target = self.sell_price_min + self.increment \
+                    * self.nb_orders_to_display
 
                 for order in new_sell_orders:
                     if order[2] > price_target:
@@ -508,49 +508,59 @@ class Lazy:
                     log = 'Sell order added : ', order
                     logging.warning(log)
 
-                    target += 1
+                    if target < nb_orders_to_display_tmp:
+                        target += 1
 
                 while i < target:
-                    if i + 1 <= len(new_sell_orders):
-                        order = api.set_sell_order(self.currency_pair, \
-                            (new_sell_orders[i][2] + self.increment), self.amount)
-
-                        new_sell_orders.insert((i + 1), order)
-
-                        log = 'Added sell order : ', order
-                        logging.warning(log)
-
-                        if target < nb_orders_to_display_tmp:
-                            target += 1
-                    
-                        i += 1
-
-                    elif new_sell_orders[i + 1][2] - new_sell_orders[i][2] < self.increment:
-                        resp = api.cancel_order(self.currency_pair, new_sell_orders[i + 1][0])
-                        
-                        log = 'Sell order removed : ', order
-                        logging.warning(log)
-
-                        new_sell_orders.remove(order)
-
-                        target -= 1
-
-                    elif new_sell_orders[i + 1][2] - new_sell_orders[i][2] > self.increment:
-                        order = api.set_sell_order(self.currency_pair, \
-                            (new_sell_orders[i][2] + self.increment), self.amount)
-
-                        new_sell_orders.insert((i + 1), order)
-
-                        log = 'Added sell order : ', order
-                        logging.warning(log)
-
-                        if target < nb_orders_to_display_tmp:
-                            target += 1
-                    
-                        i += 1
+                    if new_sell_orders[i][2] + self.increment > self.sell_price_max:
+                        i = target
+                        logging('sell_price_max reached')
 
                     else:
-                        i += 1
+                        if i + 1 <= len(new_sell_orders):
+                            order = api.set_sell_order(self.currency_pair, \
+                                (new_sell_orders[i][2] + self.increment), self.amount)
+
+                            new_sell_orders.insert((i + 1), order)
+
+                            log = 'Added sell order : ', order
+                            logging.warning(log)
+
+                            if target < nb_orders_to_display_tmp:
+                                target += 1
+                        
+                            i += 1
+
+                        elif new_sell_orders[i + 1][2] - new_sell_orders[i][2] \
+                            < self.increment:
+
+                            resp = api.cancel_order(self.currency_pair, new_sell_orders[i + 1][0])
+                            
+                            log = 'Sell order removed : ', order
+                            logging.warning(log)
+
+                            new_sell_orders.remove(order)
+
+                            target -= 1
+
+                        elif new_sell_orders[i + 1][2] - new_sell_orders[i][2] \
+                            > self.increment:
+
+                            order = api.set_sell_order(self.currency_pair, \
+                                (new_sell_orders[i][2] + self.increment), self.amount)
+
+                            new_sell_orders.insert((i + 1), order)
+
+                            log = 'Added sell order : ', order
+                            logging.warning(log)
+
+                            if target < nb_orders_to_display_tmp:
+                                target += 1
+                        
+                            i += 1
+
+                        else:
+                            i += 1
 
                 self.sell_orders = new_sell_orders[:]
 
@@ -598,8 +608,8 @@ class Lazy:
             if new_buy_orders[0][2] < self.buy_price_max - self.increment \
                 * self.nb_orders_to_display:
 
-                price_target = self.buy_price_max - (self.increment \
-                    * self.nb_orders_to_display) + self.increment
+                price_target = self.buy_price_max - self.increment \
+                    * self.nb_orders_to_display
 
                 for order in new_buy_orders:
                     if order[2] < price_target:
@@ -616,8 +626,8 @@ class Lazy:
 
                 if new_buy_orders[0][2] != self.buy_price_max - self.increment \
                     * self.nb_orders_to_display:
-                    order = api.set_buy_order(self.currency_pair, self.buy_price_max, \
-                        self.amount)
+                    order = api.set_buy_order(self.currency_pair, (self.buy_price_max \
+                        - self.increment * self.nb_orders_to_display), self.amount)
 
                     new_buy_orders.insert(0, order)
 
@@ -626,9 +636,11 @@ class Lazy:
 
                     nb_orders_to_display_tmp = int(self.nb_orders_to_display)
                         
-                    target += 1
+                    if target < nb_orders_to_display_tmp:
+                        target += 1
 
                 while i < target:
+                    if new_buy_orders
                     if i + 1 < len(new_buy_orders):
                         order = api.set_buy_order(self.currency_pair, (new_buy_orders[i][2] \
                             + self.increment), self.amount)

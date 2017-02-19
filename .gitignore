@@ -4,3 +4,4 @@ Lazy.pyc
 apiInterface.pyc
 poloniex.pyc
 *.log
+start.sh
