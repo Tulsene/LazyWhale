@@ -33,11 +33,11 @@ class Lazy:
         Clear ..._orders_executed, assign new_..._orders and ..._orders_missing.
         Compare between 1st LW actives sell orders and actives sell orders from the marketplace.
         Select sell_orders_missing.
-        Set the price from where buy will sart.
-        Set the numbre of buy if if self.buy_orders[-1][0] == 0:
+        Set the price from where buy will start.
+        Set the number of buy if self.buy_orders[-1][0] == 0:
         Set the number of buy order to do (i) but not exceed buy_price_min.
         For i orders, put order, update user buy orders book, decrement i, increment price.
-        Do the oposite compare for buy orders.
+        Do the opposite compare for buy orders.
         If buy or sell occured update user order book.
         Call limit_nb_orders_displayed().
         """
@@ -174,7 +174,7 @@ class Lazy:
                 if price_start + self.increment * self.nb_orders_to_display \
                         <= self.sell_price_max:
                     i = int(self.nb_orders_to_display - ((price_start - \
-                                                          self.sell_orders[0][2]) / semf.increment))
+                                                          self.sell_orders[0][2]) / self.increment))
 
                 if price_start + self.increment * self.nb_orders_to_display \
                         > self.sell_price_max:
