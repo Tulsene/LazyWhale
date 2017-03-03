@@ -24,6 +24,7 @@ poloniex = poloniex.Poloniex(api_key, api_secret)
 class ApiInterface:
     getcontext().prec = 8  # Set the precision for decimal
 
+
     def api_sleep(self):
         """Sleeping function, call it to make a break in the code execution.
         """
@@ -48,13 +49,13 @@ class ApiInterface:
         except urllib2.HTTPError as e:
             logging.error(e.code)  # Logs a message with level ERROR on the root logger
 
-            self.api.sleep()
+            self.api_sleep()
             self.get_balance()
 
         except urllib2.URLError as e:
             logging.error(e.args)
 
-            self.api.sleep()
+            self.api_sleep()
             self.get_balance()
 
     def get_orders(self, currency_pair):
@@ -75,13 +76,13 @@ class ApiInterface:
         except urllib2.HTTPError as e:
             logging.error(e.code)
 
-            self.api.sleep()
+            self.api_sleep()
             new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
 
         except urllib2.URLError as e:
             logging.error(e.args)
 
-            self.api.sleep()
+            self.api_sleep()
             new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
 
         return new_buy_orders, new_sell_orders
@@ -413,3 +414,6 @@ class ApiInterface:
         for item in new_sell_orders:
             self.cancel_order(currency_pair, item[0])
             print time.strftime('%X'), 'SELL canceled :', item
+
+
+            # retry_cancel_order function has to be defined

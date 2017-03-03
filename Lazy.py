@@ -4,7 +4,6 @@
 # if you don't get it, don't use it
 
 import logging
-import time
 import apiInterface
 from decimal import *
 
@@ -267,7 +266,7 @@ class Lazy:
         Check if sell_orders is empty and put arbitrary data format : 
             [0, Decimal('0'), self.sell_price_max + self.increment]).
         Or pass if sell_orders [0][0] == 0.
-        Otherwise check if no sell order happend during the cycle, if so pass
+        Otherwise check if no sell order happened during the cycle, if so pass
         Assign price_start
         Remove sell orders (check if it's not arbitrary data) if there is too much of them.
         Set the number of sell order to do but less than sell_price_max & nb_orders_to_display.
