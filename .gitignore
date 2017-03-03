@@ -1,5 +1,7 @@
 # gitignore
 
+.idea/*
+
 Lazy.pyc
 apiInterface.pyc
 poloniex.pyc
