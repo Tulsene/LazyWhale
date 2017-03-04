@@ -20,9 +20,9 @@ class Lazy:
         self.amount = Decimal('1.00000000')
         self.increment = Decimal('0.00001000')
         self.buy_price_min = Decimal('0.00110')
-        self.buy_price_max = Decimal('0.00112')
-        self.sell_price_min = Decimal('0.00123')
-        self.sell_price_max = Decimal('0.00125')
+        self.buy_price_max = Decimal('0.00114')
+        self.sell_price_min = Decimal('0.00125')
+        self.sell_price_max = Decimal('0.00128')
         self.nb_orders_to_display = Decimal('2') # Have to be a int entry
 
     def compare_orders(self):
@@ -40,6 +40,7 @@ class Lazy:
         If buy or sell occured update user order book.
         Call limit_nb_orders_displayed().
         """
+
         new_buy_orders, new_sell_orders = self.check_if_no_orders()
         buy_orders_executed, sell_orders_executed = [], []
         buy_orders_missing = self.buy_orders[:]
@@ -47,18 +48,20 @@ class Lazy:
 
         log = 'sell orders :', self.sell_orders, '\n', 'new_sell_orders :', new_sell_orders
         logging.info(log)
-
+        # When a sell occured.
         if new_sell_orders[0][0] != self.sell_orders[0][0]:
             logging.warning('a sell has occured')
-
+            # Keep in sell_orders_missing orders wich are not in new_sell_orders
             for item in self.sell_orders:
                 if item in new_sell_orders:
                     sell_orders_missing.remove(item)
 
             price_start = new_buy_orders[-1][2] + self.increment
+            # Set the nb of order to execute (i) when it could reach the buy_price_min
+            # or not.
             if price_start - self.increment * self.nb_orders_to_display \
                 <= self.buy_price_min:
-
+                # Don't set i more than necessary
                 if self.buy_orders[-1][0] == 0:
                     i = int((self.sell_orders[0][2] - new_sell_orders[0][2]) \
                         / self.increment)
@@ -67,16 +70,20 @@ class Lazy:
                     i = int((price_start - self.buy_price_min) / self.increment)
 
             else:
+                # When all sell_orders have been filled, or not.
                 if new_sell_orders[0][0] == 0:
-                    i = len(self.sell_orders) - len(new_sell_orders) + 1
+                    i = int((self.sell_orders[0][2] - new_sell_orders[0][2]) \
+                        / self.increment) + 1
 
                 else:
-                    i = len(self.sell_orders) - len(new_sell_orders)
+                    i = int((self.sell_orders[0][2] - new_sell_orders[0][2]) \
+                        / self.increment)
 
             log = 'compare_orders() sell i :', i, 'price_start :', price_start
             logging.warning(log)
 
             while i > 0:
+                # Execute sell order 
                 order = api.set_buy_order(self.currency_pair, price_start, self.amount)
 
                 log = 'buy order added : ', order
@@ -90,18 +97,20 @@ class Lazy:
         log = 'buy orders :', self.buy_orders, '\n', 'new_buy_orders :', new_buy_orders
         logging.info(log)
 
-        # check if a buy occured
+        # When a buy occured.
         if new_buy_orders[-1][0] != self.buy_orders[-1][0]:
             logging.warning('a buy has occured')
-
+            # Keep in buy_orders_missing orders wich are not in buy_sell_orders
             for item in self.buy_orders:
                 if item in new_buy_orders:
                     buy_orders_missing.remove(item)
 
             price_start = new_sell_orders[0][2] - self.increment
+            # Set the nb of order to execute (i) when it could reach the sell_price_max
+            # or not.
             if price_start + self.increment * self.nb_orders_to_display \
                 >= self.sell_price_max:
-
+                # Don't set i more than necessary
                 if self.sell_orders[0][0] == 0:
                     i = int((self.buy_orders[-1][2] - new_buy_orders[-1][2]) \
                         / self.increment)
@@ -110,16 +119,20 @@ class Lazy:
                     i = int((self.sell_price_max - price_start) / self.increment)
 
             else:
+                # When all buy_orders have been filled or not.
                 if new_buy_orders[0][0] == 0:
-                    i = len(self.buy_orders) - len(new_buy_orders) + 1
+                    i = int((self.buy_orders[-1][2] - new_buy_orders[-1][2]) \
+                        / self.increment) + 1
 
                 else:
-                    i = len(self.buy_orders) - len(new_buy_orders)
+                    i = int((self.buy_orders[-1][2] - new_buy_orders[-1][2]) \
+                        / self.increment)
 
             log = 'compare_orders() buy i :', i, 'price_start :', price_start
             logging.warning(log)
 
             while i > 0:
+                # Execute buy orders.
                 order = api.set_sell_order(self.currency_pair, price_start, self.amount)
 
                 log = 'sell order added : ', order
@@ -161,24 +174,24 @@ class Lazy:
 
             log = 'new_sell_orders == [], price_start = ', price_start
             logging.warning(log)
-
+            # When limit have been reached at precend cycle
             if self.sell_orders[0][0] == 0:
                 new_sell_orders = self.sell_orders[:]
                 logging.info('self.sell_orders[0][0] == 0:')
-
+            # Add fake order when the limit is reached.
             elif price_start > self.sell_price_max:
                 new_sell_orders.append([0, Decimal('0'), price_start])
                 logging.info('new_sell_orders.append([0, Decimal(\'0\'), price_start])')
 
             else:
+                # Set the number of order to execute (i)
                 if price_start + self.increment * self.nb_orders_to_display \
                     <= self.sell_price_max:
 
                     i = int(self.nb_orders_to_display - ((price_start - \
                         self.sell_orders[0][2]) / self.increment))
 
-                if price_start + self.increment * self.nb_orders_to_display \
-                    > self.sell_price_max:
+                else:
 
                     i = int((self.sell_price_max - price_start) / self.increment) + 1
 
@@ -197,16 +210,17 @@ class Lazy:
 
             log = 'new_buy_orders == [], price_start', price_start
             logging.warning(log)
-
+            # When limit have been reached at precend cycle
             if self.buy_orders[-1][0] == 0:
                 new_buy_orders = self.buy_orders[:]
                 logging.info('self.buy_orders[-1][0] == 0:')
-
+            # Add fake order when the limit is reached.
             elif price_start < self.buy_price_min:
                 new_buy_orders.append([0, Decimal('0'), price_start])
                 logging.info('new_buy_orders.append([0, Decimal(\'0\'), price_start])')
 
             else:
+                # Set the number of order to execute (i)
                 if price_start - self.increment * self.nb_orders_to_display \
                     >= self.buy_price_min:
 
@@ -280,6 +294,7 @@ class Lazy:
         new_buy_orders, new_sell_orders = api.get_orders(self.currency_pair)
 
         # check sell orders
+        # When sell_price_max is reached
         if self.sell_orders == []:
             self.sell_orders.append([0, Decimal('0'), self.sell_price_max \
                 + self.increment])
@@ -288,12 +303,13 @@ class Lazy:
             log = 'Buy limit reached limit_nb_orders_displayed, sell_orders : ', \
                 self.sell_orders, 'new_sell_orders : ', new_sell_orders
             logging.warning(log)
-
+        # When sell_price_max have been reached earlier
         elif self.sell_orders[0][0] == 0:
             logging.info('self.sell_orders[0][0] == 0:')
             pass
 
         else:
+            # In case of a sell occured during compare_orders()
             if new_sell_orders == []:
                 logging.warning('sell orders not ok, waiting for the next round')
                 pass
@@ -304,12 +320,12 @@ class Lazy:
                 log = 'self.sell_orders[-1][2]', self.sell_orders[-1], \
                     'new_sell_orders[0][2]', new_sell_orders[0][2]
                 logging.info(log)
-
+                # Remove sell orders if there is too much of them.
                 if self.sell_orders[-1][2] - new_sell_orders[0][2] \
                     > self.increment * self.nb_orders_to_display:
 
-                    log = (self.sell_orders[-1][2] - new_sell_orders[0][2] \
-                        > self.increment * self.nb_orders_to_display)
+                    log = ('self.sell_orders[-1][2] - new_sell_orders[0][2] \
+                        > self.increment * self.nb_orders_to_display')
                     logging.info(log)
 
                     i = int((self.sell_orders[-1][2] - (new_sell_orders[0][2] \
@@ -321,7 +337,7 @@ class Lazy:
                     while i > 0:
                         log = 'SELL to cancel :', self.sell_orders[-1]
                         logging.info(log)
-
+                        # Remove fake order if needed
                         if self.sell_orders[-1][0] == 0:
                             del self.sell_orders[-1]
 
@@ -334,18 +350,17 @@ class Lazy:
                             del self.sell_orders[-1]
 
                         i -= 1
-
+                # Add sell orders if there is less than nb_orders_to_display
                 elif self.sell_orders[-1][2] - new_sell_orders[0][2] \
                     <= self.increment * self.nb_orders_to_display:
-
+                    # Set the number of orders to execute
                     if self.sell_orders[-1][2] + self.nb_orders_to_display \
                         * self.increment < self.sell_price_max:
 
                         i = int((self.sell_orders[0][2] + self.nb_orders_to_display \
                             * self.increment - self.sell_orders[-1][2]) / self.increment)
 
-                    elif self.sell_orders[-1][2] + self.nb_orders_to_display \
-                        * self.increment >= self.sell_price_max:
+                    else:
 
                         i = int((self.sell_price_max - self.sell_orders[-1][2]) \
                             / self.increment)
@@ -364,6 +379,7 @@ class Lazy:
                     logging.warning('sell orders ok')
 
         # check buy orders
+        # When buy_price_min is reached
         if self.buy_orders == []:
             self.buy_orders.append([0, Decimal('0'), self.buy_price_min - self.increment])
             new_buy_orders = self.buy_orders[:]
@@ -371,12 +387,13 @@ class Lazy:
             log = 'Buy limit reached , buy_orders : ', self.buy_orders, \
                 ' new_sell_orders : ', new_sell_orders
             logging.warning(log)
-
+        # When buy_price_min have been reached earlier.
         elif self.buy_orders[-1][0] == 0:
             logging.warning('self.buy_orders[-1][0] == 0 :')
             pass
 
         else:
+            # In case of a buy occured during compare_orders()
             if new_buy_orders == []:
                 logging.warning('Buy orders not ok, waiting for the next round')
 
@@ -386,7 +403,7 @@ class Lazy:
                 log = 'new_buy_orders[-1][2]', new_buy_orders[-1][2], \
                     'self.buy_orders[0][2]', self.buy_orders[0][2]
                 logging.info(log)
-
+                # Remove orders if there is too much of them
                 if new_buy_orders[-1][2] - self.buy_orders[0][2] \
                     > self.increment * self.nb_orders_to_display:
 
@@ -403,7 +420,7 @@ class Lazy:
                     while i > 0:
                         log = 'BUY to cancel :', self.buy_orders[0]
                         logging.info(log)
-
+                        # Remove fake order
                         if self.buy_orders[0][0] == 0:
                             del self.buy_orders[0]
 
@@ -419,15 +436,14 @@ class Lazy:
 
                 elif new_buy_orders[-1][2] - self.buy_orders[0][0] \
                     <= self.increment * self.nb_orders_to_display:
-
+                    # Set the good amount of orders to execute
                     if self.buy_orders[0][0] - self.nb_orders_to_display \
                         * self.increment > self.buy_price_min:
 
                         i = int((self.buy_orders[0][2] + self.nb_orders_to_display \
                             * self.increment - self.buy_orders[-1][2]) / self.increment)
 
-                    elif self.buy_orders[0][0] - self.nb_orders_to_display \
-                        * self.increment <= self.buy_price_min:
+                    else:
 
                         i = int((self.buy_orders[0][0] - self.buy_price_min) \
                             / self.increment)
@@ -642,7 +658,7 @@ class Lazy:
                 # Browse buy_orders to add or remove orders
                 while i < target:
                     # Add buy orders when there is no higher buy in buy_orders
-                    if i + 1 < len(new_buy_orders):
+                    if i + 1 >= len(new_buy_orders):
                         order = api.set_buy_order(self.currency_pair, (new_buy_orders[i][2] \
                             + self.increment), self.amount)
 
