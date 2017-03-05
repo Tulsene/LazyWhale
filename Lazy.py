@@ -57,10 +57,10 @@ class Lazy:
                     sell_orders_missing.remove(item)
 
             price_start = new_buy_orders[-1][2] + self.increment
+            spread = self.sell_orders[0][2] - new_sell_orders[0][2]
             # Set the nb of order to execute (i) when it could reach the buy_price_min
             # or not.
-            if price_start - self.increment * self.nb_orders_to_display \
-                    <= self.buy_price_min:
+            if price_start - spread < self.buy_price_min:
                 # Don't set i more than necessary
                 if self.buy_orders[-1][0] == 0:
                     i = int((self.sell_orders[0][2] - new_sell_orders[0][2]) \
@@ -84,7 +84,6 @@ class Lazy:
 
             while i > 0:
                 # Execute sell order
-                # Personal note: should be the reverse if sell order, doesn't it? => to recheck
                 order = api.set_buy_order(self.currency_pair, price_start, self.amount)
 
                 log = 'buy order added : ', order
@@ -107,10 +106,10 @@ class Lazy:
                     buy_orders_missing.remove(item)
 
             price_start = new_sell_orders[0][2] - self.increment
+            spread = self.buy_orders[-1][2] - new_buy_orders[-1][2]
             # Set the nb of order to execute (i) when it could reach the sell_price_max
             # or not.
-            if price_start + self.increment * self.nb_orders_to_display \
-                    >= self.sell_price_max:
+            if price_start + spread > self.sell_price_max:
                 # Don't set i more than necessary
                 if self.sell_orders[0][0] == 0:
                     i = int((self.buy_orders[-1][2] - new_buy_orders[-1][2]) \
@@ -171,7 +170,7 @@ class Lazy:
         sell_orders_executed, buy_orders_executed = [], []
 
         if new_sell_orders == []:
-            price_start = self.sell_orders[-1][2] + self.increment
+            price_start = self.buy_orders[-1][2] + self.increment
 
             log = 'new_sell_orders == [], price_start = ', price_start
             logging.warning(log)
@@ -207,7 +206,7 @@ class Lazy:
                     new_sell_orders.append(item)
 
         if new_buy_orders == []:
-            price_start = self.buy_orders[0][2] - self.increment
+            price_start = self.sell_orders[0][2] - self.increment
 
             log = 'new_buy_orders == [], price_start = ', price_start
             logging.warning(log)
@@ -357,7 +356,7 @@ class Lazy:
                         <= self.increment * self.nb_orders_to_display:
                     # Set the number of orders to execute
                     if self.sell_orders[-1][2] + self.nb_orders_to_display \
-                            * self.increment < self.sell_price_max:
+                            * self.increment <= self.sell_price_max:
 
                         i = int((self.sell_orders[0][2] + self.nb_orders_to_display \
                                  * self.increment - self.sell_orders[-1][2]) / self.increment)
@@ -440,7 +439,7 @@ class Lazy:
                         <= self.increment * self.nb_orders_to_display:
                     # Set the good amount of orders to execute
                     if self.buy_orders[0][0] - self.nb_orders_to_display \
-                            * self.increment > self.buy_price_min:
+                            * self.increment >= self.buy_price_min:
 
                         i = int((self.buy_orders[0][2] + self.nb_orders_to_display \
                                  * self.increment - self.buy_orders[-1][2]) / self.increment)
