@@ -1,6 +1,7 @@
 # gitignore
 
 .idea/*
+.workspace
 
 Lazy.pyc
 apiInterface.pyc

@@ -24,7 +24,6 @@ poloniex = poloniex.Poloniex(api_key, api_secret)
 class ApiInterface:
     getcontext().prec = 8  # Set the precision for decimal
 
-
     def api_sleep(self):
         """Sleeping function, call it to make a break in the code execution.
         """
@@ -89,7 +88,7 @@ class ApiInterface:
 
     def fetch_orders(self, orders):
         """Fetch buy and sell orders from self.orders.
-        
+
         Fetch new_buy_orders, new_sell_orders from orders.
         Return new_buy_orders, new_sell_orders both ordered with the smallest rate @0
         """
@@ -172,7 +171,8 @@ class ApiInterface:
         """
         self.api_sleep()
 
-        log = 'retry_set_sell_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
+        # Putting 'result' in string since the variable is not locally defined in the function
+        log = 'retry_set_sell_order(', currency_pair, ', ', rate, ', ', amount, ') : result'
         logging.warning(log)
 
         new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
@@ -193,7 +193,8 @@ class ApiInterface:
         """
         self.api_sleep()
 
-        log = 'retry_set_margin_sell_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
+        # Putting 'result' in string since the variable is not locally defined in the function
+        log = 'retry_set_margin_sell_order(', currency_pair, ', ', rate, ', ', amount, ') : result'
         logging.warning(log)
 
         new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
@@ -210,7 +211,7 @@ class ApiInterface:
 
 
         Call nb_orders times set_sell_order() and add the response to sell_orders
-        Return sell_orders ordered with the smallest rate @0 
+        Return sell_orders ordered with the smallest rate @0
         """
         sell_orders = []
 
@@ -229,7 +230,7 @@ class ApiInterface:
         """Call as much as set_sell_order() is needed.
 
 		Call nb_orders times set_sell_order() and add the response to sell_orders
-        Return sell_orders ordered with the smallest rate @0 
+        Return sell_orders ordered with the smallest rate @0
         """
         sell_orders = []
 
@@ -302,12 +303,13 @@ class ApiInterface:
         """Retry to set a buy order.
 
         Assign new_buy_orders by calling get_orders(currency_pair).
-        Search for the same rate in new_buy_orders and return correspondign item.
+        Search for the same rate in new_buy_orders and return corresponding item.
         Otherwise return set_buy_order().
         """
         self.api_sleep()
 
-        log = 'retry_set_buy_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
+        # Putting 'result' in string since the variable is not locally defined in the function
+        log = 'retry_set_buy_order(', currency_pair, ', ', rate, ', ', amount, ') : result'
         logging.warning(log)
 
         new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
@@ -328,7 +330,8 @@ class ApiInterface:
         """
         self.api_sleep()
 
-        log = 'retry_set_margin_buy_order(', currency_pair, ', ', rate, ', ', amount, ') : ', result
+        # Putting 'result' in string since the variable is not locally defined in the function
+        log = 'retry_set_margin_buy_order(', currency_pair, ', ', rate, ', ', amount, ') : result'
         logging.warning(log)
 
         new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
@@ -344,7 +347,7 @@ class ApiInterface:
         """Call i times set_buy_order().
 
         Call nb_orders times set_buy_order() and add the response to sell_orders
-        Return buy_orders ordered with the smallest rate @0 
+        Return buy_orders ordered with the smallest rate @0
         """
         buy_orders = []
 
@@ -379,7 +382,7 @@ class ApiInterface:
         return buy_orders
 
     def cancel_order(self, currency_pair, order_number):
-        """Cancell order_number order.
+        """Cancel order_number order.
 
         Return response from poloniex.cancel()
         """
@@ -414,6 +417,5 @@ class ApiInterface:
         for item in new_sell_orders:
             self.cancel_order(currency_pair, item[0])
             print time.strftime('%X'), 'SELL canceled :', item
-
 
             # retry_cancel_order function has to be defined
