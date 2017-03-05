@@ -316,23 +316,24 @@ class Lazy:
                 pass
 
             else:
-                price_start = self.sell_orders[-1][2] + self.increment
-
-                log = 'self.sell_orders[-1][2]', self.sell_orders[-1], \
-                      'new_sell_orders[0][2]', new_sell_orders[0][2]
+                log = 'new_sell_orders[0][2]', new_sell_orders[0][2], \
+                      'self.sell_orders[-1][2]', self.sell_orders[-1][2]
+                      
                 logging.info(log)
                 # Remove sell orders if there is too much of them.
-                if self.sell_orders[-1][2] - new_sell_orders[0][2] \
+                if new_sell_orders[-1][2] - new_sell_orders[0][2] \
                         > self.increment * self.nb_orders_to_display:
 
-                    log = ('self.sell_orders[-1][2] - new_sell_orders[0][2] \
-                        > self.increment * self.nb_orders_to_display')
+                    log = (self.sell_orders[-1][2] - new_sell_orders[0][2] \
+                           > self.increment * self.nb_orders_to_display), \
+                           'sell orders to remove'
                     logging.info(log)
 
-                    i = int((self.sell_orders[-1][2] - (new_sell_orders[0][2] \
-                                                        + self.increment * self.nb_orders_to_display)) / self.increment)
+                    i = int((new_sell_orders[-1][2] - \
+                             (new_sell_orders[0][2]  + self.increment \
+                             * self.nb_orders_to_display)) / self.increment)
 
-                    log = 'Nb of sell to remove :', i, 'from : ', price_start
+                    log = 'Nb of sell to remove :', i, 'from : ', self.sell_orders[-1][0]
                     logging.warning(log)
 
                     while i > 0:
@@ -350,28 +351,34 @@ class Lazy:
 
                             del self.sell_orders[-1]
 
-                        i -= 1
+                            i -= 1
                 # Add sell orders if there is less than nb_orders_to_display
-                elif self.sell_orders[-1][2] - new_sell_orders[0][2] \
-                        <= self.increment * self.nb_orders_to_display:
+                elif new_sell_orders[-1][2] - new_sell_orders[0][2] \
+                        < self.increment * self.nb_orders_to_display:
                     # Set the number of orders to execute
-                    if self.sell_orders[-1][2] + self.nb_orders_to_display \
+                    if new_sell_orders[0][2] + self.nb_orders_to_display \
                             * self.increment <= self.sell_price_max:
 
-                        i = int((self.sell_orders[0][2] + self.nb_orders_to_display \
-                                 * self.increment - self.sell_orders[-1][2]) / self.increment)
+                        i = int((new_sell_orders[0][2] + self.nb_orders_to_display \
+                                 * self.increment - new_sell_orders[-1][2]) \
+                                / self.increment)
 
                     else:
 
-                        i = int((self.sell_price_max - self.sell_orders[-1][2]) \
+                        i = int((self.sell_price_max - new_sell_orders[-1][2]) \
                                 / self.increment)
                         logging.warning('Sell price max almost reached')
+
+                    price_start = self.sell_orders[-1][2] + self.increment
 
                     log = 'Nb of sell orders to put : i =', i, 'from :', price_start
                     logging.warning(log)
 
                     sell_order_executed = api.set_several_sell_orders(self.currency_pair, \
-                                                                      price_start, self.amount, i, self.increment)
+                                                                      price_start, \
+                                                                      self.amount, \
+                                                                      i, \
+                                                                      self.increment)
 
                     for item in sell_order_executed:
                         self.sell_orders.append(item)
@@ -399,23 +406,23 @@ class Lazy:
                 logging.warning('Buy orders not ok, waiting for the next round')
 
             else:
-                price_start = self.buy_orders[0][2] - self.increment
-
                 log = 'new_buy_orders[-1][2]', new_buy_orders[-1][2], \
-                      'self.buy_orders[0][2]', self.buy_orders[0][2]
+                      'new_buy_orders[0][2]', new_buy_orders[0][2]
                 logging.info(log)
                 # Remove orders if there is too much of them
-                if new_buy_orders[-1][2] - self.buy_orders[0][2] \
+                if new_buy_orders[-1][2] - new_buy_orders[0][2] \
                         > self.increment * self.nb_orders_to_display:
 
                     log = (new_buy_orders[-1][2] - self.buy_orders[0][2] \
-                           > self.increment * self.nb_orders_to_display)
+                           > self.increment * self.nb_orders_to_display), \
+                           'buy orders to remove'
                     logging.info(log)
 
-                    i = int((new_buy_orders[-1][2] - (self.buy_orders[0][2] \
-                                                      + self.increment * self.nb_orders_to_display)) / self.increment)
+                    i = int((new_buy_orders[-1][2] - \
+                            (new_buy_orders[0][2] + self.increment * self.nb_orders_to_display)) \
+                            / self.increment)
 
-                    log = 'Nb of buy order to remove : ', i, 'from : ', price_start
+                    log = 'Nb of buy order to remove : ', i, 'from : ', self.buy_orders[0][0]
                     logging.warning(log)
 
                     while i > 0:
@@ -426,23 +433,25 @@ class Lazy:
                             del self.buy_orders[0]
 
                         else:
-                            resp = api.cancel_order(self.currency_pair, self.buy_orders[0][0])
+                            resp = api.cancel_order(self.currency_pair, \
+                                                    self.buy_orders[0][0])
 
                             log = 'Order canceled : ', resp
                             logging.info(log)
 
                             del self.buy_orders[0]
 
-                        i -= 1
+                            i -= 1
 
-                elif new_buy_orders[-1][2] - self.buy_orders[0][0] \
-                        <= self.increment * self.nb_orders_to_display:
+                elif new_buy_orders[-1][2] - new_buy_orders[0][0] \
+                        < self.increment * self.nb_orders_to_display:
                     # Set the good amount of orders to execute
-                    if self.buy_orders[0][0] - self.nb_orders_to_display \
+                    if new_buy_orders[-1][0] - self.nb_orders_to_display \
                             * self.increment >= self.buy_price_min:
 
-                        i = int((self.buy_orders[0][2] + self.nb_orders_to_display \
-                                 * self.increment - self.buy_orders[-1][2]) / self.increment)
+                        i = int((new_buy_orders[0][2] + self.nb_orders_to_display \
+                                 * self.increment - new_buy_orders[-1][2]) \
+                                / self.increment)
 
                     else:
 
@@ -450,15 +459,21 @@ class Lazy:
                                 / self.increment)
                         logging.warning('buy_price_min almost reached')
 
+                    price_start = self.buy_orders[0][2] - self.increment
+
                     log = 'nb of buy orders to put : i =', i, 'from :', price_start
                     logging.warning(log)
 
                     buy_order_executed = api.set_several_buy_orders(self.currency_pair, \
-                                                                    price_start, self.amount, i, self.increment)
+                                                                    price_start, \
+                                                                    self.amount, \
+                                                                    i, \
+                                                                    self.increment)
 
                     i = 0
                     for item in buy_order_executed:
                         self.buy_orders.insert(i, item)
+                        i += 1
 
                 else:
                     logging.warning('buy orders ok')
