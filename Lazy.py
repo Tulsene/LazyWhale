@@ -19,9 +19,9 @@ class Lazy:
         self.sell_pair = 'SDC'
         self.amount = Decimal('1.00000000')
         self.increment = Decimal('0.00001000')
-        self.buy_price_min = Decimal('0.00111')
-        self.buy_price_max = Decimal('0.00114')
-        self.sell_price_min = Decimal('0.00125')
+        self.buy_price_min = Decimal('0.00114')
+        self.buy_price_max = Decimal('0.00116')
+        self.sell_price_min = Decimal('0.00127')
         self.sell_price_max = Decimal('0.00128')
         self.nb_orders_to_display = Decimal('2')  # Have to be a int entry
 
@@ -292,7 +292,7 @@ class Lazy:
                              (new_sell_orders[0][2]  + self.increment \
                              * self.nb_orders_to_display)) / self.increment)
 
-                    log = 'Nb of sell to remove :', i, 'from : ', self.sell_orders[-1][0]
+                    log = 'Nb of sell to remove :', i, 'from : ', self.sell_orders[-1][2]
                     logging.warning(log)
 
                     while i > 0:
@@ -381,7 +381,7 @@ class Lazy:
                             (new_buy_orders[0][2] + self.increment * self.nb_orders_to_display)) \
                             / self.increment)
 
-                    log = 'Nb of buy order to remove : ', i, 'from : ', self.buy_orders[0][0]
+                    log = 'Nb of buy order to remove : ', i, 'from : ', self.buy_orders[0][2]
                     logging.warning(log)
 
                     while i > 0:
@@ -405,7 +405,7 @@ class Lazy:
                 elif new_buy_orders[-1][2] - new_buy_orders[0][2] \
                         < self.increment * self.nb_orders_to_display:
                     # Set the good amount of orders to execute
-                    if new_buy_orders[-1][0] - self.nb_orders_to_display \
+                    if new_buy_orders[-1][2] - self.nb_orders_to_display \
                             * self.increment >= self.buy_price_min:
 
                         i = int((new_buy_orders[0][2] + self.nb_orders_to_display \
