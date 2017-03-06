@@ -33,8 +33,7 @@ class Lazy:
         Compare between 1st LW actives sell orders and actives sell orders from the marketplace.
         Select sell_orders_missing.
         Set the price from where buy will start.
-        Set the number of buy if self.buy_orders[-1][0] == 0:
-        Set the number of buy order to do (i) but not exceed buy_price_min.
+        Set the number of buy to do.
         For i orders, put order, update user buy orders book, decrement i, increment price.
         Do the opposite compare for buy orders.
         If buy or sell occurred update user order book.
