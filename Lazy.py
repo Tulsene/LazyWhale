@@ -25,6 +25,9 @@ class Lazy:
         self.sell_price_max = Decimal('0.00143')
         self.nb_orders_to_display = Decimal('2')  # Have to be a int entry
         self.remove_orders_during_init = True
+        self.stop_at_bottom = False
+        self.stop_at_top = False
+        self.don_t_touch = True
 
     def compare_orders(self):
         """Compare between LW actives orders and actives orders from the marketplace.
@@ -145,8 +148,15 @@ class Lazy:
                 logging.info('self.sell_orders[0][0] == 0:')
             # Add fake order when the limit is reached.
             elif price_start > self.sell_price_max:
-                new_sell_orders.append([0, Decimal('0'), price_start])
-                logging.info('new_sell_orders.append([0, Decimal(\'0\'), price_start])')
+                if self.stop_at_top == True:
+                    api.cancel_all(self.currency_pair)
+
+                    logging.warning('target top reached')
+
+                    self.don_t_touch = False
+                else:
+                    new_sell_orders.append([0, Decimal('0'), price_start])
+                    logging.info('new_sell_orders.append([0, Decimal(\'0\'), price_start])')
 
             else:
                 # Set the number of order to execute (i)
@@ -180,8 +190,16 @@ class Lazy:
                 logging.info('self.buy_orders[-1][0] == 0:')
             # Add fake order when the limit is reached.
             elif price_start < self.buy_price_min:
-                new_buy_orders.append([0, Decimal('0'), price_start])
-                logging.info('new_buy_orders.append([0, Decimal(\'0\'), price_start])')
+                if self.stop_at_bottom == True:
+                    api.cancel_all(self.currency_pair)
+
+                    logging.warning('bottom target reached')
+
+                    self.don_t_touch = False
+
+                else:
+                    new_buy_orders.append([0, Decimal('0'), price_start])
+                    logging.info('new_buy_orders.append([0, Decimal(\'0\'), price_start])')
 
             else:
                 # Set the number of order to execute (i)
@@ -243,8 +261,6 @@ class Lazy:
 
     def remove_orders_off_strat(self):
         """Remove from new_..._orders all orders wich are not in the strategy 
-        and check if no new_order have been miss removed
-
 
         """
         new_buy_orders, new_sell_orders = api.get_orders(self.currency_pair)
@@ -259,8 +275,8 @@ class Lazy:
                 rsp = any(order[0] == new_order[0] for order in self.sell_orders)
                 
                 if rsp == False:
-                    log = 'You don\'t mess with the LW sell strat 1! : ', new_order, rsp
-                    logging.warning(log)
+                    log = 'You don\'t mess with the LW sell strat ! : ', new_order, rsp
+                    logging.info(log)
 
                     del new_sell_orders[i]
 
@@ -273,8 +289,8 @@ class Lazy:
                 rsp = any(order[0] == new_order[0] for order in self.buy_orders)
                 
                 if rsp == False:
-                    log = 'You don\'t mess with the LW buy strat 1! : ', new_order, rsp
-                    logging.warning(log)
+                    log = 'You don\'t mess with the LW buy strat ! : ', new_order, rsp
+                    logging.info(log)
 
                     del new_buy_orders[i]
 
@@ -551,7 +567,7 @@ class Lazy:
 
         Simple execution loop.
         """
-        while True:
+        while self.don_t_touch == True:
             logging.warning('CYCLE START')
             self.compare_orders()
             logging.warning('CYCLE STOP')

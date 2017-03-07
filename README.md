@@ -48,4 +48,12 @@ buy_price_max & sell_price_min = your spread between your buy & sell orders
 
 nb_orders_to_display = number of orders displayed in each side of the order book
 
+remove_orders_during_init = if you want to remove all of your order in the order book during initialisation
 
+stop_at_bottom, stop_at_top = if you want to stop the script and remove all orders as soon as it hit buy_price_min or sell_price_max
+
+don_t_touch : as it called
+
+### Connard proof implem :
+
+Now LW don't care of any order you can add. If you manually remove an order of LW, it will consider as executed and will put the opposite.
