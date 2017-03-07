@@ -19,10 +19,10 @@ class Lazy:
         self.sell_pair = 'SDC'
         self.amount = Decimal('1.00000000')
         self.increment = Decimal('0.00001000')
-        self.buy_price_min = Decimal('0.00114')
-        self.buy_price_max = Decimal('0.00116')
-        self.sell_price_min = Decimal('0.00127')
-        self.sell_price_max = Decimal('0.00128')
+        self.buy_price_min = Decimal('0.00117')
+        self.buy_price_max = Decimal('0.00119')
+        self.sell_price_min = Decimal('0.00130')
+        self.sell_price_max = Decimal('0.00132')
         self.nb_orders_to_display = Decimal('2')  # Have to be a int entry
 
     def compare_orders(self):
@@ -51,9 +51,12 @@ class Lazy:
         if new_sell_orders[0][0] != self.sell_orders[0][0]:
             logging.warning('a sell has occurred')
             # Keep in sell_orders_missing orders which are not in new_sell_orders
-            for item in self.sell_orders:
-                if item in new_sell_orders:
-                    sell_orders_missing.remove(item)
+            for order in self.sell_orders:
+                rsp = any(new_order[0] == order[0] for new_order in new_sell_orders)
+                
+                if rsp == True:
+                    sell_orders_missing.remove(order)
+
 
             price_start = new_buy_orders[-1][2] + self.increment
             i = int((new_sell_orders[0][2] - self.sell_orders[0][2]) / self.increment)
@@ -80,9 +83,11 @@ class Lazy:
         if new_buy_orders[-1][0] != self.buy_orders[-1][0]:
             logging.warning('a buy has occurred')
             # Keep in buy_orders_missing orders which are not in buy_sell_orders
-            for item in self.buy_orders:
-                if item in new_buy_orders:
-                    buy_orders_missing.remove(item)
+            for order in self.buy_orders:
+                rsp = any(new_order[0] == order[0] for new_order in new_buy_orders)
+                
+                if rsp == True:
+                    buy_orders_missing.remove(order)
 
             price_start = new_sell_orders[0][2] - self.increment
             i = int((self.buy_orders[-1][2] - new_buy_orders[-1][2]) / self.increment)
@@ -409,7 +414,7 @@ class Lazy:
 
                     else:
 
-                        i = int((self.buy_orders[0][0] - self.buy_price_min) \
+                        i = int((self.buy_orders[0][2] - self.buy_price_min) \
                                 / self.increment)
                         logging.warning('buy_price_min almost reached')
 
