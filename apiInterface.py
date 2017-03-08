@@ -404,6 +404,19 @@ class ApiInterface:
 
             return self.retry_cancel_order(currency_pair, order_number)
 
+    def retry_cancel_order(self, currency_pair, order_number):
+        orders = poloniex.returnOpenOrders(currency_pair)
+
+        str_order_number = str(order_number)
+
+        for order in orders:
+            if order['orderNumber'] == str_order_number:
+        	    return cancel_order(currency_pair, order_number)
+
+        rsp = 'Already canceled'
+
+        return rsp
+
     def cancel_all(self, currency_pair):
         """Cancel all actives orders."""
         new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
@@ -412,8 +425,7 @@ class ApiInterface:
 
         for item in new_buy_orders:
             self.cancel_order(currency_pair, item[0])
-            print time.strftime('%X'), 'BUY canceled :', item
 
         for item in new_sell_orders:
             self.cancel_order(currency_pair, item[0])
-            print time.strftime('%X'), 'SELL canceled :', item
+
