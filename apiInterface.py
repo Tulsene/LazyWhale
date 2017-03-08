@@ -417,5 +417,3 @@ class ApiInterface:
         for item in new_sell_orders:
             self.cancel_order(currency_pair, item[0])
             print time.strftime('%X'), 'SELL canceled :', item
-
-            # retry_cancel_order function has to be defined

@@ -21,8 +21,8 @@ class Lazy:
         self.increment = Decimal('0.00001000')
         self.buy_price_min = Decimal('0.00117')
         self.buy_price_max = Decimal('0.00119')
-        self.sell_price_min = Decimal('0.00130')
-        self.sell_price_max = Decimal('0.00132')
+        self.sell_price_min = Decimal('0.00132')
+        self.sell_price_max = Decimal('0.00135')
         self.nb_orders_to_display = Decimal('2')  # Have to be a int entry
 
     def compare_orders(self):
@@ -45,8 +45,11 @@ class Lazy:
         buy_orders_missing = self.buy_orders[:]
         sell_orders_missing = self.sell_orders[:]
 
-        log = 'sell orders :', self.sell_orders, '\n', 'new_sell_orders :', new_sell_orders
+        log = 'sell orders : ', self.sell_orders
         logging.info(log)
+        log = 'new_sell_orders : ', new_sell_orders
+        logging.info(log)
+        logging.info('\n')
         # When a sell order occurred.
         if new_sell_orders[0][0] != self.sell_orders[0][0]:
             logging.warning('a sell has occurred')
@@ -61,7 +64,7 @@ class Lazy:
             price_start = new_buy_orders[-1][2] + self.increment
             i = int((new_sell_orders[0][2] - self.sell_orders[0][2]) / self.increment)
 
-            log = 'compare_orders() sell i :', i, 'price_start :', price_start
+            log = 'compare_orders() sell i : ', i, 'price_start : ', price_start
             logging.warning(log)
 
             while i > 0:
@@ -76,8 +79,11 @@ class Lazy:
                 i -= 1
                 price_start += self.increment
 
-        log = 'buy orders :', self.buy_orders, '\n', 'new_buy_orders :', new_buy_orders
+        log = 'buy orders : ', self.buy_orders
         logging.info(log)
+        log = 'new_buy_orders : ', new_buy_orders
+        logging.info(log)
+        logging.info('\n')
 
         # When a buy occurred.
         if new_buy_orders[-1][0] != self.buy_orders[-1][0]:
@@ -92,7 +98,7 @@ class Lazy:
             price_start = new_sell_orders[0][2] - self.increment
             i = int((self.buy_orders[-1][2] - new_buy_orders[-1][2]) / self.increment)
 
-            log = 'compare_orders() buy i :', i, 'price_start :', price_start
+            log = 'compare_orders() buy i : ', i, 'price_start : ', price_start
             logging.warning(log)
 
             while i > 0:
@@ -107,6 +113,12 @@ class Lazy:
                 i -= 1
                 price_start -= self.increment
 
+        log = 'sell orders : ', self.sell_orders
+        logging.info(log)
+        log = 'new_sell_orders : ', new_sell_orders
+        logging.info(log)
+        logging.info('\n')
+
         if sell_orders_executed != []:
             self.update_sell_orders(buy_orders_missing, sell_orders_executed)
 
@@ -114,6 +126,8 @@ class Lazy:
             self.update_buy_orders(sell_orders_missing, buy_orders_executed)
 
         self.limit_nb_orders_displayed()
+
+    # --------------------------------------------------------------------------------
 
     def check_if_no_orders(self):
         """Put orders if there is no user orders active on the marketplace.
@@ -130,6 +144,7 @@ class Lazy:
         logging.info('check_if_no_orders(self):')
 
         new_buy_orders, new_sell_orders = api.get_orders(self.currency_pair)
+        # These variables are currently not used locally (in the function)
         sell_orders_executed, buy_orders_executed = [], []
 
         if new_sell_orders == []:
