@@ -208,8 +208,6 @@ class ApiInterface:
 
     def set_several_sell_orders(self, currency_pair, price_start, amount, nb_orders, increment):
         """Call as much as set_sell_order() is needed.
-
-
         Call nb_orders times set_sell_order() and add the response to sell_orders
         Return sell_orders ordered with the smallest rate @0
         """
@@ -411,7 +409,7 @@ class ApiInterface:
 
         for order in orders:
             if order['orderNumber'] == str_order_number:
-        	    return cancel_order(currency_pair, order_number)
+                return self.cancel_order(currency_pair, order_number)
 
         rsp = 'Already canceled'
 
@@ -428,4 +426,3 @@ class ApiInterface:
 
         for item in new_sell_orders:
             self.cancel_order(currency_pair, item[0])
-
