@@ -32,6 +32,10 @@ python Lazy.py
 
 In the file Lazy.py setup setup globals variables for your strategy
 
+### Read logs
+
+tail -f Lazy.log
+
 ## What is it?
 
 LW is a simple script for poloniex marketplace wich do market making in a preset range. 
