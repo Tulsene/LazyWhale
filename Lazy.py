@@ -64,14 +64,14 @@ class Lazy:
             i = int((new_sell_orders[0][2] - self.sell_orders[0][2]) / self.increment)
 
             log = 'compare_orders() sell i :', i, 'price_start :', price_start
-            logging.warning(log)
+            logging.info(log)
 
             while i > 0:
                 # Execute sell order
                 order = api.set_buy_order(self.currency_pair, price_start, self.amount)
 
                 log = 'buy order added : ', order
-                logging.warning(order)
+                logging.info(order)
 
                 buy_orders_executed.append(order)
 
@@ -95,14 +95,14 @@ class Lazy:
             i = int((self.buy_orders[-1][2] - new_buy_orders[-1][2]) / self.increment)
 
             log = 'compare_orders() buy i :', i, 'price_start :', price_start
-            logging.warning(log)
+            logging.info(log)
 
             while i > 0:
                 # Execute buy orders.
                 order = api.set_sell_order(self.currency_pair, price_start, self.amount)
 
                 log = 'sell order added : ', order
-                logging.warning(log)
+                logging.info(log)
 
                 sell_orders_executed.insert(0, order)
 
@@ -138,7 +138,7 @@ class Lazy:
             price_start = self.sell_orders[-1][2] + self.increment
 
             log = 'new_sell_orders == [], price_start = ', price_start
-            logging.warning(log)
+            logging.info(log)
             # When limit have been reached at previous cycle
             if self.sell_orders[0][0] == 0:
                 new_sell_orders = self.sell_orders[:]
@@ -147,10 +147,10 @@ class Lazy:
             elif price_start > self.sell_price_max:
                 if self.stop_at_top == True:
                     api.cancel_all(self.currency_pair)
+                    self.don_t_touch = False
 
                     logging.warning('target top reached')
-
-                    self.don_t_touch = False
+                    
                 else:
                     new_sell_orders.append([0, Decimal('0'), price_start])
                     logging.info('new_sell_orders.append([0, Decimal(\'0\'), price_start])')
@@ -167,10 +167,13 @@ class Lazy:
                     i = int((self.sell_price_max - price_start) / self.increment) + 1
 
                 log = 'There is ', i, 'sell orders to add from ', price_start
-                logging.warning(log)
+                logging.info(log)
 
                 sell_orders_executed = api.set_several_sell_orders(self.currency_pair, \
-                                                                   price_start, self.amount, i, self.increment)
+                                                                   price_start, \
+                                                                   self.amount, \
+                                                                   i, \
+                                                                   self.increment)
 
                 for item in sell_orders_executed:
                     self.sell_orders.append(item)
@@ -180,7 +183,7 @@ class Lazy:
             price_start = self.buy_orders[0][2] - self.increment
 
             log = 'new_buy_orders == [], price_start = ', price_start
-            logging.warning(log)
+            logging.info(log)
             # When limit have been reached at previous cycle
             if self.buy_orders[-1][0] == 0:
                 new_buy_orders = self.buy_orders[:]
@@ -189,10 +192,9 @@ class Lazy:
             elif price_start < self.buy_price_min:
                 if self.stop_at_bottom == True:
                     api.cancel_all(self.currency_pair)
+                    self.don_t_touch = False
 
                     logging.warning('bottom target reached')
-
-                    self.don_t_touch = False
 
                 else:
                     new_buy_orders.append([0, Decimal('0'), price_start])
@@ -211,7 +213,7 @@ class Lazy:
                     i = int((price_start - self.buy_price_min) / self.increment) + 1
 
                 log = 'There is ', i, 'buy orders to add from', price_start
-                logging.warning(log)
+                logging.info(log)
 
                 buy_orders_executed = api.set_several_buy_orders(self.currency_pair, \
                                                                  price_start, self.amount, i, self.increment)
@@ -353,7 +355,7 @@ class Lazy:
                               * self.nb_orders_to_display)) / self.increment)
 
                     log = 'Nb of sell to remove :', i, 'from : ', self.sell_orders[-1][2]
-                    logging.warning(log)
+                    logging.info(log)
 
                     while i > 0:
                         log = 'SELL to cancel :', self.sell_orders[-1]
@@ -386,13 +388,13 @@ class Lazy:
 
                         i = int((self.sell_price_max - new_sell_orders[-1][2]) \
                                 / self.increment)
-                        logging.warning('Sell price max almost reached')
+                        logging.info('Sell price max almost reached')
 
                     if i != 0:
                         price_start = self.sell_orders[-1][2] + self.increment
 
                         log = 'Nb of sell orders to put : i =', i, 'from :', price_start
-                        logging.warning(log)
+                        logging.info(log)
 
                         sell_order_executed = api.set_several_sell_orders(self.currency_pair, \
                                                                           price_start, \
@@ -404,7 +406,7 @@ class Lazy:
                             self.sell_orders.append(item)
 
                 else:
-                    logging.warning('sell orders ok')
+                    logging.info('sell orders ok')
 
         # check buy orders
         # When buy_price_min is reached
@@ -412,12 +414,12 @@ class Lazy:
             self.buy_orders.append([0, Decimal('0'), self.buy_price_min - self.increment])
             new_buy_orders = self.buy_orders[:]
 
-            log = 'Buy limit reached , buy_orders : ', self.buy_orders, \
-                  ' new_sell_orders : ', new_sell_orders
+            log = 'Buy limit reached , buy_orders[0] : ', self.buy_orders[0], \
+                  ' new_sell_orders[0] : ', new_sell_orders[0]
             logging.warning(log)
-        # When buy_price_min have been reached earlier.
+        # When buy_price_min is reach earlier.
         elif self.buy_orders[-1][0] == 0:
-            logging.warning('self.buy_orders[-1][0] == 0 :')
+            logging.info('self.buy_orders[-1][0] == 0 :')
             pass
 
         else:
@@ -477,13 +479,13 @@ class Lazy:
 
                         i = int((self.buy_orders[0][2] - self.buy_price_min) \
                                 / self.increment)
-                        logging.warning('buy_price_min almost reached')
+                        logging.info('buy_price_min almost reached')
 
                     if i != 0:
                         price_start = self.buy_orders[0][2] - self.increment
 
                         log = 'nb of buy orders to put : i =', i, 'from :', price_start
-                        logging.warning(log)
+                        logging.info(log)
 
                         buy_order_executed = api.set_several_buy_orders(self.currency_pair, \
                                                                         price_start, \
@@ -497,7 +499,7 @@ class Lazy:
                             i += 1
 
                 else:
-                    logging.warning('buy orders ok')
+                    logging.info('buy orders ok')
 
     def set_orders(self):
         """Put orders at the apps init.
@@ -559,9 +561,9 @@ class Lazy:
         Simple execution loop.
         """
         while self.don_t_touch == True:
-            logging.warning('CYCLE START')
+            logging.info('CYCLE START')
             self.compare_orders()
-            logging.warning('CYCLE STOP')
+            logging.info('CYCLE STOP')
             api.api_sleep()
 
     def main(self):
