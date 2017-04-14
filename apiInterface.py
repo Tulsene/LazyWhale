@@ -45,20 +45,8 @@ class ApiInterface:
 
             return buy_balance, sell_balance
 
-        except urllib2.HTTPError as e:
+        except ((urllib2.HTTPError, urllib2.URLError, urllib2.SSLError), urllib2.URLError, urllib2.SSLError) as e:
             logging.error(e.code)  # Logs a message with level ERROR on the root logger
-
-            self.api_sleep()
-            self.get_balance()
-
-        except urllib2.URLError as e:
-            logging.error(e.args)
-
-            self.api_sleep()
-            self.get_balance()
-
-        except ssl.SSLError as e:
-            logging.error(e.args)
 
             self.api_sleep()
             self.get_balance()
@@ -78,20 +66,8 @@ class ApiInterface:
 
             new_buy_orders, new_sell_orders = self.fetch_orders(orders)
 
-        except urllib2.HTTPError as e:
+        except ((urllib2.HTTPError, urllib2.URLError, urllib2.SSLError), urllib2.URLError, urllib2.SSLError) as e:
             logging.error(e.code)
-
-            self.api_sleep()
-            new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
-
-        except urllib2.URLError as e:
-            logging.error(e.args)
-
-            self.api_sleep()
-            new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
-
-        except ssl.SSLError as e:
-            logging.error(e.args)
 
             self.api_sleep()
             new_buy_orders, new_sell_orders = self.get_orders(currency_pair)
@@ -137,18 +113,8 @@ class ApiInterface:
 
             return result
 
-        except urllib2.HTTPError as e:
+        except (urllib2.HTTPError, urllib2.URLError, urllib2.SSLError) as e:
             logging.error(e.code)
-
-            return self.retry_set_sell_order(currency_pair, rate, amount)
-
-        except urllib2.URLError as e:
-            logging.error(e.args)
-
-            return self.retry_set_sell_order(currency_pair, rate, amount)
-
-        except ssl.SSLError as e:
-            logging.error(e.args)
 
             return self.retry_set_sell_order(currency_pair, rate, amount)
 
@@ -169,18 +135,8 @@ class ApiInterface:
 
             return result
 
-        except urllib2.HTTPError as e:
+        except (urllib2.HTTPError, urllib2.URLError, urllib2.SSLError) as e:
             logging.error(e.code)
-
-            return self.retry_set_margin_sell_order(currency_pair, rate, amount)
-
-        except urllib2.URLError as e:
-            logging.error(e.args)
-
-            return self.retry_set_margin_sell_order(currency_pair, rate, amount)
-
-        except ssl.SSLError as e:
-            logging.error(e.args)
 
             return self.retry_set_margin_sell_order(currency_pair, rate, amount)
 
@@ -282,18 +238,8 @@ class ApiInterface:
 
             return result
 
-        except urllib2.HTTPError as e:
+        except (urllib2.HTTPError, urllib2.URLError, urllib2.SSLError) as e:
             logging.error(e.code)
-
-            return self.retry_set_buy_order(currency_pair, rate, amount)
-
-        except urllib2.URLError as e:
-            logging.error(e.args)
-
-            return self.retry_set_buy_order(currency_pair, rate, amount)
-
-        except ssl.SSLError as e:
-            logging.error(e.args)
 
             return self.retry_set_buy_order(currency_pair, rate, amount)
 
@@ -314,18 +260,8 @@ class ApiInterface:
 
             return result
 
-        except urllib2.HTTPError as e:
+        except (urllib2.HTTPError, urllib2.URLError, urllib2.SSLError) as e:
             logging.error(e.code)
-
-            return self.retry_set_margin_buy_order(currency_pair, rate, amount)
-
-        except urllib2.URLError as e:
-            logging.error(e.args)
-
-            return self.retry_set_margin_buy_order(currency_pair, rate, amount)
-
-        except ssl.SSLError as e:
-            logging.error(e.args)
 
             return self.retry_set_margin_buy_order(currency_pair, rate, amount)
 
@@ -424,18 +360,8 @@ class ApiInterface:
 
             return result
 
-        except urllib2.HTTPError as e:
+        except (urllib2.HTTPError, urllib2.URLError, urllib2.SSLError) as e:
             logging.error(e.code)
-
-            return self.retry_cancel_order(currency_pair, order_number)
-
-        except urllib2.URLError as e:
-            logging.error(e.args)
-
-            return self.retry_cancel_order(currency_pair, order_number)
-
-        except ssl.SSLError as e:
-            logging.error(e.args)
 
             return self.retry_cancel_order(currency_pair, order_number)
 

@@ -14,16 +14,16 @@ class Lazy:
     def __init__(self):
         self.buy_orders = []
         self.sell_orders = []
-        self.currency_pair = 'BTC_ETH'
+        self.currency_pair = 'BTC_SC'
         self.buy_pair = 'BTC'
-        self.sell_pair = 'ETH'
-        self.amount = Decimal('1.00000000')
-        self.increment = Decimal('0.00006000')
-        self.buy_price_min = Decimal('0.0381')
-        self.buy_price_max = Decimal('0.04338')
-        self.sell_price_min = Decimal('0.04404')
-        self.sell_price_max = Decimal('0.1')
-        self.nb_orders_to_display = Decimal('50')  # Have to be a int entry
+        self.sell_pair = 'SC'
+        self.amount = Decimal('10000.00000000')
+        self.increment = Decimal('0.00000005')
+        self.buy_price_min = Decimal('0.00000045')
+        self.buy_price_max = Decimal('0.0000005')
+        self.sell_price_min = Decimal('0.0000008')
+        self.sell_price_max = Decimal('0.0000009')
+        self.nb_orders_to_display = Decimal('1')  # Have to be a int entry
         self.remove_orders_during_init = True
         self.stop_at_bottom = False
         self.stop_at_top = False
