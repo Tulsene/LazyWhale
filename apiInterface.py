@@ -45,7 +45,7 @@ class ApiInterface:
 
             return buy_balance, sell_balance
 
-        except ((urllib2.HTTPError, urllib2.URLError, urllib2.SSLError), urllib2.URLError, urllib2.SSLError) as e:
+        except (urllib2.HTTPError, urllib2.URLError, urllib2.SSLError) as e:
             logging.error(e.code)  # Logs a message with level ERROR on the root logger
 
             self.api_sleep()
@@ -66,7 +66,7 @@ class ApiInterface:
 
             new_buy_orders, new_sell_orders = self.fetch_orders(orders)
 
-        except ((urllib2.HTTPError, urllib2.URLError, urllib2.SSLError), urllib2.URLError, urllib2.SSLError) as e:
+        except (urllib2.HTTPError, urllib2.URLError, urllib2.SSLError) as e:
             logging.error(e.code)
 
             self.api_sleep()
