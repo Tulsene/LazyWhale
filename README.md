@@ -4,13 +4,37 @@ Easy tool for lazy whale
 
 ## Instalation for linux
 ### Prerequisite
+#### Python 3.7
 
-Have python 2.7 installed
+Have python 3.7 installed -> https://solarianprogrammer.com/2017/06/30/building-python-ubuntu-wsl-debian/
+
+Configure it with pip : `./configure --enable-optimizations --with-ensurepip=install!!!`
+
+#### Virtual Env
+
+`pip install --user virtualenv`
+
+`cd ~/Path/to/repository`
+
+`virtualenv venv -p python3.7`
+
+`source /path/to/ENV/bin/activate` (only `deactivate` is required to close it, `rm -r /path/to/ENV` do telete it)
+
+`https://virtualenv.pypa.io/en/latest/reference/` for a list of commands
+
+#### Download the LW
 
 git clone https://github.com/Tulsene/LazyWhale
 cd LazyWhale
 git checkout dev
-python Lazy.py
+
+#### Add CCXT
+
+`pip install ccxt`
+
+#### Run LW
+
+``
 
 ### Configuration
 

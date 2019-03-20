@@ -8,3 +8,5 @@ apiInterface.pyc
 poloniex.pyc
 *.log
 start.sh
+
+venv/*
