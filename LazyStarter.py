@@ -85,6 +85,7 @@ class LazyStarter:
                 if value['total'] != 0.0:
                     pair = {key: value}
                     self.user_balance.update(pair)
+                    print(pair)
         print(self.user_balance)
 
     def exit(self):
