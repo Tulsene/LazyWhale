@@ -19,6 +19,9 @@ class LazyStarter:
         self.keys = self.keys_initialisation()
         self.exchange = None
         self.user_balance = {}
+        self.selected_market = None
+        self.active_orders = {'buy': [], 'sell': []}
+        self.history = {'buy': [], 'sell': []}
 
     def keys_initialisation(self):
         """Read key.txt file and construct a dict with it.with
@@ -61,7 +64,7 @@ class LazyStarter:
                 keys.update(key)
             return keys
 
-    def select_market(self):
+    def select_marketplace(self):
         i = 1
         market_choice = ''
         choice = 0
@@ -79,14 +82,73 @@ class LazyStarter:
                 pass
         self.exchange = eval('ccxt.' + self.user_market_name_list[choice-1] + \
              '(' + str(self.keys[self.user_market_name_list[choice-1]]) + ')') 
-        balance = self.exchange.fetch_balance()
+        balance = self.exchange.fetchBalance()
         for key, value in balance.items():
             if 'total' in value:
                 if value['total'] != 0.0:
                     pair = {key: value}
                     self.user_balance.update(pair)
                     print(pair)
-        print(self.user_balance)
+
+    def select_market(self):
+        self.exchange.load_markets()
+        market_list = self.exchange.symbols
+        valid_choice = False
+        """while valid_choice is False:
+            print('Please enter the name of a market:\n', market_list)
+            choice = input(' >> ').upper()
+            if choice in market_list:
+                self.selected_market = choice
+                valid_choice = True"""
+        self.get_orders('MANA/BTC')
+        #self.get_user_history('MANA/BTC')
+
+    def get_orders(self, market):
+        active_orders = {'buy': [], 'sell': []}
+        orders = self.exchange.fetchOrders(market)
+        for order in orders:
+            if order['side'] == 'buy':
+                active_orders['buy'].append([
+                    order['id'], 
+                    Decimal(str(order['price'])),
+                    Decimal(str(order['amount'])), 
+                    Decimal(str(order['price']))\
+                    *Decimal(str(order['amount']))\
+                    *Decimal('0.9975')])
+            if order['side'] == 'sell':
+                active_orders['sell'].append([
+                    order['id'], 
+                    Decimal(str(order['price'])),
+                    Decimal(str(order['amount'])), 
+                    Decimal(str(order['price']))\
+                    *Decimal(str(order['amount']))\
+                    *Decimal('0.9975')])
+
+        return active_orders
+
+    def get_user_history(self, market):
+        history = {'buy': [], 'sell': []}
+        trades = self.exchange.fetch_my_trades(market)
+        for order in trades:
+            if order['side'] == 'buy':
+                history['buy'].append([
+                    order['id'], 
+                    Decimal(str(order['price'])),
+                    Decimal(str(order['amount'])), 
+                    Decimal(str(order['price']))\
+                    *Decimal(str(order['amount']))\
+                    *Decimal('0.9975')])
+            if order['side'] == 'sell':
+                history['sell'].append([
+                    order['id'], 
+                    Decimal(str(order['price'])),
+                    Decimal(str(order['amount'])), 
+                    Decimal(str(order['price']))\
+                    *Decimal(str(order['amount']))\
+                    *Decimal('0.9975')])
+
+        return history
+
 
     def exit(self):
         """Clean program exit"""
@@ -95,6 +157,7 @@ class LazyStarter:
 
     def main(self):
         print("Start the program")
+        self.select_marketplace()
         self.select_market()
         print("End the program")
         sys.exit(0)
