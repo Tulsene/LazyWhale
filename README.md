@@ -36,7 +36,9 @@ git checkout dev
 
 ``
 
-### Configuration
+### Keys Configuration
+
+Create a file named keys.tx following the exemple in keysSkeletton.txt. It must contain one JSON per lines.
 
 Proposal for handling API Keys in ENV_VARS
 Exemple usage on windows (on a .bat file)

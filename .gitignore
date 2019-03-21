@@ -10,3 +10,4 @@ poloniex.pyc
 start.sh
 
 venv/*
+keys.txt
