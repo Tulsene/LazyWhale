@@ -20,8 +20,8 @@ class LazyStarter:
         self.exchange = None
         self.user_balance = {}
         self.selected_market = None
-        self.active_orders = {'buy': [], 'sell': []}
-        self.history = {'buy': [], 'sell': []}
+        self.active_orders = {'sell': [], 'buy': []}
+        self.history = {'sell': [], 'buy': []}
 
     def keys_initialisation(self):
         """Read key.txt file and construct a dict with it.with
@@ -64,6 +64,19 @@ class LazyStarter:
                 keys.update(key)
             return keys
 
+    def lw_initialisation(self):
+        marketplace_name = self.select_marketplace()
+        print('All of your balance for our balances on ', marketplace_name)
+        self.get_balances()
+        self.selected_market = self.select_market()
+        self.history = self.get_user_history(self.selected_market)
+        print('Your trading history for the market ', self.selected_market, ':')
+        self.display_user_trades(self.history)
+        self.active_orders = self.get_orders(self.selected_market)
+        print('Your actives orders for the market ', self.selected_market, ':')
+        self.display_user_trades(self.active_orders)
+        orders_in_logs = self.check_for_log_file()
+
     def select_marketplace(self):
         i = 1
         market_choice = ''
@@ -81,7 +94,10 @@ class LazyStarter:
             except ValueError:
                 pass
         self.exchange = eval('ccxt.' + self.user_market_name_list[choice-1] + \
-             '(' + str(self.keys[self.user_market_name_list[choice-1]]) + ')') 
+             '(' + str(self.keys[self.user_market_name_list[choice-1]]) + ')')
+        return self.user_market_name_list[choice-1]
+
+    def get_balances(self):
         balance = self.exchange.fetchBalance()
         for key, value in balance.items():
             if 'total' in value:
@@ -91,76 +107,118 @@ class LazyStarter:
                     print(pair)
 
     def select_market(self):
+        """
         self.exchange.load_markets()
         market_list = self.exchange.symbols
         valid_choice = False
-        """while valid_choice is False:
+        while valid_choice is False:
             print('Please enter the name of a market:\n', market_list)
             choice = input(' >> ').upper()
             if choice in market_list:
                 self.selected_market = choice
-                valid_choice = True"""
-        self.get_orders('MANA/BTC')
-        #self.get_user_history('MANA/BTC')
+                valid_choice = True
+"""
+        return 'MANA/BTC' #choice
+    
+    def format_order(self, id, price, amount, date):
+        return [id, Decimal(str(price)), Decimal(str(amount)),\
+                Decimal(str(price)) * Decimal(str(amount)) * Decimal('0.9975'),\
+                date]
 
     def get_orders(self, market):
-        active_orders = {'buy': [], 'sell': []}
-        orders = self.exchange.fetchOrders(market)
-        for order in orders:
+        orders = {'sell': [], 'buy': []}
+        raw_orders = self.exchange.fetchOrders(market)
+        for order in raw_orders:
             if order['side'] == 'buy':
-                active_orders['buy'].append([
+                orders['buy'].append(self.format_order(
                     order['id'], 
-                    Decimal(str(order['price'])),
-                    Decimal(str(order['amount'])), 
-                    Decimal(str(order['price']))\
-                    *Decimal(str(order['amount']))\
-                    *Decimal('0.9975')])
+                    order['price'],
+                    order['amount'], 
+                    order['datetime']))
             if order['side'] == 'sell':
-                active_orders['sell'].append([
+                orders['sell'].append(self.format_order(
                     order['id'], 
-                    Decimal(str(order['price'])),
-                    Decimal(str(order['amount'])), 
-                    Decimal(str(order['price']))\
-                    *Decimal(str(order['amount']))\
-                    *Decimal('0.9975')])
+                    order['price'],
+                    order['amount'], 
+                    order['datetime']))
 
-        return active_orders
+        return orders
 
     def get_user_history(self, market):
-        history = {'buy': [], 'sell': []}
-        trades = self.exchange.fetch_my_trades(market)
-        for order in trades:
+        orders = {'sell': [], 'buy': []}
+        raw_orders = self.exchange.fetch_my_trades(market)
+        for order in raw_orders:
             if order['side'] == 'buy':
-                history['buy'].append([
-                    order['id'], 
-                    Decimal(str(order['price'])),
-                    Decimal(str(order['amount'])), 
-                    Decimal(str(order['price']))\
-                    *Decimal(str(order['amount']))\
-                    *Decimal('0.9975')])
+                orders['buy'].append(self.format_order(
+                    order['order'], 
+                    order['price'],
+                    order['amount'], 
+                    order['datetime']))
             if order['side'] == 'sell':
-                history['sell'].append([
-                    order['id'], 
-                    Decimal(str(order['price'])),
-                    Decimal(str(order['amount'])), 
-                    Decimal(str(order['price']))\
-                    *Decimal(str(order['amount']))\
-                    *Decimal('0.9975')])
+                orders['sell'].append(self.format_order(
+                    order['order'], 
+                    order['price'],
+                    order['amount'], 
+                    order['datetime']))
 
-        return history
+        return orders
 
+    def display_user_trades(self, orders):
+        for order in orders['sell']:
+            print('date & time: ', order[4], 'Sell, id: ', order[0], ', price: ',\
+                order[1], ', amount: ', order[2], ', value: ', order[3])
+        for order in orders['buy']:
+            print('date & time: ', order[4], 'Buy, id: ', order[0], ', price: ',\
+                order[1], ', amount: ', order[2], ', value: ', order[3])
+
+    def check_for_log_file(self):
+        log_file_name = 'debug.log'
+        orders = {'sell': [], 'buy': []}
+        if not os.path.isfile(log_file_name):
+            Path(log_file_name).touch()
+            print('No file was found, an empty one has been created')
+            return None
+        with open(log_file_name , mode='r', encoding='utf-8') as log_file:
+            if not log_file:
+                print('The log file is empty')
+                return None
+            else:
+                print("Reading the log file")
+                for line in log_file:
+                    print(line)
+                    if line[0] == '{':
+                        line = line.replace('\n', '')
+                        line = line.replace("'", '"')
+                        try:
+                            order = json.loads(line)
+                            if order['side'] == 'buy':
+                                orders['buy'].append(self.format_order(
+                                    order['order'], 
+                                    order['price'],
+                                    order['amount'], 
+                                    order['datetime']))
+                            if order['side'] == 'sell':
+                                orders['sell'].append(self.format_order(
+                                    order['order'], 
+                                    order['price'],
+                                    order['amount'], 
+                                    order['datetime']))
+                        except Exception as e:
+                            print('Something went wrong : ', e)
+                            self.exit()
+                return orders
 
     def exit(self):
         """Clean program exit"""
-        self.stop_signal = True
+        print("End the program")
         sys.exit(0)
 
     def main(self):
         print("Start the program")
-        self.select_marketplace()
-        self.select_market()
-        print("End the program")
-        sys.exit(0)
+        self.lw_initialisation()
+        #self.select_marketplace()
+        #print(self.exchange.fetch_my_trades('MANA/BTC'))
+        self.exit()
 
 LazyStarter = LazyStarter()
 # Main Program
