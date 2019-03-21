@@ -71,9 +71,12 @@ class LazyStarter:
             i += 1
         while valid_choice is False:
             print('Please select a market:\n', market_choice)
-            choice = int(input(' >> '))
-            if 1 <= choice <= len(self.user_market_name_list):
-                valid_choice = True
+            try:
+                choice = int(input(' >> '))
+                if 1 <= choice <= len(self.user_market_name_list):
+                    valid_choice = True
+            except ValueError:
+                pass
         self.exchange = eval('ccxt.' + self.user_market_name_list[choice-1] + \
              '(' + str(self.keys[self.user_market_name_list[choice-1]]) + ')') 
         balance = self.exchange.fetch_balance()
