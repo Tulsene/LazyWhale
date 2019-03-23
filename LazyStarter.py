@@ -28,9 +28,8 @@ class LazyStarter:
         self.intervals = []
 
     def keys_initialisation(self):
-        """Read key.txt file and construct a dict with it.with
-
-        return: dict, with all api keys found
+        """Check if a key.txt file exist and create one if none.
+        return: dict, with all api keys found.
         """
         if not os.path.isfile(self.keys_file):
             Path(self.keys_file).touch()
@@ -47,6 +46,9 @@ class LazyStarter:
                 return keys
 
     def keys_file_reader(self):
+        """Check the consistence of datas in key.txt.
+        return: dict, api keys
+        """
         keys = {}
         with open(self.keys_file , mode='r', encoding='utf-8') as keys_file:
             for line in keys_file:
@@ -69,6 +71,9 @@ class LazyStarter:
             return keys
 
     def select_marketplace(self):
+        """Marketplace sélection menu, connect to the selected marketplace.
+        return: string, the name of the selected marketplace
+        """
         i = 1
         market_choice = ''
         choice = 0
@@ -95,7 +100,8 @@ class LazyStarter:
         return self.user_market_name_list[0] #self.user_market_name_list[choice-1]
 
     def get_balances(self):
-        balance = self.exchange.fetchBalance()
+        """Get the balance of a user on a marketplace and print it"""
+        balance = self.exchange.organizeBalance()
         for key, value in balance.items():
             if 'total' in value:
                 if value['total'] != 0.0:
@@ -104,6 +110,9 @@ class LazyStarter:
                     print(pair)
 
     def select_market(self):
+        """Market selection menu.
+        return: string, selected market.
+        """
         self.exchange.load_markets()
         """
         market_list = self.exchange.symbols
@@ -118,13 +127,23 @@ class LazyStarter:
         return 'MANA/BTC' #choice
     
     def format_order(self, id, price, amount, date):
+        """Sort the information of an order in a list.
+        id: string, order unique identifier.
+        price: float.
+        amount: float.
+        date: string.
+        return: list, containing id, price, amount, value and date.
+        """
         return [id, Decimal(str(price)), Decimal(str(amount)),\
                 Decimal(str(price)) * Decimal(str(amount)) * Decimal('0.9975'),\
                 date]
 
     def get_orders(self, market):
+        """Get actives orders from a marketplace and organize them.
+        return: dict, containing list of buy & list of sell.
+        """
         orders = {'sell': [], 'buy': []}
-        raw_orders = self.exchange.fetchOrders(market)
+        raw_orders = self.exchange.organizeOrders(market)
         for order in raw_orders:
             if order['side'] == 'buy':
                 orders['buy'].append(self.format_order(
@@ -141,8 +160,11 @@ class LazyStarter:
         return orders
 
     def get_user_history(self, market):
+        """Get orders history from a marketplace and organize them.
+        return: dict, containing list of buy & list of sell.
+        """
         orders = {'sell': [], 'buy': []}
-        raw_orders = self.exchange.fetch_my_trades(market)
+        raw_orders = self.exchange.organize_my_trades(market)
         for order in raw_orders:
             if order['side'] == 'buy':
                 orders['buy'].append(self.format_order(
@@ -159,6 +181,9 @@ class LazyStarter:
         return orders
 
     def display_user_trades(self, orders):
+        """Pretify display of orders list.
+        orders: dict, contain all orders.
+        """
         for order in orders['sell']:
             print('date & time: ', order[4], 'Sell, id: ', order[0], ', price: ',\
                 order[1], ', amount: ', order[2], ', value: ', order[3])
@@ -167,8 +192,13 @@ class LazyStarter:
                 order[1], ', amount: ', order[2], ', value: ', order[3])
 
     def check_for_log_file(self):
+        """Create a logfile if none is found. Read it, import data and organize it.
+        return: None or dict containing : list of exectuted buy, 
+                                          list of executed sell, 
+                                          dict of parameters
+        """
         log_file_name = 'debug.log'
-        orders = {'sell': [], 'buy': [], 'params': {}}
+        logs_data = {'sell': [], 'buy': [], 'params': {}}
         if not os.path.isfile(log_file_name):
             Path(log_file_name).touch()
             print('No file was found, an empty one has been created')
@@ -190,7 +220,7 @@ class LazyStarter:
                         print('Something went wrong with the first line of the \
                                log file: ', e)
                         self.exit()
-                    params = self.params_checker(params)
+                    logs_data['params'] = self.params_checker(params)
                     for line in log_file:
                         print(line)
                         if line[0] == '{':
@@ -199,24 +229,28 @@ class LazyStarter:
                             try:
                                 order = json.loads(line)
                                 if order['side'] == 'buy':
-                                    orders['buy'].append(self.format_order(
-                                        order['order'], 
+                                    logs_data['buy'].append(self.format_order(
+                                        order['order'],
                                         order['price'],
-                                        order['amount'], 
+                                        order['amount'],
                                         order['datetime']))
                                 if order['side'] == 'sell':
-                                    orders['sell'].append(self.format_order(
-                                        order['order'], 
+                                    logs_data['sell'].append(self.format_order(
+                                        order['order'],
                                         order['price'],
-                                        order['amount'], 
+                                        order['amount'],
                                         order['datetime']))
                             except Exception as e:
                                 print('Something went wrong with data formating in \
                                         the log file: ', e)
                                 self.exit()
-                    return orders
+                    return logs_data
 
     def params_checker(self, params):
+        """Check the integrity of all parameters.
+        params: dict.
+        return: dict, with valid parameters.
+        """
         try:
             # Check if values exist
             if not params['datetime']:
@@ -285,7 +319,6 @@ class LazyStarter:
             except Exception as e:
                 print('params[\'nb_sell_displayed\'] is not an int: ', e)
             # Test if values is correct
-            
             self.is_date(params['datetime'])
             if params['market'] not in self.exchange.symbols:
                 raise ValueError('Market isn\'t set properly for this marketplace')
@@ -316,6 +349,9 @@ class LazyStarter:
         return params
 
     def is_date(self, str_date):
+        """Check if a date have a valid formating.
+        str_date: string
+        """
         try:
             datetime.strptime(str_date, '%Y-%m-%d %H:%M:%S.%f')
         except Exception as e:
@@ -323,25 +359,41 @@ class LazyStarter:
             self.exit()
 
     def limitation_to_btc_market(self, market):
+        """Special limitation to BTC market : only ALT/BTC for now.
+        market: string, market name.
+        return: bool True or bool False + error message
+        """
         if market[-3:] != 'BTC':
             return False, 'LW is limited to ALT/BTC markets' + market
         return True
 
     def interval_calculator(self, number1, increment):
+        """Format a multiplication between deciaml correctly
+        number1: Decimal.
+        increment: Decimal, 2nd number of the multiplication.
+        return: Decimal, multiplied number formated correctly
+        """
         return (number1 * increment).quantize(Decimal('.00000001'),\
                                               rounding=ROUND_HALF_EVEN)
 
-    def replace_str_index(self, text,index=0,replacement=''):
-        return '%s%s%s'%(text[:index],replacement,text[index+1:])
-
-    def is_integer(self, integer, text):
+    def is_integer(self, s, text):
+        """Test if a string can be converted in an int
+        s: string.
+        text: string, error message detail to display if fail.
+        """
         try:
-            int(integer)
+            int(s)
         except Exception as e:
             print(text, ' is not an integer: ', e)
             self.exit()
- 
+
     def interval_generator(self, range_bottom, range_top, increment):
+        """Generate a list of interval inside a range by incrementing values
+        range_bottom: Decimal, bottom of the range
+        range_top: Decimal, top of the range
+        increment: Decimal, value used to increment from the bottom
+        return: list, value from [range_bottom, range_top[
+        """ 
         intervals = [range_bottom]
         intervals.append(self.interval_calculator(intervals[-1], increment))
         if range_top <= intervals[1]:
@@ -355,6 +407,10 @@ class LazyStarter:
         return intervals
 
     def str_to_bool(self, s):
+        """Convert a string to boolean or rise an error
+        s: string.
+        return: bool.
+        """
         try:
             if s == 'True':
                 return True
@@ -367,12 +423,21 @@ class LazyStarter:
             self.exit()
 
     def params_builder(self, range_bot, range_top, increment, amount):
+        """TODO"""
         pass
 
-    def increment_coef_buider(self, int):
-        return Decimal('1') + Decimal(str(int)) / Decimal('100')
+    def increment_coef_buider(self, nb):
+        """Formating increment_coef.
+        nb: int, the value to increment in percentage.
+        return: Decimal, formated value.
+        """
+        return Decimal('1') + Decimal(str(nb)) / Decimal('100')
 
     def simple_question(self, text):
+        """Simple question prompted and response handling.
+        text: string, the question to ask.
+        return: bool True or None, yes of no
+        """
         valid_choice = False
         while valid_choice is False:
             print(text)
@@ -384,12 +449,11 @@ class LazyStarter:
         return valid_choice
 
     def position_closest(self, a_list, a_nb):
-        """
-        Find the closest position of a value in a list for a a_nb.
-        a_list: list, a sorted list of number (int or float or Decimal)
-        a_nb: int or float or Decimal, element to look for
+        """Find the closest position of a value in a list for a a_nb.
+        a_list: list, a sorted list of number (int or float or Decimal).
+        a_nb: int or float or Decimal, element to look for.
 
-        return: int, position in a list. If two match are equally close, 
+        return: int, position in a list. If two match are equally close,
         return the smallest number.
         """
         pos = bisect_left(a_list, a_nb)
@@ -408,6 +472,8 @@ class LazyStarter:
         sys.exit(0)
 
     def lw_initialisation(self):
+        """Initializing parameters, cehck parameter initializing the script
+        """
         marketplace_name = self.select_marketplace() # temp modification
         #print('All of your balance for our balances on ', marketplace_name)
         #self.get_balances()
@@ -415,7 +481,7 @@ class LazyStarter:
         #self.history = self.get_user_history(self.selected_market)
         #print('Your trading history for the market ', self.selected_market, ':')
         #self.display_user_trades(self.history)
-        #self.active_orders = self.get_orders(self.selected_market)
+        self.active_orders = self.get_orders(self.selected_market)
         #print('Your actives orders for the market ', self.selected_market, ':')
         #self.display_user_trades(self.active_orders)
         orders_in_logs = self.check_for_log_file()
@@ -428,7 +494,7 @@ class LazyStarter:
         print("Start the program")
         self.lw_initialisation()
         #self.check_for_log_file()
-        #print(self.exchange.fetch_my_trades('MANA/BTC'))
+        #print(self.exchange.organize_my_trades('MANA/BTC'))
         self.exit()
 
 LazyStarter = LazyStarter()
