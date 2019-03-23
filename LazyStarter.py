@@ -120,10 +120,13 @@ class LazyStarter:
         while valid_choice is False:
             print('Please enter the name of a market:\n', market_list)
             choice = input(' >> ').upper()
-            if choice in market_list:
-                self.selected_market = choice
-                valid_choice = True
-"""
+            limitation = self.limitation_to_btc_market(choice)
+            if limitation is True:
+                if choice in market_list:
+                    self.selected_market = choice
+                    valid_choice = True
+            else:
+                print(limitation[1])"""
         return 'MANA/BTC' #choice
     
     def format_order(self, id, price, amount, date):
@@ -364,7 +367,7 @@ class LazyStarter:
         return: bool True or bool False + error message
         """
         if market[-3:] != 'BTC':
-            return False, 'LW is limited to ALT/BTC markets' + market
+            return False, 'LW is limited to ALT/BTC markets : ' + market
         return True
 
     def interval_calculator(self, number1, increment):
@@ -481,11 +484,11 @@ class LazyStarter:
         #self.history = self.get_user_history(self.selected_market)
         #print('Your trading history for the market ', self.selected_market, ':')
         #self.display_user_trades(self.history)
-        self.active_orders = self.get_orders(self.selected_market)
+        #self.active_orders = self.get_orders(self.selected_market)
         #print('Your actives orders for the market ', self.selected_market, ':')
         #self.display_user_trades(self.active_orders)
-        orders_in_logs = self.check_for_log_file()
-        print(orders_in_logs)
+        #orders_in_logs = self.check_for_log_file()
+        #print(orders_in_logs)
         if orders_in_logs:
             text = 'Do you want to resume from previous LW (y) or start a new LW (n)'
             answer = self.simple_question(text)
