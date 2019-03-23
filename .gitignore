@@ -3,9 +3,8 @@
 .idea/*
 .workspace
 
-Lazy.pyc
-apiInterface.pyc
-poloniex.pyc
+*.pyc
+
 *.log
 start.sh
 
