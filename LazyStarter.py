@@ -16,6 +16,7 @@ class LazyStarter:
 
     def __init__(self):
         self.keys_file = "keys.txt"
+        self.log_file_name = 'debug.log'
         self.user_market_name_list = []
         self.ccxt_exchanges_list = ccxt.exchanges
         self.keys = self.keys_initialisation()
@@ -27,7 +28,7 @@ class LazyStarter:
         self.params = {}
         self.intervals = []
 
-    def keys_initialisation(self):
+    def keys_initialisation(self): # Need to be refactored
         """Check if a key.txt file exist and create one if none.
         return: dict, with all api keys found.
         """
@@ -45,7 +46,7 @@ class LazyStarter:
             else:
                 return keys
 
-    def keys_file_reader(self):
+    def keys_file_reader(self): # Need to be refactored
         """Check the consistence of datas in key.txt.
         return: dict, api keys
         """
@@ -74,40 +75,32 @@ class LazyStarter:
         """Marketplace sélection menu, connect to the selected marketplace.
         return: string, the name of the selected marketplace
         """
-        i = 1
-        market_choice = ''
-        choice = 0
-        valid_choice = False
         """
-        for market in self.user_market_name_list:
-            market_choice += str(i) + ': ' + market + ', '
-            i += 1
-        while valid_choice is False:
-            print('Please select a market:\n', market_choice)
-            try:
-                choice = int(input(' >> '))
-                if 1 <= choice <= len(self.user_market_name_list):
-                    valid_choice = True
-            except ValueError:
-                pass
+        question = 'Please select a market:'
+        choice = self.ask_to_select_in_a_list(self.user_market_name_list, question)
         """
-        self.exchange = eval('ccxt.' + self.user_market_name_list[0] + \
-             '(' + str(self.keys[self.user_market_name_list[0]]) + ')')
+        self.exchange = eval('ccxt.' + self.user_market_name_list[1] + \
+             '(' + str(self.keys[self.user_market_name_list[1]]) + ')')
         """
-        self.exchange = eval('ccxt.' + self.user_market_name_list[choice-1] + \
-             '(' + str(self.keys[self.user_market_name_list[choice-1]]) + ')')
+        self.exchange = eval('ccxt.' + self.user_market_name_list[choice] + \
+             '(' + str(self.keys[self.user_market_name_list[choice]]) + ')')
              """
-        return self.user_market_name_list[0] #self.user_market_name_list[choice-1]
+        return self.user_market_name_list[1] #self.user_market_name_list[choice-1]
 
     def get_balances(self):
-        """Get the balance of a user on a marketplace and print it"""
+        """Get the non empty balance of a user on a marketplace and make it global"""
         balance = self.exchange.organizeBalance()
+        user_balance = []
         for key, value in balance.items():
             if 'total' in value:
                 if value['total'] != 0.0:
                     pair = {key: value}
-                    self.user_balance.update(pair)
-                    print(pair)
+                    user_balance.update(pair)
+        self.user_balance = user_balance # Need to be refactored
+
+    def display_user_balance(self): #Doc
+        for item in self.user_balance:
+            print(item)
 
     def select_market(self):
         """Market selection menu.
@@ -128,7 +121,7 @@ class LazyStarter:
             else:
                 print(limitation[1])"""
         return 'MANA/BTC' #choice
-    
+
     def format_order(self, id, price, amount, date):
         """Sort the information of an order in a list.
         id: string, order unique identifier.
@@ -183,76 +176,93 @@ class LazyStarter:
                     order['datetime']))
         return orders
 
+    def get_market_last_price(self, market):
+        """Get the last price of a specific market
+        market: str, need to have XXX/YYY ticker format 
+        return: decimal"""
+        return Decimal(f"{self.exchange.fetchTicker(market)['last']:.8f}")
+
     def display_user_trades(self, orders):
         """Pretify display of orders list.
         orders: dict, contain all orders.
         """
         for order in orders['sell']:
-            print('date & time: ', order[4], 'Sell, id: ', order[0], ', price: ',\
+            print('Sell on: ', order[4], ', id: ', order[0], ', price: ',\
                 order[1], ', amount: ', order[2], ', value: ', order[3])
         for order in orders['buy']:
-            print('date & time: ', order[4], 'Buy, id: ', order[0], ', price: ',\
+            print('Buy on: ', order[4], ', id: ', order[0], ', price: ',\
                 order[1], ', amount: ', order[2], ', value: ', order[3])
 
-    def check_for_log_file(self):
-        """Create a logfile if none is found. Read it, import data and organize it.
+    def log_file_reader(self):
+        """Import data from logfile and organize it.
         return: None or dict containing : list of exectuted buy, 
                                           list of executed sell, 
                                           dict of parameters
         """
-        log_file_name = 'debug.log'
-        logs_data = {'sell': [], 'buy': [], 'params': {}}
-        if not os.path.isfile(log_file_name):
-            Path(log_file_name).touch()
-            print('No file was found, an empty one has been created')
+        logs_data = {'sell': [], 'buy': [], 'params': {}}        
+        with open(self.log_file_name , mode='r', encoding='utf-8') as log_file:
+            print("Reading the log file")
+            params = log_file.readline()
+            if params[0] == '#':
+                params = params.replace('\n', '')
+                params = params.replace("#", '')
+                params = params.replace("'", '"')
+                try:
+                    params = json.loads(params)
+                except Exception as e:
+                    print('Something went wrong with the first line of the \
+                           log file: ', e)
+                    self.exit()
+                logs_data['params'] = self.params_checker(params)
+                for line in log_file:
+                    if line[0] == '{':
+                        line = line.replace('\n', '')
+                        line = line.replace("'", '"')
+                        try:
+                            order = json.loads(line)
+                            if order['side'] == 'buy':
+                                logs_data['buy'].append(self.format_order(
+                                    order['order'],
+                                    order['price'],
+                                    order['amount'],
+                                    order['datetime']))
+                            if order['side'] == 'sell':
+                                logs_data['sell'].append(self.format_order(
+                                    order['order'],
+                                    order['price'],
+                                    order['amount'],
+                                    order['datetime']))
+                        except Exception as e:
+                            print('Something went wrong with data formating in \
+                                    the log file: ', e)
+                            self.exit()
+                return logs_data
+
+    def check_logfile_existence(self): # Need to be refactored
+        """Check if the log file exist.
+        return: bool True or None.
+        """
+        if not os.path.isfile(self.log_file_name):
+            Path(self.log_file_name).touch()
+            print('No file was found, an empty one has been created!')
             return None
-        with open(log_file_name , mode='r', encoding='utf-8') as log_file:
-            if not log_file:
-                print('The log file is empty')
-                return None
-            else:
-                print("Reading the log file")
-                params = log_file.readline()
-                if params[0] == '#':
-                    params = params.replace('\n', '')
-                    params = params.replace("#", '')
-                    params = params.replace("'", '"')
-                    try:
-                        params = json.loads(params)
-                    except Exception as e:
-                        print('Something went wrong with the first line of the \
-                               log file: ', e)
-                        self.exit()
-                    logs_data['params'] = self.params_checker(params)
-                    for line in log_file:
-                        print(line)
-                        if line[0] == '{':
-                            line = line.replace('\n', '')
-                            line = line.replace("'", '"')
-                            try:
-                                order = json.loads(line)
-                                if order['side'] == 'buy':
-                                    logs_data['buy'].append(self.format_order(
-                                        order['order'],
-                                        order['price'],
-                                        order['amount'],
-                                        order['datetime']))
-                                if order['side'] == 'sell':
-                                    logs_data['sell'].append(self.format_order(
-                                        order['order'],
-                                        order['price'],
-                                        order['amount'],
-                                        order['datetime']))
-                            except Exception as e:
-                                print('Something went wrong with data formating in \
-                                        the log file: ', e)
-                                self.exit()
-                    return logs_data
+        else:
+            return True
+
+    def logfile_not_empty(self): # Need to be refactored
+        """Check if there is data in the logfile.
+        return : bool True or None.
+        """
+        if os.path.getsize(self.log_file_name):
+            return True
+        else:
+            print('Logfile is empty!')
+            return None
 
     def params_checker(self, params):
-        """Check the integrity of all parameters.
+        """Check the integrity of all parameters and return False if it's not.
         params: dict.
-        return: dict, with valid parameters.
+        return: dict with valid parameters, or False.
         """
         try:
             # Check if values exist
@@ -281,75 +291,65 @@ class LazyStarter:
             if not params['nb_sell_displayed']:
                 raise ValueError('Number of sell displayed isn\'t set')
             # Convert values
-            try:
-                params['range_bot'] = Decimal(str(params['range_bot']))
-            except Exception as e:
-                print('params[\'range_bot\'] is not a string: ', e)
-            try:
-                params['range_top'] = Decimal(str(params['range_top']))
-            except Exception as e:
-                print('params[\'range_top\'] is not a string: ', e)
-            try:
-                params['spread_bot'] = Decimal(str(params['spread_bot']))
-            except Exception as e:
-                print('params[\'spread_bot\'] is not a string: ', e)
-            try:
-                params['spread_top'] = Decimal(str(params['spread_top']))
-            except Exception as e:
-                print('params[\'spread_top\'] is not a string: ', e)
-            try:
-                params['increment_coef'] = Decimal(str(params['increment_coef']))
-            except Exception as e:
-                print('params[\'increment_coef\'] is not a string: ', e)
-            try:
-                params['amount'] = Decimal(str(params['amount']))
-            except Exception as e:
-                print('params[\'amount\'] is not a string: ', e)
-            try:
-                params['stop_at_bot'] = self.str_to_bool(params['stop_at_bot'])
-            except Exception as e:
-                print('params[\'stop_at_bot\']: ', e)
-            try:
-                params['stop_at_top'] = self.str_to_bool(params['stop_at_top'])
-            except Exception as e:
-                print('params[\'stop_at_top\']: ', e)
-            try:
-                params['nb_buy_displayed'] = int(params['nb_buy_displayed'])
-            except Exception as e:
-                print('params[\'nb_buy_displayed\'] is not an int: ', e)
-            try:
-                params['nb_sell_displayed'] = int(params['nb_sell_displayed'])
-            except Exception as e:
-                print('params[\'nb_sell_displayed\'] is not an int: ', e)
+            error_message = 'params[\'range_bot\'] is not a string for decimal: '
+            params['range_bot'] = self.str_to_decimal(params['range_bot'], error_message)
+            error_message = 'params[\'range_top\'] is not a string for decimal: '
+            params['range_top'] = self.str_to_decimal(params['range_top'], error_message)
+            error_message = 'params[\'spread_bot\'] is not a string for decimal: '
+            params['spread_bot'] = self.str_to_decimal(params['spread_bot'], error_message)
+            error_message = 'params[\'spread_top\'] is not a string for decimal: '
+            params['spread_top'] = self.str_to_decimal(params['spread_top'], error_message)
+            error_message = 'params[\'increment_coef\'] is not a string for decimal: '
+            params['increment_coef'] = self.str_to_decimal(params['increment_coef'], error_message)
+            error_message = 'params[\'amount\'] is not a string for decimal: '
+            params['amount'] = self.str_to_decimal(params['amount'], error_message)
+            error_message = 'params[\'stop_at_bot\'] is not a boolean: '
+            params['stop_at_bot'] = self.str_to_bool(params['stop_at_bot'], error_message)
+            error_message = 'params[\'stop_at_top\'] is not a boolean: '
+            params['stop_at_top'] = self.str_to_bool(params['stop_at_top'], error_message)
+            error_message = 'params[\'nb_buy_displayed\'] is not an int: '
+            params['nb_buy_displayed'] = self.is_integer(params['nb_buy_displayed'], error_message)
+            error_message = 'params[\'nb_sell_displayed\'] is not an int: '
+            params['nb_sell_displayed'] = self.is_integer(params['nb_sell_displayed'], error_message)
             # Test if values is correct
             self.is_date(params['datetime'])
             if params['market'] not in self.exchange.symbols:
                 raise ValueError('Market isn\'t set properly for this marketplace')
+            if params['market'] != self.selected_market:
+                raise ValueError('self.selected_market: ', self.selected_market,\
+                                 ' != params[\'market\']', params['market'])
             market_test = self.limitation_to_btc_market(params['market'])
             if market_test is not True:
                 raise ValueError(market_test[1])
-            if params['range_bot'] < Decimal('0.000001'):
-                raise ValueError('The bottom of the range is too low')
-            if params['range_top'] > Decimal('100000'):
-                raise ValueError('The top of the range is too high')
-            if Decimal('1.01') > params['increment_coef'] or params['increment_coef'] >  Decimal('1.50'):
-                raise ValueError('Increment is too low (<=1%) or high (>=50%)')
+            self.param_checker_range_bot(params['range_bot'])
+            self.param_checker_range_top(params['range_top'])
+            self.param_checker_interval(params['increment_coef'])
             self.intervals = self.interval_generator(params['range_bot'],
                                                      params['range_top'],
                                                      params['increment_coef'])
+            if self.intervals is False:
+                raise ValueError('Range top value is too low, or increment too high:\
+                                  need to generate at lease 6 intervals.')
             if params['spread_bot'] not in self.intervals:
                 raise ValueError('Spread_bot isn\'t properly configured')
-            spread_bot_location = self.position_closest(self.intervals,\
-                                                        params['spread_bot'])
+            spread_bot_location = self.intervals.index(params['spread_bot'])
             if params['spread_top'] != self.intervals[spread_bot_location + 1]:
                 raise ValueError('Spread_top isn\'t properly configured')
-            print(params['amount'])
-            if Decimal('0.000001') > params['amount'] or params['amount'] > Decimal('10000000'):
-                raise ValueError('Amount is too low (<0.000001) or high (>10000000)')
+            self.param_checker_amount(params['amount'])
         except Exception as e:
             print('The LW parameters are not well configured: ', e)
-            self.exit()
+            return False
         return params
+
+    def str_to_decimal(self, s, error_message=None):
+        """Convert a string to Decimal or raise an error.
+        s: string, element to convert
+        error_message: string, error message detail to display if fail.
+        return: Decimal."""
+        try:
+            return Decimal(str(s))
+        except Exception as e:
+            raise ValueError(error_message, e)
 
     def is_date(self, str_date):
         """Check if a date have a valid formating.
@@ -358,8 +358,31 @@ class LazyStarter:
         try:
             datetime.strptime(str_date, '%Y-%m-%d %H:%M:%S.%f')
         except Exception as e:
-            print(str_date, ' is not a valid date: ', e)
-            self.exit()
+            raise ValueError(str_date, ' is not a valid date: ', e)
+
+    def str_to_bool(self, s, error_message=None):
+        """Convert a string to boolean or rise an error
+        s: string.
+        error_message: string, error message detail to display if fail.
+        return: bool.
+        """
+        if s == 'True' or s == 'y':
+            return True
+        elif s == 'False' or s == 'n':
+            return False
+        else:
+             raise ValueError(error_message, e)
+
+    def is_integer(self, s, error_message=None):
+        """Convert a string to an int or rise an error
+        s: string.
+        error_message: string, error message detail to display if fail.
+        return: int.
+        """
+        try:
+            return int(s)
+        except Exception as e:
+            raise ValueError(error_message, e)
 
     def limitation_to_btc_market(self, market):
         """Special limitation to BTC market : only ALT/BTC for now.
@@ -370,25 +393,45 @@ class LazyStarter:
             return False, 'LW is limited to ALT/BTC markets : ' + market
         return True
 
+    def param_checker_range_bot(self, range_bot):
+        """Verifies the value of the bottom of the channel
+        range_bot: decimal"""
+        if range_bot < Decimal('0.000001'):
+            raise ValueError('The bottom of the range is too low')
+
+    def param_checker_range_top(self, range_top):
+        """Verifies the value of the top of the channel
+        range_top: decimal"""
+        if range_top > Decimal('100000'):
+            raise ValueError('The top of the range is too high')
+
+    def param_checker_interval(self, interval):
+        """Verifies the value of interval between orders
+        interval: decimal"""
+        if Decimal('1.01') > interval or interval >  Decimal('1.50'):
+            raise ValueError('Increment is too low (<=1%) or high (>=50%)')
+
+    def param_checker_amount(self, amount):
+        """Verifies the value of each orders 
+        amount: decimal"""
+        if Decimal('0.000001') > amount or amount > Decimal('10000000'):
+            raise ValueError('Amount is too low (<0.000001) or high (>10000000)')
+
+    def param_checker_nb_to_display(self, nb):
+        """Verifie the nb of order to display
+        nb: int"""
+        if nb > len(self.intervals) and nb < 0:
+            raise ValueError('The number of order to display is too low (<0) or high ',
+                len(self.intervals))
+
     def interval_calculator(self, number1, increment):
-        """Format a multiplication between deciaml correctly
+        """Format a multiplication between decimal correctly
         number1: Decimal.
         increment: Decimal, 2nd number of the multiplication.
         return: Decimal, multiplied number formated correctly
         """
-        return (number1 * increment).quantize(Decimal('.00000001'),\
+        return (number1 * increment).quantize(Decimal('.00000001'),
                                               rounding=ROUND_HALF_EVEN)
-
-    def is_integer(self, s, text):
-        """Test if a string can be converted in an int
-        s: string.
-        text: string, error message detail to display if fail.
-        """
-        try:
-            int(s)
-        except Exception as e:
-            print(text, ' is not an integer: ', e)
-            self.exit()
 
     def interval_generator(self, range_bottom, range_top, increment):
         """Generate a list of interval inside a range by incrementing values
@@ -405,51 +448,150 @@ class LazyStarter:
             intervals.append(self.interval_calculator(intervals[-1], increment))
         intervals.pop()
         if len(intervals) < 6:
-            raise ValueError('Range top value is tool low, or increment too high:\
-                              need to generate at lease 6 intervals.')
+            return False
         return intervals
-
-    def str_to_bool(self, s):
-        """Convert a string to boolean or rise an error
-        s: string.
-        return: bool.
-        """
-        try:
-            if s == 'True':
-                return True
-            elif s == 'False':
-                return False
-            else:
-                 raise ValueError('The String you entered isn\'t a boolean')
-        except Exception as e:
-            print('The LW parameters are not well configured: ', e)
-            self.exit()
-
-    def params_builder(self, range_bot, range_top, increment, amount):
-        """TODO"""
-        pass
 
     def increment_coef_buider(self, nb):
         """Formating increment_coef.
         nb: int, the value to increment in percentage.
         return: Decimal, formated value.
         """
-        return Decimal('1') + Decimal(str(nb)) / Decimal('100')
+        try:
+            return Decimal('1') + Decimal(str(nb)) / Decimal('100')
+        except Exception as e:
+            raise ValueError(error_message, e)
 
-    def simple_question(self, text):
+    def simple_question(self, question):
         """Simple question prompted and response handling.
-        text: string, the question to ask.
+        question: string, the question to ask.
         return: bool True or None, yes of no
         """
         valid_choice = False
         while valid_choice is False:
-            print(text)
+            print(question)
             choice = input(' >> ')
             if choice == 'y':
                 valid_choice = True
             if choice == 'n':
                 valid_choice = None
         return valid_choice
+
+    def ask_question(self, question, formater_func, control_func=None):
+        """Ask any question to the user, control the value returned or ask again.
+        question: strin, question to ask to the user.
+        formater_funct: function, format from string to the right datatype.
+        control_funct: optional function, allow to check that the user's choice is 
+                       within the requested parameters
+        return: formated (int, decimal, ...) choice of the user
+        """
+        print(question)
+        is_valid = False
+        while is_valid is False:
+            try:
+                choice = input(' >> ')
+                choice = formater_func(choice)
+                if control_func:
+                    control_func(choice)
+                is_valid = True
+            except Exception as e:
+                print(question, 'invalid choice: ', choice, ' -> ', e)
+        return choice
+
+    def ask_to_select_in_a_list(self, question, a_list):
+        """Ask to the user to choose between items in a list
+        a_list: list.
+        question: string.
+        return: int, the position of this item """
+        i = 1
+        is_valid = False
+        print(question)
+        question = ''
+        for item in a_list:
+            question += str(i) + ': ' + str(item) + ', '
+        print(question)
+        while is_valid is False:
+            try:
+                choice = input(' >> ')
+                choice = is_integer(choice)
+                if choice <= i:
+                    choice -= 1
+                    is_valid = True
+                else:
+                    print('You need to enter a nuber between 1 and ', i)
+            except Exception as e:
+                print(question, 'invalid choice: ', choice, ' -> ', e)
+        return choice
+
+    def ask_param_range_bot(self):
+        """Ask the user to enter a value for the bottom of the range.
+        return: decimal."""
+        question = 'Enter a value for the bottom of the range. It must be superior to 100 stats.'
+        range_bot = self.ask_question(question, self.str_to_decimal, 
+                                      self.param_checker_range_bot)
+        return range_bot
+
+    def ask_param_range_top(self):
+        """Ask the user to enter a value for the top of the range.
+        return: decimal."""
+        question = 'Enter a value for the top of the range. It must be inferior to 1000000 BTC.'
+        range_top = self.ask_question(question, self.str_to_decimal, 
+                                      self.param_checker_range_top)
+        return range_top
+
+    def ask_param_amount(self):
+        """Ask the user to enter a value of ALT to sell at each order.
+        return: decimal."""
+        question = 'How much ', self.selected_market[:4], ' do you want to sell per order? It must be between 0.000001 and 10000000'
+        return self.ask_question(question, self.str_to_decimal, self.param_checker_amount)
+
+    def ask_param_increment(self):
+        """Ask the user to enter a value for the spread between each order.
+        return: decimal."""
+        question = 'How much % of spread between two orders? It must be between 1% and 50%'
+        return self.increment_coef_buider(self.ask_question(question, self.str_to_decimal))
+
+    def ask_range_setup(self):
+        """Ask to the user to enter the range and increment parameters.
+        return: dict, asked parameters."""
+        is_valid = False
+        while is_valid is False:
+            range_bot = self.ask_param_range_bot()
+            range_top = self.ask_param_range_top()
+            increment = self.ask_param_increment()
+            intervals = self.interval_generator(range_bot, range_top, increment)
+            if intervals is False:
+                print('Range top value is too low, or increment too high:\
+                       need to generate at lease 6 intervals. Try again!')
+            else:
+                is_valid = True
+        self.intervals = intervals
+        return {'range_bot': range_bot, 'range_top': range_top, 'increment': increment}
+
+    def ask_params_spread(self):
+        """Ask to the user to choose between value for spread bot and setup 
+        spread top automatically
+        return: dict, of decimal values
+        """
+        price = self.get_market_last_price(self.selected_market)
+        print('The actual price of', self.selected_market, ' is ', price)
+        question = 'Please select the price of your highest buy order (spread_bot) in the list'
+        postion = self.ask_to_select_in_a_list(question, self.intervals)
+        return {'spread_bot': self.intervals[position], 
+                'spread_top': self.intervals[position + 1]} # Can be improved by suggestiong a value
+
+    def ask_nb_to_display(self):
+        """Ask how much buy and sell orders are going to be in the book
+        return: dict, nb_buy_to_display + nb_sell"""
+        question = 'How many buy orders do you want to display? It must be less than'\
+                   + len(self.intervals) + '. 0 = ' + len(self.intervals)
+        nb_buy_to_display = self.ask_question(question, self.is_integer, 
+                                              self.param_checker_nb_to_display)
+        question = 'How many sell orders do you want to display? It must be less than'\
+                   + len(self.intervals) + '. 0 = ' + len(self.intervals)
+        nb_sell_to_display = self.ask_question(question, self.is_integer, 
+                                               self.param_checker_nb_to_display)
+        return {'nb_buy_to_display': nb_buy_to_display, 
+                'nb_sell_to_display': nb_sell_to_display}
 
     def position_closest(self, a_list, a_nb):
         """Find the closest position of a value in a list for a a_nb.
@@ -469,13 +611,166 @@ class LazyStarter:
         else:
            return pos - 1
 
+    def ask_for_logfile(self): #TODO
+        """Ask and verify LW logfile parameters
+        """
+        question = 'Do you want to check if a previous parameter is in logfile?'
+        if self.simple_question(question) is True:
+            if self.check_logfile_existence() is True:
+                if self.logfile_not_empty() is True:
+                    log_file_datas = self.log_file_reader()
+                    if log_file_datas is not False:
+                        print('Your previous parameters are:')
+                        for item in log_file_datas['params'].items():
+                            print(item)
+                        question = 'Do you want to display history from logs?'
+                        if self.simple_question(question) is True:
+                            self.display_user_trades(log_file_datas)
+                        question = 'Do you want to use those params?'
+                        if self.simple_question(question) is True:
+                            self.params = log_file_datas['params']
+                            self.start_from_old_params()
+                    else:
+                        print('Your params are corrupted, please enter new one.')
+        self.enter_params()
+
+    def enter_params(self):
+        """Serie of questions to setup LW parameters and put local params to global"""
+        params = {'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
+                  'market'  : self.selected_market}
+        params.update(self.ask_range_setup())
+        amount = self.ask_param_amount()
+        params.update({'amount': amount})
+        params.update(self.ask_params_spread())
+        params = self.check_for_enough_funds(params)
+        question = 'Do you want to stop LW if range_bot is reach? (y) or (n) only.'
+        params.update({'stop_at_bot': self.ask_question(question, self.str_to_bool)})
+        question = 'Do you want to stop LW if range_top is reach? (y) or (n) only.'
+        params.update({'stop_at_top': self.ask_question(question, self.str_to_bool)})
+        params.update({'nb_buy_displayed', self.ask_nb_to_display()})
+        self.params = params
+        
+    def check_for_enough_funds(self, params):
+        """Check if the user have enough funds to run LW with he's actual parameters.
+        Ask for params change if there's not.
+        params: dict, parameters for LW.
+        return: dict, params"""
+        is_valid = False
+        while is_valid is False:
+            price = self.get_market_last_price(self.select_market)
+            self.get_balances()
+            pair = self.selected_market.split('\\')
+            sell_balance = self.str_to_decimal(self.user_balance[pair[0]])
+            buy_balance = self.str_to_decimal(self.user_balance[pair[1]])
+            spread_bot_location = self.intervals.index(params['spread_bot'])
+            spread_sell_location = spread_bot_location + 1
+            try:
+                if self.intervals[spread_bot_location] <= price:
+                    incoming_buy_funds = Decimal('0')
+                    outgoing_sell_funds = Decimal('0')
+                    buy_funds_needed = self.calculate_buy_funds(price, params['amount'])
+                    if self.intervals[spread_sell_location] < price:
+                        i = spread_sell_location
+                        while self.intervals[i] < price:
+                            incoming_buy_funds = self.intervals[i] * amount
+                            outgoing_sell_funds += amount
+                            i +=1
+                    sell_funds_needed = self.calcultate_sell_funds(spread_top_location,
+                                                                   price,
+                                                                   params['amount'])
+                    total_buy_funds_needed = buy_funds_needed - incoming_buy_funds
+                    total_sell_funds_needed = sell_funds_needed + outgoing_sell_funds
+                else:
+                    outgoing_buy_funds = Decimal('0')
+                    incoming_sell_funds = Decimal('0')
+                    buy_funds_needed = self.calculate_buy_funds(price, params['amount'])
+                    if self.intervals[spread_buy_location] > price:
+                        i = spread_bot_location
+                        while self.intervals[i] < price:
+                            outgoing_buy_funds = self.intervals[i] * amount
+                            incoming_sell_funds += amount
+                            i +=1
+                    total_buy_funds_needed = buy_funds_needed + outgoing_buy_funds
+                    sell_funds_needed = self.calcultate_sell_funds(spread_top_location,
+                                                                   price,
+                                                                   params['amount'])
+                    total_sell_funds_needed = sell_funds_needed - incoming_sell_funds
+                if total_buy_funds_needed > buy_balance or total_sell_funds_needed > sell_balance:
+                    raise ValueError('total_buy_funds_needed (', total_buy_funds_needed, 
+                        ') > buy_balance (', buy_balance, ') or total_sell_funds_needed (',
+                        total_sell_funds_needed, ') > sell_balance (', sell_balance, ')!')
+                is_valid = True
+            except Exception as e:
+                print(e, '\nYou need to change some paramaters')
+                params = self.change_params(params)
+        return params
+
+    def calculate_buy_funds(self, price, amount):
+        """Calcul the buy funds required to execute the strategy
+        price: Decimal, the actual market price
+        amount: Decimal, allocated ALT per order
+        return: Decimal, funds needed
+        """
+        buy_funds_needed = Decimal('0')
+        i = 0
+        while self.intervals[i] < price:
+            buy_funds_needed += self.intervals[i] * amount
+            i += 1
+        return buy_funds_needed
+
+    def calculate_sell_funds(self, price, amount):
+        """Calcul the sell funds required to execute the strategy
+        price: Decimal, the actual market price
+        amount: Decimal, allocated ALT per order
+        return: Decimal, funds needed
+        """
+        sell_funds_needed = Decimal('0')
+        i = len(self.intervals) -1
+        while self.intervals[i] > price:
+            sell_funds_needed += amount
+            i -= 1
+        return sell_funds_needed
+
+    def change_params(self, params):
+        """Allow the user to change one LW parameter.
+        params: dict, all the parameter for LW.
+        return: dict."""
+        editable_params = (('range_bot', self.ask_param_range_bot),
+                           ('range_top', self.ask_param_range_top),
+                           ('amount', self.ask_param_amount),
+                           ('increment', self.ask_param_increment))
+        question = 'What parameter do you awnt to change?'
+        question_list = ['The bottome of the range?', 'The top of the range?',
+                         'The amount of alt per orders?', 'The value between order?',
+                         'The value of your initial spread?', 'Add funds to your account']
+        choice = self.ask_to_select_in_a_list(question, question_list)
+        if choice < 4:
+            market[editable_params[choice][0]] = editable_params[choice][1]
+        elif choice == 4:
+            spread = self.ask_params_spread()
+            for key, value in spread.items():
+                market[key] = spread[key]
+        else:
+            self.wait_for_funds()
+        return params
+
+    def wait_for_funds(self):
+        """The answer is in the question!"""
+        question = 'Waiting for funds to arrive, (y) when you\'re ready, (n) to leave.'
+        choice = self.simple_question(question)
+        if not choice:
+            self.exit()
+
+    def start_from_old_params(self): #TODO
+        pass
+
     def exit(self):
         """Clean program exit"""
         print("End the program")
         sys.exit(0)
 
     def lw_initialisation(self):
-        """Initializing parameters, cehck parameter initializing the script
+        """Initializing parameters, check parameters then initializing LW.
         """
         marketplace_name = self.select_marketplace() # temp modification
         #print('All of your balance for our balances on ', marketplace_name)
@@ -487,23 +782,14 @@ class LazyStarter:
         #self.active_orders = self.get_orders(self.selected_market)
         #print('Your actives orders for the market ', self.selected_market, ':')
         #self.display_user_trades(self.active_orders)
-        #orders_in_logs = self.check_for_log_file()
-        #print(orders_in_logs)
-        if orders_in_logs:
-            text = 'Do you want to resume from previous LW (y) or start a new LW (n)'
-            answer = self.simple_question(text)
+        self.ask_for_logfile()
 
     def main(self):
         print("Start the program")
         self.lw_initialisation()
-        #self.check_for_log_file()
-        #print(self.exchange.organize_my_trades('MANA/BTC'))
         self.exit()
 
 LazyStarter = LazyStarter()
-# Main Program
-if __name__ == "__main__":
-    # Launch main_menu
-    LazyStarter.main()
 
-# a = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+if __name__ == "__main__":
+    LazyStarter.main()
