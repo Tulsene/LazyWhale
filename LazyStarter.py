@@ -11,6 +11,11 @@ from pathlib import Path
 from bisect import bisect_left
 from datetime import datetime
 
+
+if sys.version_info[0] < 3:
+    print(sys.version_info[0])
+    raise Exception("Must be using Python 3")
+
 class LazyStarter:
     getcontext().prec = 8
 
@@ -89,18 +94,20 @@ class LazyStarter:
 
     def get_balances(self):
         """Get the non empty balance of a user on a marketplace and make it global"""
-        balance = self.exchange.organizeBalance()
-        user_balance = []
+        balance = self.exchange.fetchBalance()
+        user_balance = {}
         for key, value in balance.items():
             if 'total' in value:
                 if value['total'] != 0.0:
-                    pair = {key: value}
-                    user_balance.update(pair)
+                    for item in value:
+                        value[item] = str(value[item])
+                    user_balance.update({key: value})
         self.user_balance = user_balance # Need to be refactored
 
-    def display_user_balance(self): #Doc
-        for item in self.user_balance:
-            print(item)
+    def display_user_balance(self):
+        """Display the user balance"""
+        for key, value in self.user_balance.items():
+            print(key, ': ', value)
 
     def select_market(self):
         """Market selection menu.
@@ -183,7 +190,7 @@ class LazyStarter:
         return Decimal(f"{self.exchange.fetchTicker(market)['last']:.8f}")
 
     def display_user_trades(self, orders):
-        """Pretify display of orders list.
+        """Pretify and display orders list.
         orders: dict, contain all orders.
         """
         for order in orders['sell']:
@@ -193,7 +200,7 @@ class LazyStarter:
             print('Buy on: ', order[4], ', id: ', order[0], ', price: ',\
                 order[1], ', amount: ', order[2], ', value: ', order[3])
 
-    def log_file_reader(self):
+    def log_file_reader(self): # Need refactorisation
         """Import data from logfile and organize it.
         return: None or dict containing : list of exectuted buy, 
                                           list of executed sell, 
@@ -235,7 +242,9 @@ class LazyStarter:
                         except Exception as e:
                             print('Something went wrong with data formating in \
                                     the log file: ', e)
-                            self.exit()
+                            return False
+            else:
+                raise ValueError('The first line of the log file do not contain parameters')
                 return logs_data
 
     def check_logfile_existence(self): # Need to be refactored
@@ -290,6 +299,8 @@ class LazyStarter:
                 raise ValueError('Number of buy displayed isn\'t set')
             if not params['nb_sell_displayed']:
                 raise ValueError('Number of sell displayed isn\'t set')
+            if not params['benef_alloc']:
+                raise ValueError('Benefices allocation isn\'t set')
             # Convert values
             error_message = 'params[\'range_bot\'] is not a string for decimal: '
             params['range_bot'] = self.str_to_decimal(params['range_bot'], error_message)
@@ -308,9 +319,11 @@ class LazyStarter:
             error_message = 'params[\'stop_at_top\'] is not a boolean: '
             params['stop_at_top'] = self.str_to_bool(params['stop_at_top'], error_message)
             error_message = 'params[\'nb_buy_displayed\'] is not an int: '
-            params['nb_buy_displayed'] = self.is_integer(params['nb_buy_displayed'], error_message)
+            params['nb_buy_displayed'] = self.str_to_int(params['nb_buy_displayed'], error_message)
             error_message = 'params[\'nb_sell_displayed\'] is not an int: '
-            params['nb_sell_displayed'] = self.is_integer(params['nb_sell_displayed'], error_message)
+            params['nb_sell_displayed'] = self.str_to_int(params['nb_sell_displayed'], error_message)
+            error_message = 'params[\'benef_alloc\'] is not an int: '
+            params['benef_alloc'] = self.str_to_int(params['nb_sell_displayed'], error_message)
             # Test if values is correct
             self.is_date(params['datetime'])
             if params['market'] not in self.exchange.symbols:
@@ -336,6 +349,7 @@ class LazyStarter:
             if params['spread_top'] != self.intervals[spread_bot_location + 1]:
                 raise ValueError('Spread_top isn\'t properly configured')
             self.param_checker_amount(params['amount'])
+            self.param_checker_benef_alloc(params['benef_alloc'])
         except Exception as e:
             print('The LW parameters are not well configured: ', e)
             return False
@@ -360,7 +374,7 @@ class LazyStarter:
         except Exception as e:
             raise ValueError(str_date, ' is not a valid date: ', e)
 
-    def str_to_bool(self, s, error_message=None):
+    def str_to_bool(self, s, error_message=None): #Fancy things can be added
         """Convert a string to boolean or rise an error
         s: string.
         error_message: string, error message detail to display if fail.
@@ -373,7 +387,7 @@ class LazyStarter:
         else:
              raise ValueError(error_message, e)
 
-    def is_integer(self, s, error_message=None):
+    def str_to_int(self, s, error_message=None):
         """Convert a string to an int or rise an error
         s: string.
         error_message: string, error message detail to display if fail.
@@ -408,10 +422,11 @@ class LazyStarter:
     def param_checker_interval(self, interval):
         """Verifies the value of interval between orders
         interval: decimal"""
+        print(interval)
         if Decimal('1.01') > interval or interval >  Decimal('1.50'):
             raise ValueError('Increment is too low (<=1%) or high (>=50%)')
 
-    def param_checker_amount(self, amount):
+    def param_checker_amount(self, amount): #Need to add minimal order threshold
         """Verifies the value of each orders 
         amount: decimal"""
         if Decimal('0.000001') > amount or amount > Decimal('10000000'):
@@ -422,6 +437,13 @@ class LazyStarter:
         nb: int"""
         if nb > len(self.intervals) and nb < 0:
             raise ValueError('The number of order to display is too low (<0) or high ',
+                len(self.intervals))
+
+    def param_checker_benef_alloc(self, nb):
+        """Verifie the nb for benefice allocation
+        nb: int"""
+        if 0 <= nb <= 100:
+            raise ValueError('The benefice allocation too low (<0) or high (>100)',
                 len(self.intervals))
 
     def interval_calculator(self, number1, increment):
@@ -457,11 +479,14 @@ class LazyStarter:
         return: Decimal, formated value.
         """
         try:
-            return Decimal('1') + Decimal(str(nb)) / Decimal('100')
+            nb = Decimal(str(nb))
+            nb = Decimal('1') + nb / Decimal('100')
+            self.param_checker_interval(nb)
+            return nb
         except Exception as e:
-            raise ValueError(error_message, e)
+            raise ValueError(e)
 
-    def simple_question(self, question):
+    def simple_question(self, question): #Fancy things can be added
         """Simple question prompted and response handling.
         question: string, the question to ask.
         return: bool True or None, yes of no
@@ -478,7 +503,7 @@ class LazyStarter:
 
     def ask_question(self, question, formater_func, control_func=None):
         """Ask any question to the user, control the value returned or ask again.
-        question: strin, question to ask to the user.
+        question: string, question to ask to the user.
         formater_funct: function, format from string to the right datatype.
         control_funct: optional function, allow to check that the user's choice is 
                        within the requested parameters
@@ -508,11 +533,12 @@ class LazyStarter:
         question = ''
         for item in a_list:
             question += str(i) + ': ' + str(item) + ', '
+            i += 1
         print(question)
         while is_valid is False:
             try:
                 choice = input(' >> ')
-                choice = is_integer(choice)
+                choice = self.str_to_int(choice)
                 if choice <= i:
                     choice -= 1
                     is_valid = True
@@ -525,7 +551,7 @@ class LazyStarter:
     def ask_param_range_bot(self):
         """Ask the user to enter a value for the bottom of the range.
         return: decimal."""
-        question = 'Enter a value for the bottom of the range. It must be superior to 100 stats.'
+        question = 'Enter a value for the bottom of the range. It must be superior to 100 stats:'
         range_bot = self.ask_question(question, self.str_to_decimal, 
                                       self.param_checker_range_bot)
         return range_bot
@@ -533,22 +559,22 @@ class LazyStarter:
     def ask_param_range_top(self):
         """Ask the user to enter a value for the top of the range.
         return: decimal."""
-        question = 'Enter a value for the top of the range. It must be inferior to 1000000 BTC.'
+        question = 'Enter a value for the top of the range. It must be inferior to 1000000 BTC:'
         range_top = self.ask_question(question, self.str_to_decimal, 
                                       self.param_checker_range_top)
         return range_top
 
-    def ask_param_amount(self):
+    def ask_param_amount(self): #Need to add minimlal order threshold
         """Ask the user to enter a value of ALT to sell at each order.
         return: decimal."""
-        question = 'How much ', self.selected_market[:4], ' do you want to sell per order? It must be between 0.000001 and 10000000'
+        question = 'How much ', self.selected_market[:4], ' do you want to sell per order? It must be between 0.000001 and 10000000:'
         return self.ask_question(question, self.str_to_decimal, self.param_checker_amount)
 
     def ask_param_increment(self):
         """Ask the user to enter a value for the spread between each order.
         return: decimal."""
         question = 'How much % of spread between two orders? It must be between 1% and 50%'
-        return self.increment_coef_buider(self.ask_question(question, self.str_to_decimal))
+        return self.ask_question(question, self.increment_coef_buider)
 
     def ask_range_setup(self):
         """Ask to the user to enter the range and increment parameters.
@@ -575,23 +601,31 @@ class LazyStarter:
         price = self.get_market_last_price(self.selected_market)
         print('The actual price of', self.selected_market, ' is ', price)
         question = 'Please select the price of your highest buy order (spread_bot) in the list'
-        postion = self.ask_to_select_in_a_list(question, self.intervals)
+        position = self.ask_to_select_in_a_list(question, self.intervals)
         return {'spread_bot': self.intervals[position], 
                 'spread_top': self.intervals[position + 1]} # Can be improved by suggestiong a value
 
     def ask_nb_to_display(self):
-        """Ask how much buy and sell orders are going to be in the book
-        return: dict, nb_buy_to_display + nb_sell"""
+        """Ask how much buy and sell orders are going to be in the book.
+        return: dict, nb_buy_to_display + nb_sell."""
         question = 'How many buy orders do you want to display? It must be less than'\
-                   + len(self.intervals) + '. 0 = ' + len(self.intervals)
-        nb_buy_to_display = self.ask_question(question, self.is_integer, 
+                   + len(self.intervals) + '. 0 = ' + len(self.intervals) + ':'
+        nb_buy_to_display = self.ask_question(question, self.str_to_int, 
                                               self.param_checker_nb_to_display)
         question = 'How many sell orders do you want to display? It must be less than'\
-                   + len(self.intervals) + '. 0 = ' + len(self.intervals)
-        nb_sell_to_display = self.ask_question(question, self.is_integer, 
+                   + len(self.intervals) + '. 0 = ' + len(self.intervals) + ':'
+        nb_sell_to_display = self.ask_question(question, self.str_to_int, 
                                                self.param_checker_nb_to_display)
         return {'nb_buy_to_display': nb_buy_to_display, 
                 'nb_sell_to_display': nb_sell_to_display}
+
+    def ask_benef_alloc(self):
+        """Ask for benefice allocation.
+        return: int."""
+        question = 'How do you want to allocate your benefice in %. It must be between 0 and 100, both included:'
+        benef_alloc = self.ask_question(question, self.str_to_int, 
+                                        self.param_checker_benef_alloc)
+        return benef_alloc
 
     def position_closest(self, a_list, a_nb):
         """Find the closest position of a value in a list for a a_nb.
@@ -648,6 +682,7 @@ class LazyStarter:
         question = 'Do you want to stop LW if range_top is reach? (y) or (n) only.'
         params.update({'stop_at_top': self.ask_question(question, self.str_to_bool)})
         params.update({'nb_buy_displayed', self.ask_nb_to_display()})
+        params.update({'benef_alloc', self.ask_benef_alloc()})
         self.params = params
         
     def check_for_enough_funds(self, params):
@@ -657,11 +692,11 @@ class LazyStarter:
         return: dict, params"""
         is_valid = False
         while is_valid is False:
-            price = self.get_market_last_price(self.select_market)
+            price = self.get_market_last_price(self.selected_market)
             self.get_balances()
-            pair = self.selected_market.split('\\')
-            sell_balance = self.str_to_decimal(self.user_balance[pair[0]])
-            buy_balance = self.str_to_decimal(self.user_balance[pair[1]])
+            pair = self.selected_market.split('/')
+            sell_balance = self.str_to_decimal(self.user_balance[pair[0]]['free'])
+            buy_balance = self.str_to_decimal(self.user_balance[pair[1]]['free'])
             spread_bot_location = self.intervals.index(params['spread_bot'])
             spread_sell_location = spread_bot_location + 1
             try:
@@ -703,6 +738,7 @@ class LazyStarter:
             except Exception as e:
                 print(e, '\nYou need to change some paramaters')
                 params = self.change_params(params)
+        print('Your parameters will require ', total_buy_funds_needed, ' ', pair[1], ' and ', total_sell_funds_needed, ' ', pair[0], '.')
         return params
 
     def calculate_buy_funds(self, price, amount):
@@ -745,11 +781,11 @@ class LazyStarter:
                          'The value of your initial spread?', 'Add funds to your account']
         choice = self.ask_to_select_in_a_list(question, question_list)
         if choice < 4:
-            market[editable_params[choice][0]] = editable_params[choice][1]
+            params[editable_params[choice][0]] = editable_params[choice][1]
         elif choice == 4:
             spread = self.ask_params_spread()
             for key, value in spread.items():
-                market[key] = spread[key]
+                params[key] = spread[key]
         else:
             self.wait_for_funds()
         return params
@@ -776,12 +812,7 @@ class LazyStarter:
         #print('All of your balance for our balances on ', marketplace_name)
         #self.get_balances()
         self.selected_market = self.select_market() # temp modification
-        #self.history = self.get_user_history(self.selected_market)
-        #print('Your trading history for the market ', self.selected_market, ':')
-        #self.display_user_trades(self.history)
-        #self.active_orders = self.get_orders(self.selected_market)
-        #print('Your actives orders for the market ', self.selected_market, ':')
-        #self.display_user_trades(self.active_orders)
+        #self.get_market_last_price('MANA/BTC')
         self.ask_for_logfile()
 
     def main(self):
