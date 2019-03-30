@@ -7,6 +7,8 @@ Easy tool for lazy whale
 #### Python 3.7
 https://solarianprogrammer.com/2017/06/30/building-python-ubuntu-wsl-debian/
 
+Configure it with pip : `./configure --enable-optimizations --with-ensurepip=install` !!!
+
 Have python >= 3.6 installed
 
 **You must have the good version of pytohn or you will get the following error:**
@@ -15,8 +17,6 @@ Have python >= 3.6 installed
     return Decimal(f"{self.exchange.fetchTicker(market)['last']:.8f}")
                                                                     ^
 SyntaxError: invalid syntax```
-
-Configure it with pip : `./configure --enable-optimizations --with-ensurepip=install!!!`
 
 #### Virtual Env
 
