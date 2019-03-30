@@ -319,7 +319,7 @@ class LazyStarter:
             params['nb_sell_displayed'] = self.str_to_int(params['nb_sell_displayed'], error_message)
             error_message = 'params[\'benef_alloc\'] is not an int: '
             params['benef_alloc'] = self.str_to_int(params['nb_sell_displayed'], error_message)
-            # Test if values is correct
+            # Test if values are correct
             self.is_date(params['datetime'])
             if params['market'] not in self.exchange.symbols:
                 raise ValueError('Market isn\'t set properly for this marketplace')
@@ -437,9 +437,9 @@ class LazyStarter:
     def param_checker_benef_alloc(self, nb):
         """Verifie the nb for benefice allocation
         nb: int"""
-        if 0 <= nb <= 100:
+        if 0 <= nb >= 100:
             raise ValueError('The benefice allocation too low (<0) or high (>100)',
-                len(self.intervals))
+                nb)
 
     def interval_calculator(self, number1, increment):
         """Format a multiplication between decimal correctly
@@ -547,17 +547,15 @@ class LazyStarter:
         """Ask the user to enter a value for the bottom of the range.
         return: decimal."""
         question = 'Enter a value for the bottom of the range. It must be superior to 100 stats:'
-        range_bot = self.ask_question(question, self.str_to_decimal, 
-                                      self.param_checker_range_bot)
-        return range_bot
+        return self.ask_question(question, self.str_to_decimal, 
+                                 self.param_checker_range_bot)
 
     def ask_param_range_top(self):
         """Ask the user to enter a value for the top of the range.
         return: decimal."""
         question = 'Enter a value for the top of the range. It must be inferior to 1000000 BTC:'
-        range_top = self.ask_question(question, self.str_to_decimal, 
-                                      self.param_checker_range_top)
-        return range_top
+        return self.ask_question(question, self.str_to_decimal, 
+                                 self.param_checker_range_top)
 
     def ask_param_amount(self): #Need to add minimlal order threshold
         """Ask the user to enter a value of ALT to sell at each order.
@@ -602,12 +600,10 @@ class LazyStarter:
     def ask_nb_to_display(self):
         """Ask how much buy and sell orders are going to be in the book.
         return: dict, nb_buy_to_display + nb_sell."""
-        question = 'How many buy orders do you want to display? It must be less than'\
-                   + len(self.intervals) + '. 0 = ' + len(self.intervals) + ':'
+        question = 'How many buy orders do you want to display? It must be less than' + str(len(self.intervals)) + '. 0 value = ' + str(len(self.intervals)) + ':'
         nb_buy_to_display = self.ask_question(question, self.str_to_int, 
                                               self.param_checker_nb_to_display)
-        question = 'How many sell orders do you want to display? It must be less than'\
-                   + len(self.intervals) + '. 0 = ' + len(self.intervals) + ':'
+        question = 'How many sell orders do you want to display? It must be less than'+ str(len(self.intervals)) + '. 0 = ' + str(len(self.intervals)) + ':'
         nb_sell_to_display = self.ask_question(question, self.str_to_int, 
                                                self.param_checker_nb_to_display)
         return {'nb_buy_to_display': nb_buy_to_display, 
@@ -667,17 +663,17 @@ class LazyStarter:
         params = {'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
                   'market'  : self.selected_market}
         params.update(self.ask_range_setup())
-        amount = self.ask_param_amount()
-        params.update({'amount': amount})
+        params.update({'amount': self.ask_param_amount()})
         params.update(self.ask_params_spread())
         params = self.check_for_enough_funds(params)
         question = 'Do you want to stop LW if range_bot is reach? (y) or (n) only.'
         params.update({'stop_at_bot': self.ask_question(question, self.str_to_bool)})
         question = 'Do you want to stop LW if range_top is reach? (y) or (n) only.'
         params.update({'stop_at_top': self.ask_question(question, self.str_to_bool)})
-        params.update({'nb_buy_displayed', self.ask_nb_to_display()})
-        params.update({'benef_alloc', self.ask_benef_alloc()})
+        params.update(self.ask_nb_to_display())
+        params.update({'benef_alloc': self.ask_benef_alloc()})
         self.params = params
+        print(params)
         
     def check_for_enough_funds(self, params):
         """Check if the user have enough funds to run LW with he's actual parameters.
@@ -693,34 +689,39 @@ class LazyStarter:
             sell_balance = self.str_to_decimal(self.user_balance[pair[0]]['free'])
             buy_balance = self.str_to_decimal(self.user_balance[pair[1]]['free'])
             spread_bot_index = self.intervals.index(params['spread_bot'])
-            #print('spread_bot_index: ', spread_bot_index)
             spread_top_index = spread_bot_index + 1
             try:
                 total_buy_funds_needed = self.calculate_buy_funds(spread_bot_index, params['amount'])
                 total_sell_funds_needed = self.calculate_sell_funds(spread_top_index, params['amount'])
                 if self.intervals[spread_bot_index] <= price:
-                    #print('self.intervals[spread_bot_index]: ', self.intervals[spread_bot_index], ' <=  price: ', price)
                     incoming_buy_funds = Decimal('0')
-                    #print('total_buy_funds_needed: ', total_buy_funds_needed)
                     i = spread_top_index
-                    while self.intervals[i] <= price:
-                        #print('self.intervals[spread_top_index]', self.intervals[spread_top_index], ' < price: ', price)
-                        #print('i: ', i, 'self.intervals[i]: ', self.intervals[i])
-                        incoming_buy_funds += self.intervals[i] * params['amount'] * Decimal('0.9975')
-                        i +=1
+                    if params['range_top'] < price:
+                        while i < len(self.intervals):
+                            incoming_buy_funds += self.intervals[i] * params['amount'] * Decimal('0.9975')
+                            i +=1
+                        incoming_buy_funds += params['range_top'] * params['amount'] * Decimal('0.9975')
+                    else:
+                        while self.intervals[i] <= price:
+                            print('self.intervals[spread_top_index]', self.intervals[spread_top_index], ' < price: ', price)
+                            print('i: ', i, 'self.intervals[i]: ', self.intervals[i])
+                            incoming_buy_funds += self.intervals[i] * params['amount'] * Decimal('0.9975')
+                            i +=1
                     total_buy_funds_needed = total_buy_funds_needed - incoming_buy_funds
-                    #print('total_buy_funds_needed: ', total_buy_funds_needed, 'total_sell_funds_needed: ', total_sell_funds_needed)
                 else:
                     incoming_sell_funds = Decimal('0')
-                    #print('total_buy_funds_needed: ', total_buy_funds_needed)
                     i = spread_bot_index
-                    while self.intervals[i] >= price:
-                        #print('self.intervals[spread_bot_index]', self.intervals[spread_bot_index], ' > price: ', price)
-                        #print('i: ', i, 'self.intervals[i]: ', self.intervals[i])
-                        incoming_sell_funds += params['amount'] * Decimal('0.9975')
-                        i -=1
+                    if params['spread_bot'] > price:
+                        while i >= 0:
+                            print('self.intervals[spread_bot_index]', self.intervals[spread_bot_index], ' > price: ', price)
+                            print('i: ', i, 'self.intervals[i]: ', self.intervals[i])
+                            incoming_sell_funds += params['amount'] * Decimal('0.9975')
+                            i -=1
+                    else:
+                        while self.intervals[i] >= price:
+                            incoming_sell_funds += params['amount'] * Decimal('0.9975')
+                            i -=1
                     total_sell_funds_needed = total_sell_funds_needed - incoming_sell_funds
-                    #print('total_buy_funds_needed: ', total_buy_funds_needed, 'total_sell_funds_needed: ', total_sell_funds_needed)
                 print('Your actual strategy require:\n', pair[1], ' needed: ', total_buy_funds_needed, ' and you have ', buy_balance, pair[1],  '\n ', pair[0], 'needed: ' , total_sell_funds_needed, ' and you have ', sell_balance, pair[0], '.')
                 if total_buy_funds_needed > buy_balance or total_sell_funds_needed > sell_balance:
                     raise ValueError('You don\'t own enought funds!')
@@ -728,7 +729,6 @@ class LazyStarter:
             except Exception as e:
                 print(e, '\nYou need to change some paramaters:')
                 params = self.change_params(params)
-        #print(params)
         return params
 
     def calculate_buy_funds(self, index, amount):
@@ -775,13 +775,9 @@ class LazyStarter:
                 choice = self.ask_to_select_in_a_list(question, question_list)
                 if choice < 4:
                     params[editable_params[choice][0]] = editable_params[choice][1]()
-                    #print(type(params[editable_params[choice][0]]), ', params[editable_params[choice][0]]: ', params[editable_params[choice][0]])
-                    #print('params', params)
                     if choice < 3:
                         self.intervals = self.interval_generator(params['range_bot'], params['range_top'], params['increment_coef'])
-                        #print('self.intervals: ', self.intervals)
                         params = self.change_spread(params)
-                        #print('params after change spread: ', params)
                     is_valid = True
                 elif choice == 4:
                     params = self.change_spread(params)
