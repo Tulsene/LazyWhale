@@ -4,19 +4,19 @@ Easy tool for lazy whale
 
 ## Instalation for linux
 ### Prerequisite
-#### Python 3.7
+#### Python >= 3.6
 https://solarianprogrammer.com/2017/06/30/building-python-ubuntu-wsl-debian/
 
 Configure it with pip : `./configure --enable-optimizations --with-ensurepip=install` !!!
 
-Have python >= 3.6 installed
+**You must have python >= 3.6 or you will get the following error:**
 
-**You must have the good version of pytohn or you will get the following error:**
-
-```  File "LazyStarter.py", line 183
+```
+File "LazyStarter.py", line 183
     return Decimal(f"{self.exchange.fetchTicker(market)['last']:.8f}")
                                                                     ^
-SyntaxError: invalid syntax```
+SyntaxError: invalid syntax
+```
 
 #### Virtual Env
 
@@ -24,7 +24,7 @@ SyntaxError: invalid syntax```
 
 `cd ~/Path/to/repository`
 
-`virtualenv venv -p python3.7`
+`virtualenv venv -p python3.6` or 3.7
 
 `source /path/to/ENV/bin/activate` (only `deactivate` is required to close it, `rm -r /path/to/ENV` do telete it)
 
@@ -37,14 +37,6 @@ SyntaxError: invalid syntax```
 git clone https://github.com/Tulsene/LazyWhale
 cd LazyWhale
 git checkout dev
-
-#### Add CCXT
-
-`pip install ccxt`
-
-CCXT must be modified for each marketplace you use : `virutal_env/lib/python*version*/site-package/ccxt`
-
-Modify `def parse_ticker(self, ticker, market=None):` the name of last ticker key to `last`. e.g : last = self.safe_float(ticker, 'last')
 
 ### API Keys Configuration
 
@@ -61,8 +53,4 @@ tail -f Lazy.log
 LW is a simple script compatible with ccxt marketplaces wich do a simple market making in a preset range. 
 
 Follow the instructions to setup your parameters.
-
-### TODO
-
-requirements.txt -> ccxt==1.18.385
  
