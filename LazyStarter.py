@@ -13,7 +13,6 @@ from datetime import datetime
 
 class LazyStarter:
     getcontext().prec = 8
-    logging.basicConfig(filename='logger.log',level=logging.INFO)
 
     def __init__(self):
         self.keys_file = "keys.txt"
@@ -243,8 +242,17 @@ class LazyStarter:
                 raise ValueError('The first line of the log file do not contain parameters')
             return logs_data
 
+    def create_dir_when_none(self, dir_name):
+        """Check if a directory exist or create one.
+        return: bool True or None."""
+        if not os.path.isdir(dir_name):
+            os.makedirs(dir_name)
+            return None
+        else:
+            return True
+
     def create_file_when_none(self, file_name): # Need to be refactored
-        """Check if the log file exist.
+        """Check if a file exist or create one.
         return: bool True or None.
         """
         if not os.path.isfile(file_name):
@@ -648,24 +656,29 @@ class LazyStarter:
         """
         question = 'Do you want to check if a previous parameter is in logfile?'
         if self.simple_question(question) is True:
-            if self.create_file_when_none(self.log_file_name) is True:
-                if self.logfile_not_empty() is True:
-                    log_file_datas = self.log_file_reader()
-                    self.duplicate_log_file()
-                    if log_file_datas is not False:
-                        print('Your previous parameters are:')
-                        for item in log_file_datas['params'].items():
-                            print(item)
-                        question = 'Do you want to display history from logs?'
-                        if self.simple_question(question) is True:
-                            self.display_user_trades(log_file_datas)
-                        question = 'Do you want to use those params?'
-                        if self.simple_question(question) is True:
-                            self.params = log_file_datas['params']
-                    else:
-                        print('Your params are corrupted, please enter new one.')
+            if self.create_dir_when_none('logfiles') is True:
+                if self.create_file_when_none(self.log_file_name) is True:
+                    if self.logfile_not_empty() is True:
+                        log_file_datas = self.log_file_reader()
+                        self.duplicate_log_file()
+                        if log_file_datas is not False:
+                            print('Your previous parameters are:')
+                            for item in log_file_datas['params'].items():
+                                print(item)
+                            question = 'Do you want to display history from logs?'
+                            if self.simple_question(question) is True:
+                                self.display_user_trades(log_file_datas)
+                            question = 'Do you want to use those params?'
+                            if self.simple_question(question) is True:
+                                self.params = log_file_datas['params']
+                        else:
+                            print('Your params are corrupted, please enter new one.')
+                else:
+                    print('No file was found, an empty one has been created!')
             else:
-                print('No file was found, an empty one has been created!')
+                print('No Logfile directory have been found and one has been created')
+                self.create_file_when_none(self.log_file_name)
+        logging.basicConfig(filename=self.log_file_name,level=logging.INFO)
         if not self.params:
             self.params = self.enter_params()
 
@@ -834,8 +847,8 @@ class LazyStarter:
         #self.intervals = self.interval_generator(Decimal('0.000012'), Decimal('0.000016'), Decimal('1.01'))
         #print(self.intervals)
         #self.check_for_enough_funds({"datetime": "2019-03-23 09:38:05.316085", "market": "MANA/BTC", "range_bot": Decimal("0.000012"), "range_top": Decimal("0.000016"), "spread_bot": Decimal("0.00001299"), "spread_top": Decimal("0.00001312"), "increment_coef": Decimal("1.01"), "amount": Decimal("6000")})
-        #self.ask_for_logfile()
-        self.duplicate_log_file()
+        self.ask_for_logfile()
+        #self.duplicate_log_file()
 
     def main(self):
         print("Start the program")
