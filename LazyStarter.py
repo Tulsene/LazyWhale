@@ -421,11 +421,11 @@ class LazyStarter:
         if Decimal('1.01') > interval or interval >  Decimal('1.50'):
             raise ValueError('Increment is too low (<=1%) or high (>=50%)')
 
-    def param_checker_amount(self, amount): #Need to add minimal order threshold
+    def param_checker_amount(self, amount, minimum_amount): #Need to add minimal order threshold
         """Verifies the value of each orders 
         amount: decimal"""
-        if Decimal('0.000001') > amount or amount > Decimal('10000000'):
-            raise ValueError('Amount is too low (<0.000001) or high (>10000000)')
+        if amount < minimum_amount or amount > Decimal('10000000'):
+            raise ValueError('Amount is too low (<' + str(minimum_amount) + ') or high (>10000000)')
 
     def param_checker_nb_to_display(self, nb):
         """Verifie the nb of order to display
@@ -557,11 +557,20 @@ class LazyStarter:
         return self.ask_question(question, self.str_to_decimal, 
                                  self.param_checker_range_top)
 
-    def ask_param_amount(self): #Need to add minimlal order threshold
+    def ask_param_amount(self, range_bot): #Need to add minimlal order threshold
         """Ask the user to enter a value of ALT to sell at each order.
         return: decimal."""
-        question = 'How much ', self.selected_market[:4], ' do you want to sell per order? It must be between 0.000001 and 10000000:'
-        return self.ask_question(question, self.str_to_decimal, self.param_checker_amount)
+        is_valid = False
+        minimum_amount = Decimal('0.001') / range_bot
+        question = 'How much ' + self.selected_market[:4] + ' do you want to sell per order? It must be between ' + str(minimum_amount) + ' and 10000000:'
+        while is_valid is False:
+            try:
+                amount = self.ask_question(question, self.str_to_decimal)
+                self.param_checker_amount(amount, minimum_amount)
+                is_valid = True
+            except Exception as e:
+                print(e)
+        return amount
 
     def ask_param_increment(self):
         """Ask the user to enter a value for the spread between each order.
@@ -583,7 +592,7 @@ class LazyStarter:
             except Exception as e:
                 print(e)
         self.intervals = intervals
-        return {'range_bot': range_bot, 'range_top': range_top, 'increment': increment}
+        return {'range_bot': range_bot, 'range_top': range_top, 'increment_coef': increment}
 
     def ask_params_spread(self):
         """Ask to the user to choose between value for spread bot and setup 
@@ -663,7 +672,7 @@ class LazyStarter:
         params = {'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
                   'market'  : self.selected_market}
         params.update(self.ask_range_setup())
-        params.update({'amount': self.ask_param_amount()})
+        params.update({'amount': self.ask_param_amount(params['range_bot'])})
         params.update(self.ask_params_spread())
         params = self.check_for_enough_funds(params)
         question = 'Do you want to stop LW if range_bot is reach? (y) or (n) only.'
@@ -703,8 +712,6 @@ class LazyStarter:
                         incoming_buy_funds += params['range_top'] * params['amount'] * Decimal('0.9975')
                     else:
                         while self.intervals[i] <= price:
-                            print('self.intervals[spread_top_index]', self.intervals[spread_top_index], ' < price: ', price)
-                            print('i: ', i, 'self.intervals[i]: ', self.intervals[i])
                             incoming_buy_funds += self.intervals[i] * params['amount'] * Decimal('0.9975')
                             i +=1
                     total_buy_funds_needed = total_buy_funds_needed - incoming_buy_funds
@@ -713,8 +720,6 @@ class LazyStarter:
                     i = spread_bot_index
                     if params['spread_bot'] > price:
                         while i >= 0:
-                            print('self.intervals[spread_bot_index]', self.intervals[spread_bot_index], ' > price: ', price)
-                            print('i: ', i, 'self.intervals[i]: ', self.intervals[i])
                             incoming_sell_funds += params['amount'] * Decimal('0.9975')
                             i -=1
                     else:
@@ -773,28 +778,25 @@ class LazyStarter:
         while is_valid is False:
             try:
                 choice = self.ask_to_select_in_a_list(question, question_list)
-                if choice < 4:
+                if choice < 3:
                     params[editable_params[choice][0]] = editable_params[choice][1]()
-                    if choice < 3:
-                        self.intervals = self.interval_generator(params['range_bot'], params['range_top'], params['increment_coef'])
-                        params = self.change_spread(params)
-                    is_valid = True
+                    self.intervals = self.interval_generator(params['range_bot'], params['range_top'], params['increment_coef'])
+                    params = self.change_spread(params)
+                elif choice == 3:
+                    params[editable_params[choice][0]] = editable_params[choice][1](params['range_bot'])
                 elif choice == 4:
                     params = self.change_spread(params)
-                    is_valid = True
                 else:
                     self.wait_for_funds()
-                    is_valid = True
+                is_valid = True
             except Exception as e:
                 print(e)
         return params
 
     def change_spread(self, params):
         spread = self.ask_params_spread()
-        #print('spread in hange_spread: ', spread)
         for key, value in spread.items():
             params[key] = spread[key]
-        #print('params in change_spread: ', params)
         return params
 
     def wait_for_funds(self):
@@ -824,6 +826,7 @@ class LazyStarter:
         #self.check_for_enough_funds({"datetime": "2019-03-23 09:38:05.316085", "market": "MANA/BTC", "range_bot": Decimal("0.000012"), "range_top": Decimal("0.000016"), "spread_bot": Decimal("0.00001299"), "spread_top": Decimal("0.00001312"), "increment_coef": Decimal("1.01"), "amount": Decimal("6000")})
         #self.ask_for_logfile()
         self.enter_params()
+        #self.ask_param_amount(Decimal('0.0000999'))
 
     def main(self):
         print("Start the program")
