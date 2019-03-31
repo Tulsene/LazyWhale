@@ -401,6 +401,19 @@ class LazyStarter:
         except Exception as e:
             raise ValueError(error_message, e)
 
+    def params_to_str(self, params):
+        """Format params into a string.
+        return: string, formated string for logfile."""
+        return '#' + self.dict_to_str(params)
+
+    def dict_to_str(self, dict):
+        """Format dict into a string.
+        return: string, formated string for logfile."""
+        for key, value in dict.items():
+            dict[key] = str(value)
+        dict = str(dict)
+        return dict.replace("'", '"')
+
     def limitation_to_btc_market(self, market):
         """Special limitation to BTC market : only ALT/BTC for now.
         market: string, market name.
@@ -564,7 +577,7 @@ class LazyStarter:
         return self.ask_question(question, self.str_to_decimal, 
                                  self.param_checker_range_top)
 
-    def ask_param_amount(self, range_bot): #Need to add minimlal order threshold
+    def ask_param_amount(self, range_bot):
         """Ask the user to enter a value of ALT to sell at each order.
         return: decimal."""
         is_valid = False
@@ -678,9 +691,19 @@ class LazyStarter:
             else:
                 print('No Logfile directory have been found and one has been created')
                 self.create_file_when_none(self.log_file_name)
-        logging.basicConfig(filename=self.log_file_name,level=logging.INFO)
         if not self.params:
             self.params = self.enter_params()
+        self.set_logging_params()
+        logging.info(self.params_to_str(self.params))
+
+    def set_logging_params(self):
+        """Logging parameters setup"""
+        logger = logging.getLogger()
+        logger.setLevel(logging.INFO)
+        fh = logging.FileHandler(self.log_file_name)
+        fh.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(message)s')
+        logger.addHandler(fh)
 
 
     def enter_params(self):
@@ -848,7 +871,6 @@ class LazyStarter:
         #print(self.intervals)
         #self.check_for_enough_funds({"datetime": "2019-03-23 09:38:05.316085", "market": "MANA/BTC", "range_bot": Decimal("0.000012"), "range_top": Decimal("0.000016"), "spread_bot": Decimal("0.00001299"), "spread_top": Decimal("0.00001312"), "increment_coef": Decimal("1.01"), "amount": Decimal("6000")})
         self.ask_for_logfile()
-        #self.duplicate_log_file()
 
     def main(self):
         print("Start the program")
