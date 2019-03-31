@@ -5,7 +5,7 @@
 
 *.pyc
 
-*.log
+logfiles/*
 start.sh
 
 venv/*

@@ -13,10 +13,11 @@ from datetime import datetime
 
 class LazyStarter:
     getcontext().prec = 8
+    logging.basicConfig(filename='logger.log',level=logging.INFO)
 
     def __init__(self):
         self.keys_file = "keys.txt"
-        self.log_file_name = 'debug.log'
+        self.log_file_name = 'logfiles/logger.log'
         self.user_market_name_list = []
         self.ccxt_exchanges_list = ccxt.exchanges
         self.keys = self.keys_initialisation()
@@ -240,15 +241,14 @@ class LazyStarter:
                             return False
             else:
                 raise ValueError('The first line of the log file do not contain parameters')
-                return logs_data
+            return logs_data
 
-    def check_logfile_existence(self): # Need to be refactored
+    def create_file_when_none(self, file_name): # Need to be refactored
         """Check if the log file exist.
         return: bool True or None.
         """
-        if not os.path.isfile(self.log_file_name):
+        if not os.path.isfile(file_name):
             Path(self.log_file_name).touch()
-            print('No file was found, an empty one has been created!')
             return None
         else:
             return True
@@ -343,7 +343,7 @@ class LazyStarter:
             spread_bot_index = self.intervals.index(params['spread_bot'])
             if params['spread_top'] != self.intervals[spread_bot_index + 1]:
                 raise ValueError('Spread_top isn\'t properly configured')
-            self.param_checker_amount(params['amount'])
+            self.param_checker_amount(params['amount'], params['spread_bot'])
             self.param_checker_benef_alloc(params['benef_alloc'])
         except Exception as e:
             print('The LW parameters are not well configured: ', e)
@@ -417,11 +417,10 @@ class LazyStarter:
     def param_checker_interval(self, interval):
         """Verifies the value of interval between orders
         interval: decimal"""
-        print(interval)
         if Decimal('1.01') > interval or interval >  Decimal('1.50'):
             raise ValueError('Increment is too low (<=1%) or high (>=50%)')
 
-    def param_checker_amount(self, amount, minimum_amount): #Need to add minimal order threshold
+    def param_checker_amount(self, amount, minimum_amount): 
         """Verifies the value of each orders 
         amount: decimal"""
         if amount < minimum_amount or amount > Decimal('10000000'):
@@ -649,9 +648,10 @@ class LazyStarter:
         """
         question = 'Do you want to check if a previous parameter is in logfile?'
         if self.simple_question(question) is True:
-            if self.check_logfile_existence() is True:
+            if self.create_file_when_none(self.log_file_name) is True:
                 if self.logfile_not_empty() is True:
                     log_file_datas = self.log_file_reader()
+                    self.duplicate_log_file()
                     if log_file_datas is not False:
                         print('Your previous parameters are:')
                         for item in log_file_datas['params'].items():
@@ -662,13 +662,17 @@ class LazyStarter:
                         question = 'Do you want to use those params?'
                         if self.simple_question(question) is True:
                             self.params = log_file_datas['params']
-                            self.start_from_old_params()
                     else:
                         print('Your params are corrupted, please enter new one.')
-        self.enter_params()
+            else:
+                print('No file was found, an empty one has been created!')
+        if not self.params:
+            self.params = self.enter_params()
+
 
     def enter_params(self):
-        """Serie of questions to setup LW parameters and put local params to global"""
+        """Serie of questions to setup LW parameters.
+        return: dict, valid parameters """
         params = {'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
                   'market'  : self.selected_market}
         params.update(self.ask_range_setup())
@@ -681,8 +685,7 @@ class LazyStarter:
         params.update({'stop_at_top': self.ask_question(question, self.str_to_bool)})
         params.update(self.ask_nb_to_display())
         params.update({'benef_alloc': self.ask_benef_alloc()})
-        self.params = params
-        print(params)
+        return params
         
     def check_for_enough_funds(self, params):
         """Check if the user have enough funds to run LW with he's actual parameters.
@@ -806,8 +809,15 @@ class LazyStarter:
         if not choice:
             self.exit()
 
-    def start_from_old_params(self): #TODO
-        pass
+    def duplicate_log_file(self):
+        """Count the number of file starting by 'logfile.', duplicate lofile.log and create an empty one"""
+        i = 0
+        for file in os.listdir('logfiles'):
+            if file.startswith('logger.'):
+                i += 1
+        new_file_name = self.log_file_name + '.' + str(i)
+        os.rename(self.log_file_name, new_file_name)
+        self.create_file_when_none(self.log_file_name)
 
     def exit(self):
         """Clean program exit"""
@@ -825,8 +835,7 @@ class LazyStarter:
         #print(self.intervals)
         #self.check_for_enough_funds({"datetime": "2019-03-23 09:38:05.316085", "market": "MANA/BTC", "range_bot": Decimal("0.000012"), "range_top": Decimal("0.000016"), "spread_bot": Decimal("0.00001299"), "spread_top": Decimal("0.00001312"), "increment_coef": Decimal("1.01"), "amount": Decimal("6000")})
         #self.ask_for_logfile()
-        self.enter_params()
-        #self.ask_param_amount(Decimal('0.0000999'))
+        self.duplicate_log_file()
 
     def main(self):
         print("Start the program")
