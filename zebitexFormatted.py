@@ -3,16 +3,12 @@ from decimal import *
 from datetime import datetime, date
 import time
 
-class zebitexFormatted(object):
+class ZebitexFormatted():
     """"Zebittex api formatter to get almost same output as ccxt"""
     getcontext().prec = 8
 
-    def __init__(self, access_key=None, secret_key=None, is_staging=False, ze = None):
-        self.access_key = access_key
-        self.secret_key = secret_key
-        self.is_staging = is_staging
-        self.ze = Zebitex("uzpIqy140HN2vhzRcdxcFxojb6K7SvEhjKBPSnpx",
-                 "v8tjziNLxSA3mgMH95nMVRbycXY8cKd9fnHmXoa5", True)
+    def __init__(self, access_key=None, secret_key=None, is_staging=False):
+        self.ze = Zebitex(access_key, secret_key, is_staging)
         self.fees = Decimal('0.0015')
         self.symbols = self.get_symbols()
 
@@ -143,7 +139,7 @@ class zebitexFormatted(object):
                          'high24hr': None, 
                          'low24hr': None}}
 
-    def fetch_my_trades(self, market=None):
+    def fetch_trades(self, market):
         history = self.ze.trade_history('buy', '2018-04-01', date.today().isoformat(), 1, 1000)
         my_trades = []
         for item in history['items']:
@@ -151,8 +147,6 @@ class zebitexFormatted(object):
             if market:
                 if market_name == market:
                     my_trades.append(self.trade_formatted(item, market_name))
-            else:
-                my_trades.append(self.trade_formatted(item, market_name))
         return my_trades
 
     def trade_formatted(self, trade, market_name):

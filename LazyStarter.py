@@ -6,6 +6,7 @@ import logging
 import json
 import sys
 import os
+import zebitexFormatted
 from decimal import *
 from pathlib import Path
 from bisect import bisect_left
@@ -18,7 +19,7 @@ class LazyStarter:
         self.keys_file = "keys.txt"
         self.log_file_name = 'logfiles/logger.log'
         self.user_market_name_list = []
-        self.ccxt_exchanges_list = ccxt.exchanges
+        self.ccxt_exchanges_list = self.exchanges_list_init()
         self.keys = self.keys_initialisation()
         self.exchange = None
         self.user_balance = {}
@@ -27,6 +28,12 @@ class LazyStarter:
         self.history = {'sell': [], 'buy': []}
         self.params = {}
         self.intervals = []
+
+    def exchanges_list_init(self):
+        """Little hack to add zebitex to ccxt exchange list.
+        return: list, list of exchanges."""
+        ccxt_exchanges_list = ccxt.exchanges
+        return ccxt_exchanges_list + ['zebitex', 'zebitex_testnet']
 
     def keys_initialisation(self): # Need to be refactored
         """Check if a key.txt file exist and create one if none.
@@ -77,15 +84,29 @@ class LazyStarter:
         """
         """
         question = 'Please select a market:'
-        choice = self.ask_to_select_in_a_list(self.user_market_name_list, question)
-        """
+        choice = self.ask_to_select_in_a_list(question, self.user_market_name_list)
+        
         self.exchange = eval('ccxt.' + self.user_market_name_list[0] + \
              '(' + str(self.keys[self.user_market_name_list[0]]) + ')')
-        """
-        self.exchange = eval('ccxt.' + self.user_market_name_list[choice] + \
-             '(' + str(self.keys[self.user_market_name_list[choice]]) + ')')
-             """
-        return self.user_market_name_list[1] #self.user_market_name_list[choice-1] #carefull with choice when uncomment!!
+        
+        if self.user_market_name_list[choice] == 'zebitex':
+            self.exchange = zebitexFormatted.ZebitexFormatted(
+                self.keys[self.user_market_name_list[choice]]['apiKey'],
+                self.keys[self.user_market_name_list[choice]]['secret'],
+                False)
+        elif self.user_market_name_list[choice] == 'zebitex_testnet':
+            self.exchange = zebitexFormatted.ZebitexFormatted(
+                self.keys[self.user_market_name_list[choice]]['apiKey'],
+                self.keys[self.user_market_name_list[choice]]['secret'],
+                True)
+        else:
+            self.exchange = eval('ccxt.' + self.user_market_name_list[choice] + \
+             '(' + str(self.keys[self.user_market_name_list[choice]]) + ')')"""
+        self.exchange = zebitexFormatted.ZebitexFormatted(
+                self.keys[self.user_market_name_list[choice]]['apiKey'],
+                self.keys[self.user_market_name_list[choice]]['secret'],
+                True)
+        return self.user_market_name_list[2] #self.user_market_name_list[choice]
 
     def get_balances(self):
         """Get the non empty balance of a user on a marketplace and make it global"""
@@ -122,7 +143,7 @@ class LazyStarter:
                     valid_choice = True
             else:
                 print(limitation[1])"""
-        return 'MANA/BTC' #choice
+        return 'DASH/BTC' #choice
 
     def format_order(self, id, price, amount, date):
         """Sort the information of an order in a list.
@@ -162,7 +183,7 @@ class LazyStarter:
         return: dict, containing list of buy & list of sell.
         """
         orders = {'sell': [], 'buy': []}
-        raw_orders = self.exchange.organize_my_trades(market)
+        raw_orders = self.exchange.fetch_trades(market)
         for order in raw_orders:
             if order['side'] == 'buy':
                 orders['buy'].append(self.format_order(
@@ -870,7 +891,9 @@ class LazyStarter:
         #self.intervals = self.interval_generator(Decimal('0.000012'), Decimal('0.000016'), Decimal('1.01'))
         #print(self.intervals)
         #self.check_for_enough_funds({"datetime": "2019-03-23 09:38:05.316085", "market": "MANA/BTC", "range_bot": Decimal("0.000012"), "range_top": Decimal("0.000016"), "spread_bot": Decimal("0.00001299"), "spread_top": Decimal("0.00001312"), "increment_coef": Decimal("1.01"), "amount": Decimal("6000")})
-        print(self.get_orders('MANA/BTC'))
+        self.exchange.load_markets()
+        print(self.exchange.symbols)
+        self.display_user_trades(self.get_user_history('DASH/BTC'))
 
     def main(self):
         print("Start the program")
