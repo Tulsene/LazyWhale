@@ -79,17 +79,17 @@ class LazyStarter:
         question = 'Please select a market:'
         choice = self.ask_to_select_in_a_list(self.user_market_name_list, question)
         """
-        self.exchange = eval('ccxt.' + self.user_market_name_list[1] + \
-             '(' + str(self.keys[self.user_market_name_list[1]]) + ')')
+        self.exchange = eval('ccxt.' + self.user_market_name_list[0] + \
+             '(' + str(self.keys[self.user_market_name_list[0]]) + ')')
         """
         self.exchange = eval('ccxt.' + self.user_market_name_list[choice] + \
              '(' + str(self.keys[self.user_market_name_list[choice]]) + ')')
              """
-        return self.user_market_name_list[1] #self.user_market_name_list[choice-1]
+        return self.user_market_name_list[1] #self.user_market_name_list[choice-1] #carefull with choice when uncomment!!
 
     def get_balances(self):
         """Get the non empty balance of a user on a marketplace and make it global"""
-        balance = self.exchange.fetchBalance()
+        balance = self.exchange.fetch_balance()
         user_balance = {}
         for key, value in balance.items():
             if 'total' in value:
@@ -141,7 +141,7 @@ class LazyStarter:
         return: dict, containing list of buy & list of sell.
         """
         orders = {'sell': [], 'buy': []}
-        raw_orders = self.exchange.organizeOrders(market)
+        raw_orders = self.exchange.fetch_open_orders(market)
         for order in raw_orders:
             if order['side'] == 'buy':
                 orders['buy'].append(self.format_order(
@@ -870,7 +870,7 @@ class LazyStarter:
         #self.intervals = self.interval_generator(Decimal('0.000012'), Decimal('0.000016'), Decimal('1.01'))
         #print(self.intervals)
         #self.check_for_enough_funds({"datetime": "2019-03-23 09:38:05.316085", "market": "MANA/BTC", "range_bot": Decimal("0.000012"), "range_top": Decimal("0.000016"), "spread_bot": Decimal("0.00001299"), "spread_top": Decimal("0.00001312"), "increment_coef": Decimal("1.01"), "amount": Decimal("6000")})
-        self.ask_for_logfile()
+        print(self.get_orders('MANA/BTC'))
 
     def main(self):
         print("Start the program")

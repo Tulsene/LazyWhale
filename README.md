@@ -34,19 +34,25 @@ SyntaxError: invalid syntax
 
 #### Download the LW
 
-git clone https://github.com/Tulsene/LazyWhale
-cd LazyWhale
-git checkout dev
+`git clone https://github.com/Tulsene/LazyWhale`
+
+`cd LazyWhale`
+
+`git checkout dev`
 
 ### API Keys Configuration
 
-Create key.txt and follow the scheme in keySkeletton.txt
+Create key.txt and follow the scheme in `keySkeletton.txt`
 
 ### Run LW
 
+**Your virtualenv need to be properly setup and running!**
+
+`python LazyStarter.py` 
+
 ### Read logs
 
-tail -f Lazy.log
+`tail -f Lazy.log`
 
 ## What is it?
 
