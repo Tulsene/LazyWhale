@@ -103,14 +103,14 @@ class LazyStarter:
             self.exchange = eval('ccxt.' + self.user_market_name_list[choice] + \
              '(' + str(self.keys[self.user_market_name_list[choice]]) + ')')"""
         self.exchange = zebitexFormatted.ZebitexFormatted(
-                self.keys[self.user_market_name_list[choice]]['apiKey'],
-                self.keys[self.user_market_name_list[choice]]['secret'],
+                self.keys[self.user_market_name_list[2]]['apiKey'],
+                self.keys[self.user_market_name_list[2]]['secret'],
                 True)
         return self.user_market_name_list[2] #self.user_market_name_list[choice]
 
     def get_balances(self):
         """Get the non empty balance of a user on a marketplace and make it global"""
-        balance = self.exchange.fetch_balance()
+        balance = self.fetch_balance()
         user_balance = {}
         for key, value in balance.items():
             if 'total' in value:
@@ -129,7 +129,7 @@ class LazyStarter:
         """Market selection menu.
         return: string, selected market.
         """
-        self.exchange.load_markets()
+        self.load_markets()
         """
         market_list = self.exchange.symbols
         valid_choice = False
@@ -162,7 +162,7 @@ class LazyStarter:
         return: dict, containing list of buy & list of sell.
         """
         orders = {'sell': [], 'buy': []}
-        raw_orders = self.exchange.fetch_open_orders(market)
+        raw_orders = self.fetch_open_orders(market)
         for order in raw_orders:
             if order['side'] == 'buy':
                 orders['buy'].append(self.format_order(
@@ -183,7 +183,7 @@ class LazyStarter:
         return: dict, containing list of buy & list of sell.
         """
         orders = {'sell': [], 'buy': []}
-        raw_orders = self.exchange.fetch_trades(market)
+        raw_orders = self.fetch_trades(market)
         for order in raw_orders:
             if order['side'] == 'buy':
                 orders['buy'].append(self.format_order(
@@ -203,7 +203,7 @@ class LazyStarter:
         """Get the last price of a specific market
         market: str, need to have XXX/YYY ticker format 
         return: decimal"""
-        return Decimal(f"{self.exchange.fetchTicker(market)['last']:.8f}")
+        return Decimal(f"{self.fetch_ticker(market)['last']:.8f}")
 
     def display_user_trades(self, orders):
         """Pretify and display orders list.
@@ -277,7 +277,7 @@ class LazyStarter:
         return: bool True or None.
         """
         if not os.path.isfile(file_name):
-            Path(self.log_file_name).touch()
+            Path(file_name).touch()
             return None
         else:
             return True
@@ -482,7 +482,7 @@ class LazyStarter:
             raise ValueError('The benefice allocation too low (<0) or high (>100)',
                 nb)
 
-    def interval_calculator(self, number1, increment):
+    def interval_Calculateator(self, number1, increment):
         """Format a multiplication between decimal correctly
         number1: Decimal.
         increment: Decimal, 2nd number of the multiplication.
@@ -499,11 +499,11 @@ class LazyStarter:
         return: list, value from [range_bottom, range_top[
         """ 
         intervals = [range_bottom]
-        intervals.append(self.interval_calculator(intervals[-1], increment))
+        intervals.append(self.interval_Calculateator(intervals[-1], increment))
         if range_top <= intervals[1]:
             raise ValueError('Range top value is too low')
         while intervals[-1] <= range_top:
-            intervals.append(self.interval_calculator(intervals[-1], increment))
+            intervals.append(self.interval_Calculateator(intervals[-1], increment))
         intervals.pop()
         if len(intervals) < 6:
             raise ValueError('Range top value is too low, or increment too high: need to generate at lease 6 intervals. Try again!')
@@ -645,7 +645,7 @@ class LazyStarter:
         question = 'Please select the price of your highest buy order (spread_bot) in the list'
         position = self.ask_to_select_in_a_list(question, self.intervals)
         return {'spread_bot': self.intervals[position], 
-                'spread_top': self.intervals[position + 1]} # Can be improved by suggestiong a value
+                'spread_top': self.intervals[position + 1]} # Can be improved by suggesting a value
 
     def ask_nb_to_display(self):
         """Ask how much buy and sell orders are going to be in the book.
@@ -685,7 +685,7 @@ class LazyStarter:
         else:
            return pos - 1
 
-    def ask_for_logfile(self): #TODO
+    def ask_for_logfile(self):
         """Ask and verify LW logfile parameters
         """
         question = 'Do you want to check if a previous parameter is in logfile?'
@@ -726,9 +726,8 @@ class LazyStarter:
         formatter = logging.Formatter('%(message)s')
         logger.addHandler(fh)
 
-
     def enter_params(self):
-        """Serie of questions to setup LW parameters.
+        """Series of questions to setup LW parameters.
         return: dict, valid parameters """
         params = {'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
                   'market'  : self.selected_market}
@@ -760,8 +759,8 @@ class LazyStarter:
             spread_bot_index = self.intervals.index(params['spread_bot'])
             spread_top_index = spread_bot_index + 1
             try:
-                total_buy_funds_needed = self.calculate_buy_funds(spread_bot_index, params['amount'])
-                total_sell_funds_needed = self.calculate_sell_funds(spread_top_index, params['amount'])
+                total_buy_funds_needed = self.Calculateate_buy_funds(spread_bot_index, params['amount'])
+                total_sell_funds_needed = self.Calculateate_sell_funds(spread_top_index, params['amount'])
                 if self.intervals[spread_bot_index] <= price:
                     incoming_buy_funds = Decimal('0')
                     i = spread_top_index
@@ -789,15 +788,15 @@ class LazyStarter:
                     total_sell_funds_needed = total_sell_funds_needed - incoming_sell_funds
                 print('Your actual strategy require:\n', pair[1], ' needed: ', total_buy_funds_needed, ' and you have ', buy_balance, pair[1],  '\n ', pair[0], 'needed: ' , total_sell_funds_needed, ' and you have ', sell_balance, pair[0], '.')
                 if total_buy_funds_needed > buy_balance or total_sell_funds_needed > sell_balance:
-                    raise ValueError('You don\'t own enought funds!')
+                    raise ValueError('You don\'t own enough funds!')
                 is_valid = True
             except Exception as e:
                 print(e, '\nYou need to change some paramaters:')
                 params = self.change_params(params)
         return params
 
-    def calculate_buy_funds(self, index, amount):
-        """Calcul the buy funds required to execute the strategy
+    def Calculateate_buy_funds(self, index, amount):
+        """Calculate the buy funds required to execute the strategy
         price: Decimal, the actual market price
         amount: Decimal, allocated ALT per order
         return: Decimal, funds needed
@@ -809,8 +808,8 @@ class LazyStarter:
             i += 1
         return buy_funds_needed
 
-    def calculate_sell_funds(self, index, amount):
-        """Calcul the sell funds required to execute the strategy
+    def Calculateate_sell_funds(self, index, amount):
+        """Calculate the sell funds required to execute the strategy
         price: Decimal, the actual market price
         amount: Decimal, allocated ALT per order
         return: Decimal, funds needed
@@ -822,7 +821,7 @@ class LazyStarter:
             i -= 1
         return sell_funds_needed
 
-    def change_params(self, params):
+    def change_params(self, params): # Add cancel open order
         """Allow the user to change one LW parameter.
         params: dict, all the parameter for LW.
         return: dict."""
@@ -833,7 +832,8 @@ class LazyStarter:
         question = 'What parameter do you want to change?'
         question_list = ['The bottom of the range?', 'The top of the range?',
                          'The value between order?', 'The amount of alt per orders?',
-                         'The value of your initial spread?', 'Add funds to your account']
+                         'The value of your initial spread?', 'Cancel one or more order',
+                         'Add funds to your account']
         is_valid = False
         while is_valid is False:
             try:
@@ -846,6 +846,12 @@ class LazyStarter:
                     params[editable_params[choice][0]] = editable_params[choice][1](params['range_bot'])
                 elif choice == 4:
                     params = self.change_spread(params)
+                elif choice == 5:
+                    is_valid = False
+                    question = 'Which order do you want to remove?'
+                    question2 = 'Do you want to remove another order?'
+                    while is_valid is False:
+                        open_orders = self.get_orders(params['market'])
                 else:
                     self.wait_for_funds()
                 is_valid = True
@@ -876,6 +882,187 @@ class LazyStarter:
         os.rename(self.log_file_name, new_file_name)
         self.create_file_when_none(self.log_file_name)
 
+    """
+    ########################## API REQUESTS ###################################
+    """
+
+    def fetch_balance(self):
+        try:
+            balances = self.exchange.fetch_balance()
+        except Exception as e:
+            msg = 'WARNING: ' + e 
+            logging.warning(msg)
+            self.retry_fetch_balance()
+        return balances
+
+    def retry_fetch_balance(self):
+        is_valid = False
+        i = 0
+        while is_valid is False:
+            time.sleep(0.5)
+            balances = self.fetch_balance()
+            if balances:
+                is_valid = True
+            else:
+                i += 1
+                if i == 10:
+                    pass # send email
+                    i = 0
+
+    def load_markets(self):
+        self.exchange.load_markets()
+        try:
+            self.exchange.load_markets()
+        except Exception as e:
+            msg = 'WARNING: ' + e 
+            logging.warning(msg)
+            self.retry_load_markets()
+
+    def retry_load_markets(self):
+        is_valid = False
+        i = 0
+        while is_valid is False:
+            time.sleep(0.5)
+            self.load_markets()
+            if self.exchange.symbols:
+                is_valid = True
+            else:
+                i += 1
+                if i == 10:
+                    pass # send email
+                    i = 0
+
+    def fetch_open_orders(self, market):
+        try:
+            orders = self.exchange.fetch_open_orders(market)
+        except Exception as e:
+            msg = 'WARNING: ' + e 
+            logging.warning(msg)
+            self.retry_call_with_one_arg(self.fetch_open_orders, market)
+        return orders
+
+    def fetch_trades(self, market):
+        try:
+            orders = self.exchange.fetch_trades(market)
+        except Exception as e:
+            msg = 'WARNING: ' + e 
+            logging.warning(msg)
+            self.retry_call_with_one_arg(self.fetch_trades, market)
+        return orders
+
+    def fetch_ticker(self, market):
+        try:
+            ticker = self.exchange.fetch_ticker(market)
+        except Exception as e:
+            msg = 'WARNING: ' + e 
+            logging.warning(msg)
+            self.retry_call_with_one_arg(self.fetch_ticker, market)
+        return ticker
+
+    def retry_call_with_one_arg(self, func_to_retry, arg):
+        is_valid = False
+        i = 0
+        while is_valid is False:
+            time.sleep(0.5)
+            orders = func_to_retry(arg)
+            if orders:
+                is_valid = True
+            else:
+                i += 1
+                if i == 10:
+                    pass # send email
+                    i = 0
+
+    def create_limit_buy_order(self, market, amount, price):
+        try:
+            order = self.exchange.create_limit_buy_order(market, amount, price)
+        except Exception as e:
+            msg = 'WARNING: ' + e 
+            logging.warning(msg)
+            self.retry_create_limit_order(market,
+                                          amount,
+                                          price,
+                                          self.create_limit_buy_order,
+                                          'buy')
+        return order
+
+    def create_limit_sell_order(self, market, amount, price):
+        try:
+            order = self.exchange.create_limit_sell_order(market, amount, price)
+        except Exception as e:
+            msg = 'WARNING: ' + e 
+            logging.warning(msg)
+            self.retry_create_limit_order(market,
+                                          amount,
+                                          price,
+                                          self.create_limit_sell_order,
+                                          'sell')
+        return order
+
+    def retry_create_limit_order(self, market, amount, price, create_order, side):
+        is_valid = False
+        i = 0
+        while is_valid is False:
+            time.sleep(0.5)
+            orders = self.get_orders(market)[side]
+            is_open = self.does_an_order_exist(price, orders, True)
+            trades = self.get_user_history(market)[side]
+            is_traded = self.does_an_order_exist(price, orders, True)
+            if is_open or is_traded:
+                is_valid = True
+            else:
+                order = create_order(market, amount, price)
+                if order:
+                    is_valid = True
+                else:
+                    i += 1
+                    if i == 10:
+                        pass
+                        i = 0 # send email
+
+    def does_an_order_exist(self, target, a_list, target_type=None):
+        target_type = 1 if target_type else 0
+        for item in a_list:
+            if item[target_type] == target:
+                return True
+        return False
+
+    def cancel_order(self, order_id, side):
+        try:
+            order = self.exchange.cancel_order(order_id)
+        except Exception as e:
+            msg = 'WARNING: ' + e 
+            logging.warning(msg)
+            self.retry_cancel_order(order_id, side)
+        return order
+
+    def retry_cancel_order(self, order_id, side):
+        is_valid = False
+        i = 0
+        while is_valid is False:
+            time.sleep(0.5)
+            orders = self.get_orders(market)[side]
+            is_open = self.does_an_order_is_cancelled(order_id, orders)
+            trades = self.get_user_history(market)[side]
+            is_traded = self.does_an_order_exist(order_id, orders)
+            if is_open and is_traded:
+                is_valid = True
+            else:
+                order = self.cancel_order(order_id)
+                if order:
+                    is_valid = True
+                else:
+                    i += 1
+                    if i == 10:
+                        pass
+                        i = 0 # send email
+
+    def does_an_order_is_cancelled(self, target, a_list):
+        for item in a_list:
+            if item[0] == target:
+                return False
+        return True
+
     def exit(self):
         """Clean program exit"""
         print("End the program")
@@ -891,9 +1078,8 @@ class LazyStarter:
         #self.intervals = self.interval_generator(Decimal('0.000012'), Decimal('0.000016'), Decimal('1.01'))
         #print(self.intervals)
         #self.check_for_enough_funds({"datetime": "2019-03-23 09:38:05.316085", "market": "MANA/BTC", "range_bot": Decimal("0.000012"), "range_top": Decimal("0.000016"), "spread_bot": Decimal("0.00001299"), "spread_top": Decimal("0.00001312"), "increment_coef": Decimal("1.01"), "amount": Decimal("6000")})
-        self.exchange.load_markets()
-        print(self.exchange.symbols)
-        self.display_user_trades(self.get_user_history('DASH/BTC'))
+        self.set_logging_params()
+        print(self.fetch_open_orders('DASH/BTC'))
 
     def main(self):
         print("Start the program")

@@ -10,14 +10,14 @@ class ZebitexFormatted():
     def __init__(self, access_key=None, secret_key=None, is_staging=False):
         self.ze = Zebitex(access_key, secret_key, is_staging)
         self.fees = Decimal('0.0015')
-        self.symbols = self.get_symbols()
+        self.symbols = None
 
     def get_symbols(self):
         tickers = self.load_markets()
         symbols = []
         for item in tickers:
             symbols.append(item)
-        return symbols
+        self.symbols = symbols
     
     def fetch_balance(self):
         balance = self.ze.funds()
