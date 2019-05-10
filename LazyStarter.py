@@ -28,6 +28,8 @@ class LazyStarter:
         self.history = {'sell': [], 'buy': []}
         self.params = {}
         self.intervals = []
+        self.err_counter = 0
+        self.now = 0
 
     def exchanges_list_init(self):
         """Little hack to add zebitex to ccxt exchange list.
@@ -145,7 +147,7 @@ class LazyStarter:
                 print(limitation[1])"""
         return 'DASH/BTC' #choice
 
-    def format_order(self, id, price, amount, date):
+    def format_order(self, order_id, price, amount, timestamp, date):
         """Sort the information of an order in a list.
         id: string, order unique identifier.
         price: float.
@@ -153,9 +155,9 @@ class LazyStarter:
         date: string.
         return: list, containing id, price, amount, value and date.
         """
-        return [id, Decimal(str(price)), Decimal(str(amount)),\
+        return [order_id, Decimal(str(price)), Decimal(str(amount)),\
                 Decimal(str(price)) * Decimal(str(amount)) * Decimal('0.9975'),\
-                date]
+                timestamp, date]
 
     def get_orders(self, market):
         """Get actives orders from a marketplace and organize them.
@@ -164,18 +166,16 @@ class LazyStarter:
         orders = {'sell': [], 'buy': []}
         raw_orders = self.fetch_open_orders(market)
         for order in raw_orders:
+            formated_order = self.format_order(
+                    order['id'],
+                    order['price'],
+                    order['amount'],
+                    order['timestamp'],
+                    order['datetime'])
             if order['side'] == 'buy':
-                orders['buy'].append(self.format_order(
-                    order['id'], 
-                    order['price'],
-                    order['amount'], 
-                    order['datetime']))
+                orders['buy'].append(formated_order)
             if order['side'] == 'sell':
-                orders['sell'].append(self.format_order(
-                    order['id'], 
-                    order['price'],
-                    order['amount'], 
-                    order['datetime']))
+                orders['sell'].append(formated_order)
         return orders
 
     def get_user_history(self, market):
@@ -185,18 +185,16 @@ class LazyStarter:
         orders = {'sell': [], 'buy': []}
         raw_orders = self.fetch_trades(market)
         for order in raw_orders:
+            formated_order = self.format_order(
+                    order['id'],
+                    order['price'],
+                    order['amount'],
+                    order['timestamp'],
+                    order['datetime'])
             if order['side'] == 'buy':
-                orders['buy'].append(self.format_order(
-                    order['order'], 
-                    order['price'],
-                    order['amount'], 
-                    order['datetime']))
+                orders['buy'].append(formated_order)
             if order['side'] == 'sell':
-                orders['sell'].append(self.format_order(
-                    order['order'], 
-                    order['price'],
-                    order['amount'], 
-                    order['datetime']))
+                orders['sell'].append(formated_order)
         return orders
 
     def get_market_last_price(self, market):
@@ -210,11 +208,13 @@ class LazyStarter:
         orders: dict, contain all orders.
         """
         for order in orders['sell']:
-            print('Sell on: ', order[4], ', id: ', order[0], ', price: ',\
-                order[1], ', amount: ', order[2], ', value: ', order[3])
+            print('Sell on: ', order[5], ', id: ', order[0], ', price: ',\
+                order[1], ', amount: ', order[2], ', value: ', order[3],\
+                ' timestamp: ', order[4])
         for order in orders['buy']:
-            print('Buy on: ', order[4], ', id: ', order[0], ', price: ',\
-                order[1], ', amount: ', order[2], ', value: ', order[3])
+            print('Buy on: ', order[5], ', id: ', order[0], ', price: ',\
+                order[1], ', amount: ', order[2], ', value: ', order[3],\
+                ' timestamp: ', order[4])
 
     def log_file_reader(self): # Need refactorisation
         """Import data from logfile and organize it.
@@ -243,18 +243,16 @@ class LazyStarter:
                         line = line.replace("'", '"')
                         try:
                             order = json.loads(line)
+                            formated_order = self.format_order(
+                                    order['id'],
+                                    order['price'],
+                                    order['amount'],
+                                    order['timestamp'],
+                                    order['datetime'])
                             if order['side'] == 'buy':
-                                logs_data['buy'].append(self.format_order(
-                                    order['order'],
-                                    order['price'],
-                                    order['amount'],
-                                    order['datetime']))
+                                logs_data['buy'].append(formated_order)
                             if order['side'] == 'sell':
-                                logs_data['sell'].append(self.format_order(
-                                    order['order'],
-                                    order['price'],
-                                    order['amount'],
-                                    order['datetime']))
+                                logs_data['sell'].append(formated_order)
                         except Exception as e:
                             print('Something went wrong with data formating in \
                                     the log file: ', e)
@@ -435,6 +433,12 @@ class LazyStarter:
         dict = str(dict)
         return dict.replace("'", '"')
 
+    def timestamp_formater(self):
+        """Format time.time() into the same format as timestamp
+        used in ccxt and put the result in global var."""
+        timestamp = str(time.time()).split('.')
+        self.now = int(timestamp[0] + timestamp[1][:3])
+
     def limitation_to_btc_market(self, market):
         """Special limitation to BTC market : only ALT/BTC for now.
         market: string, market name.
@@ -525,7 +529,7 @@ class LazyStarter:
     def simple_question(self, question): #Fancy things can be added
         """Simple question prompted and response handling.
         question: string, the question to ask.
-        return: bool True or None, yes of no
+        return: boolean True or None, yes of no
         """
         valid_choice = False
         while valid_choice is False:
@@ -759,8 +763,8 @@ class LazyStarter:
             spread_bot_index = self.intervals.index(params['spread_bot'])
             spread_top_index = spread_bot_index + 1
             try:
-                total_buy_funds_needed = self.Calculateate_buy_funds(spread_bot_index, params['amount'])
-                total_sell_funds_needed = self.Calculateate_sell_funds(spread_top_index, params['amount'])
+                total_buy_funds_needed = self.Calculate_buy_funds(spread_bot_index, params['amount'])
+                total_sell_funds_needed = self.Calculate_sell_funds(spread_top_index, params['amount'])
                 if self.intervals[spread_bot_index] <= price:
                     incoming_buy_funds = Decimal('0')
                     i = spread_top_index
@@ -795,7 +799,7 @@ class LazyStarter:
                 params = self.change_params(params)
         return params
 
-    def Calculateate_buy_funds(self, index, amount):
+    def Calculate_buy_funds(self, index, amount):
         """Calculate the buy funds required to execute the strategy
         price: Decimal, the actual market price
         amount: Decimal, allocated ALT per order
@@ -808,7 +812,7 @@ class LazyStarter:
             i += 1
         return buy_funds_needed
 
-    def Calculateate_sell_funds(self, index, amount):
+    def Calculate_sell_funds(self, index, amount):
         """Calculate the sell funds required to execute the strategy
         price: Decimal, the actual market price
         amount: Decimal, allocated ALT per order
@@ -851,7 +855,7 @@ class LazyStarter:
                     question = 'Which order do you want to remove?'
                     question2 = 'Do you want to remove another order?'
                     while is_valid is False:
-                        open_orders = self.get_orders(params['market'])
+                        open_orders = self.get_orders(params['market']) #TODO
                 else:
                     self.wait_for_funds()
                 is_valid = True
@@ -887,181 +891,240 @@ class LazyStarter:
     """
 
     def fetch_balance(self):
+        """Get account balance from the marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        return: dict, formated balance by ccxt."""
         try:
-            balances = self.exchange.fetch_balance()
+            return self.exchange.fetch_balance()
         except Exception as e:
             msg = 'WARNING: ' + e 
             logging.warning(msg)
-            self.retry_fetch_balance()
-        return balances
-
-    def retry_fetch_balance(self):
-        is_valid = False
-        i = 0
-        while is_valid is False:
             time.sleep(0.5)
-            balances = self.fetch_balance()
-            if balances:
-                is_valid = True
-            else:
-                i += 1
-                if i == 10:
-                    pass # send email
-                    i = 0
+            self.err_counter += 1
+            if self.err_counter >= 10:
+                #send mail
+                print('api error >= 10')
+                self.err_counter = 0
+            return self.fetch_balance()
 
     def load_markets(self):
-        self.exchange.load_markets()
+        """Load the market list from a marketplace to self.exchange.
+        Retry 1000 times when error and send a mail each 10 tries.
+        """
         try:
             self.exchange.load_markets()
         except Exception as e:
             msg = 'WARNING: ' + e 
             logging.warning(msg)
-            self.retry_load_markets()
-
-    def retry_load_markets(self):
-        is_valid = False
-        i = 0
-        while is_valid is False:
             time.sleep(0.5)
+            self.err_counter += 1
+            if self.err_counter >= 10:
+                #send mail
+                print('api error >= 10')
+                self.err_counter = 0
             self.load_markets()
-            if self.exchange.symbols:
-                is_valid = True
-            else:
-                i += 1
-                if i == 10:
-                    pass # send email
-                    i = 0
 
     def fetch_open_orders(self, market):
+        """Get open orders of a market from a marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        market: string, market name.
+        return: list, formatted open orders by ccxt."""
         try:
-            orders = self.exchange.fetch_open_orders(market)
+            return self.exchange.fetch_open_orders(market)
         except Exception as e:
             msg = 'WARNING: ' + e 
             logging.warning(msg)
-            self.retry_call_with_one_arg(self.fetch_open_orders, market)
-        return orders
+            time.sleep(0.5)
+            self.err_counter += 1
+            if self.err_counter >= 10:
+                #send mail
+                print('api error >= 10')
+                self.err_counter = 0
+            return self.fetch_open_orders(market)
 
     def fetch_trades(self, market):
+        """Get trading history of a market from a marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        market: string, market name.
+        return: list, formatted trade history by ccxt."""
         try:
-            orders = self.exchange.fetch_trades(market)
+            return self.exchange.fetch_trades(market)
         except Exception as e:
             msg = 'WARNING: ' + e 
             logging.warning(msg)
-            self.retry_call_with_one_arg(self.fetch_trades, market)
-        return orders
+            time.sleep(0.5)
+            self.err_counter += 1
+            if self.err_counter >= 10:
+                #send mail
+                print('api error >= 10')
+                self.err_counter = 0
+            return self.fetch_trades(market)
 
     def fetch_ticker(self, market):
+        """Get ticker info of a market from a marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        market: string, market name.
+        return: list, formatted trade history by ccxt."""
         try:
-            ticker = self.exchange.fetch_ticker(market)
+            return self.exchange.fetch_ticker(market)
         except Exception as e:
             msg = 'WARNING: ' + e 
             logging.warning(msg)
-            self.retry_call_with_one_arg(self.fetch_ticker, market)
-        return ticker
-
-    def retry_call_with_one_arg(self, func_to_retry, arg):
-        is_valid = False
-        i = 0
-        while is_valid is False:
             time.sleep(0.5)
-            orders = func_to_retry(arg)
-            if orders:
-                is_valid = True
-            else:
-                i += 1
-                if i == 10:
-                    pass # send email
-                    i = 0
+            self.err_counter += 1
+            if self.err_counter >= 10:
+                #send mail
+                print('api error >= 10')
+                self.err_counter = 0
+            return self.fetch_ticker(market)
 
     def create_limit_buy_order(self, market, amount, price):
+        """Generate a timestamp before creating a buy order."""
+        self.timestamp_formater()
+        return self.put_limit_buy_order(market, amount, price)
+
+    def put_limit_buy_order(self, market, amount, price):
+        """Create a limit buy order on a market of a marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        market: string, market name.
+        amount: string, amount of ALT to buy.
+        price: string, price of the order.
+        return: list, formatted trade history by ccxt."""
         try:
             order = self.exchange.create_limit_buy_order(market, amount, price)
+            return self.format_order(order['id'], price, amount,\
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
         except Exception as e:
             msg = 'WARNING: ' + e 
             logging.warning(msg)
-            self.retry_create_limit_order(market,
-                                          amount,
-                                          price,
-                                          self.create_limit_buy_order,
-                                          'buy')
-        return order
+            time.sleep(0.5)
+            self.err_counter += 1
+            if self.err_counter >= 10:
+                #send mail
+                print('api error >= 10')
+                self.err_counter = 0
+            rsp = self.check_limit_order(market, price,'buy')
+            if not rsp:
+                return self.create_limit_buy_order(market, amount, price)
+            else:
+                return rsp
 
     def create_limit_sell_order(self, market, amount, price):
+        self.timestamp_formater()
+        return self.put_limit_sell_order(market, amount, price)
+
+    def put_limit_sell_order(self, market, amount, price):
+        """Create a limit sell order on a market of a marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        market: string, market name.
+        amount: string, amount of ALT to sell.
+        price: string, price of the order.
+        return: list, formatted trade history by ccxt
+                or boolean True when the order is already filled"""
         try:
             order = self.exchange.create_limit_sell_order(market, amount, price)
+            return self.format_order(order['id'], price, amount,\
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
         except Exception as e:
             msg = 'WARNING: ' + e 
             logging.warning(msg)
-            self.retry_create_limit_order(market,
-                                          amount,
-                                          price,
-                                          self.create_limit_sell_order,
-                                          'sell')
-        return order
-
-    def retry_create_limit_order(self, market, amount, price, create_order, side):
-        is_valid = False
-        i = 0
-        while is_valid is False:
             time.sleep(0.5)
-            orders = self.get_orders(market)[side]
-            is_open = self.does_an_order_exist(price, orders, True)
-            trades = self.get_user_history(market)[side]
-            is_traded = self.does_an_order_exist(price, orders, True)
-            if is_open or is_traded:
-                is_valid = True
+            self.err_counter += 1
+            if self.err_counter >= 10:
+                #send mail
+                print('api error >= 10')
+                self.err_counter = 0
+            rsp = self.check_limit_order(market, price,'sell')
+            if not rsp:
+                return self.create_limit_sell_order(market, amount, price)
             else:
-                order = create_order(market, amount, price)
-                if order:
-                    is_valid = True
-                else:
-                    i += 1
-                    if i == 10:
-                        pass
-                        i = 0 # send email
+                return rsp
 
-    def does_an_order_exist(self, target, a_list, target_type=None):
-        target_type = 1 if target_type else 0
-        for item in a_list:
-            if item[target_type] == target:
-                return True
+    def check_limit_order(self, market, price, side):
+        """Verify if an order have been correctly created despite API error
+        market: string, market name.
+        price: string, price of the order.
+        side: string, buy or sell
+        return: list, in a formatted order"""
+        time.sleep(0.5)
+        orders = self.get_orders(market)[side]
+        is_open = self.does_an_order_is_open(price, orders)
+        if is_open:
+            return is_open
+        else:
+            trades = self.get_user_history(market)[side]
+            is_traded = self.order_in_history(price, trades, side, self.now)
+            if is_traded:
+                return is_traded
         return False
 
-    def cancel_order(self, order_id, side):
+    def does_an_order_is_open(self, target, a_list):
+        """Verify if an order is contained in a list
+        target: decimal, price of an order.
+        a_list: list, user trade history.
+        return: boolean."""
+        for item in a_list:
+            if item[1] == target:
+                return item
+        return False
+
+    def order_in_history(self, target, a_list, side, timestamp):
+        """Verify that an order is in user history.
+        target: decimal, price of an order.
+        a_list: list, user trade history.
+        side: string, buy or sell.
+        timestamp: int, timestamp of the order.
+        return: boolean."""
+        if side == 'buy':
+            coef = Decimal('2') - params['increment_coef'] + Decimal('0.001')
+            for item in a_list:
+                if item[4] >= timestamp:
+                    if target * coef <= item[1] <= target:
+                        return True
+        if side == 'sell':
+            coef = params['increment_coef'] - Decimal('0.001')
+            for item in a_list:
+                if item[4] >= timestamp:
+                    if target * coef >= item[1] >= target:
+                        return True
+        return False
+
+    def cancel_order(self, order_id, price, timestamp, side):
+        """Cancel an order with it's id.
+        Retry 1000 times, send an email each 10 tries.
+        Warning : Not connard proofed!
+        order_id: string, marketplace order id.
+        price: string, price of the order.
+        timestamp: int, timestamp of the order.
+        side: string, buy or sell.
+        return: bool"""
         try:
-            order = self.exchange.cancel_order(order_id)
+            rsp = self.exchange.cancel_order(order_id)
+            if rsp:
+                return True
+            else:
+                return rsp
         except Exception as e:
             msg = 'WARNING: ' + e 
             logging.warning(msg)
-            self.retry_cancel_order(order_id, side)
-        return order
-
-    def retry_cancel_order(self, order_id, side):
-        is_valid = False
-        i = 0
-        while is_valid is False:
+            #return self.retry_cancel_order(order_id, side)
             time.sleep(0.5)
+            self.err_counter += 1
+            if self.err_counter >= 10:
+                #send mail
+                print('api error >= 10')
+                self.err_counter = 0
             orders = self.get_orders(market)[side]
-            is_open = self.does_an_order_is_cancelled(order_id, orders)
+            is_open = self.does_an_order_is_open(price, orders)
+            if is_open:
+                rsp = self.exchange.cancel_order(order_id)
+                if rsp:
+                    self.err_counter = 0
+                    return rsp
             trades = self.get_user_history(market)[side]
-            is_traded = self.does_an_order_exist(order_id, orders)
-            if is_open and is_traded:
-                is_valid = True
-            else:
-                order = self.cancel_order(order_id)
-                if order:
-                    is_valid = True
-                else:
-                    i += 1
-                    if i == 10:
-                        pass
-                        i = 0 # send email
-
-    def does_an_order_is_cancelled(self, target, a_list):
-        for item in a_list:
-            if item[0] == target:
+            is_traded = self.order_in_history(price, trades, side, timestamp)
+            if is_traded:
                 return False
-        return True
 
     def exit(self):
         """Clean program exit"""
@@ -1090,3 +1153,24 @@ LazyStarter = LazyStarter()
 
 if __name__ == "__main__":
     LazyStarter.main()
+
+class abcd():
+    def __init__(self):
+        self.i = 0
+    def rec(self):
+        print('enter y')
+        try:
+            choice = input(' >> ')
+            if choice == 'y':
+                self.i = 0
+                print(i)
+                return choice
+            else:
+                raise ValueError('not y')
+        except Exception as e:
+            print(e)
+            self.i += 1
+            if self.i >= 10:
+                print('so much tries: ', self.i)
+                self.i = 0
+            return self.rec()

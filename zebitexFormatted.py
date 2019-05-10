@@ -41,9 +41,6 @@ class ZebitexFormatted():
                 fetched_open_order.append(self.order_formatted(item))
         return fetched_open_order
 
-
-        print(open_orders['items'])
-
     def order_formatted(self, order):
         return {'info': 
                     {'orderNumber': order['id'],
@@ -177,17 +174,13 @@ class ZebitexFormatted():
 
     def create_limit_buy_order(self, symbol, amount, price):
         symbol = symbol.split('/')
-        bid = symbol[0].lower()
-        ask = symbol[1].lower()
-        market = bid + ask
-        return self.ze.new_order(bid, ask, 'bid', price, amount, market, 'limit')
+        return self.ze.new_order(bid, ask, 'bid', price, amount,\
+            symbol[0].lower() + symbol[1].lower(), 'limit')
 
     def create_limit_sell_order(self, symbol, amount, price):
         symbol = symbol.split('/')
-        bid = symbol[0].lower()
-        ask = symbol[1].lower()
-        market = bid + ask
-        return self.ze.new_order(bid, ask, 'ask', price, amount, market, 'limit')
+        return self.ze.new_order(bid, ask, 'ask', price, amount,\
+            symbol[0].lower() + symbol[1].lower(), 'limit')
 
     def cancel_order(self, order_id):
         return self.ze.cancel_order(int(order_id))
