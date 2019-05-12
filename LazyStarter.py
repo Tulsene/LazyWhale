@@ -11,6 +11,7 @@ from decimal import *
 from pathlib import Path
 from bisect import bisect_left
 from datetime import datetime
+from operator import itemgetter
 
 class LazyStarter:
     getcontext().prec = 8
@@ -18,6 +19,7 @@ class LazyStarter:
     def __init__(self):
         self.keys_file = "keys.txt"
         self.log_file_name = 'logfiles/logger.log'
+        self.debug_file_name = 'logfiles/debug.log'
         self.user_market_name_list = []
         self.ccxt_exchanges_list = self.exchanges_list_init()
         self.keys = self.keys_initialisation()
@@ -30,6 +32,7 @@ class LazyStarter:
         self.intervals = []
         self.err_counter = 0
         self.now = 0
+        self.other_orders = []
 
     def exchanges_list_init(self):
         """Little hack to add zebitex to ccxt exchange list.
@@ -148,7 +151,7 @@ class LazyStarter:
         return 'DASH/BTC' #choice
 
     def format_order(self, order_id, price, amount, timestamp, date):
-        """Sort the information of an order in a list.
+        """Sort the information of an order in a list of 6 items.
         id: string, order unique identifier.
         price: float.
         amount: float.
@@ -161,7 +164,7 @@ class LazyStarter:
 
     def get_orders(self, market):
         """Get actives orders from a marketplace and organize them.
-        return: dict, containing list of buy & list of sell.
+        return: dict, containing list of buys & sells.
         """
         orders = {'sell': [], 'buy': []}
         raw_orders = self.fetch_open_orders(market)
@@ -176,6 +179,14 @@ class LazyStarter:
                 orders['buy'].append(formated_order)
             if order['side'] == 'sell':
                 orders['sell'].append(formated_order)
+        return orders
+
+    def orders_price_ordering(self, orders):
+        """Ordering open orders in their respective lists.
+        orders: dict, containing list of buys & sells.
+        return: dict, ordered lists of buys & sells."""
+        orders = sorted(orders['buy'], key=itemgetter(1))
+        orders = sorted(orders['sell'], key=itemgetter(1))
         return orders
 
     def get_user_history(self, market):
@@ -579,11 +590,11 @@ class LazyStarter:
             try:
                 choice = input(' >> ')
                 choice = self.str_to_int(choice)
-                if choice <= i:
+                if 0 < choice <= i:
                     choice -= 1
                     is_valid = True
                 else:
-                    print('You need to enter a nuber between 1 and ', i)
+                    print('You need to enter a number between 1 and ', i)
             except Exception as e:
                 print(question, 'invalid choice: ', choice, ' -> ', e)
         return choice
@@ -754,6 +765,8 @@ class LazyStarter:
         params: dict, parameters for LW.
         return: dict, params"""
         is_valid = False
+        # Force user to set strategy parameters in order to have enough funds
+        #  to run the whole strategy
         while is_valid is False:
             price = self.get_market_last_price(self.selected_market)
             self.get_balances()
@@ -763,8 +776,10 @@ class LazyStarter:
             spread_bot_index = self.intervals.index(params['spread_bot'])
             spread_top_index = spread_bot_index + 1
             try:
-                total_buy_funds_needed = self.Calculate_buy_funds(spread_bot_index, params['amount'])
-                total_sell_funds_needed = self.Calculate_sell_funds(spread_top_index, params['amount'])
+                total_buy_funds_needed = self.Calculate_buy_funds(
+                    spread_bot_index, params['amount'])
+                total_sell_funds_needed = self.Calculate_sell_funds(
+                    spread_top_index, params['amount'])
                 if self.intervals[spread_bot_index] <= price:
                     incoming_buy_funds = Decimal('0')
                     i = spread_top_index
@@ -790,8 +805,19 @@ class LazyStarter:
                             incoming_sell_funds += params['amount'] * Decimal('0.9975')
                             i -=1
                     total_sell_funds_needed = total_sell_funds_needed - incoming_sell_funds
-                print('Your actual strategy require:\n', pair[1], ' needed: ', total_buy_funds_needed, ' and you have ', buy_balance, pair[1],  '\n ', pair[0], 'needed: ' , total_sell_funds_needed, ' and you have ', sell_balance, pair[0], '.')
-                if total_buy_funds_needed > buy_balance or total_sell_funds_needed > sell_balance:
+                if total_buy_funds_needed > buy_balance:
+                    buy_balance = self.look_for_moar_funds(total_buy_funds_needed,
+                        buy_balance, 'buy')
+                if total_sell_funds_needed > sell_balance:
+                    sell_balance = self.look_for_moar_funds(total_sell_funds_needed,
+                        sell_balance, 'sell')
+                print('Your actual strategy require:\n', pair[1], ' needed: ',
+                      total_buy_funds_needed, ' and you have ', buy_balance, 
+                      pair[1],  '\n ', pair[0], 'needed: ' , 
+                      total_sell_funds_needed, ' and you have ', sell_balance,
+                      pair[0], '.')
+                if total_buy_funds_needed > buy_balance or\
+                    total_sell_funds_needed > sell_balance:
                     raise ValueError('You don\'t own enough funds!')
                 is_valid = True
             except Exception as e:
@@ -825,6 +851,60 @@ class LazyStarter:
             i -= 1
         return sell_funds_needed
 
+    def look_for_moar_funds(self, funds_needed, funds, side):
+        """Look into open orders how much funds there is, offer to cancel orders not
+        in the strategy.
+        funds_needed: Decimal, how much funds are needed for the strategy.
+        funds: Decimal, sum of available funds for the strategy.
+        side: string, buy or sell.
+        return: Decimal, sum of available funds for the strategy."""
+        orders = self.orders_price_ordering(
+            self.get_orders(params['market']))[side]
+        orders_outside_strat = []
+        # simple addition of funds stuck in open order and will be used for the
+        # strategy
+        if side == 'buy':
+            for order in orders:
+                if order[1] in self.intervals:
+                    funds += order[1] * order[2]
+                else:
+                    orders_outside_strat += order
+        else:
+            for order in orders:
+                if order[1] in self.intervals:
+                    funds += order[2]
+                else:
+                    orders_outside_strat += order
+        # If there is still not enough funds but there is open orders outside the
+        # strategy 
+        if funds_needed > funds:
+            if orders_outside_strat:
+                is_valid = False
+                while is_valid is False:
+                    q = 'Do you want to remove some orders outside of the \
+                    strategy to get enough funds to run it?'
+                    rsp = self.simple_question(q)
+                    if not rsp:
+                        is_valid = True
+                    else:
+                        q = 'Which order do you want to remove:'
+                        rsp = self.ask_to_select_in_a_list(q, 
+                            orders_outside_strat)
+                        orders_outside_strat.pop(rsp)
+                        rsp = self.cancel_order(orders_outside_strat[rsp][0],
+                            orders_outside_strat[rsp][1],
+                            orders_outside_strat[rsp][4], side)
+                        if rsp:
+                            if side == 'buy':
+                                funds += order[1] * order[2]
+                            else:
+                                funds += order[2]
+                            print('You have now ', funds, ' ', side, ' funds \
+                                and you need ', funds_needed, '.')
+                        if not orders_outside_strat:
+                            is_valid = True
+        return funds
+
     def change_params(self, params): # Add cancel open order
         """Allow the user to change one LW parameter.
         params: dict, all the parameter for LW.
@@ -835,27 +915,26 @@ class LazyStarter:
                            ('amount', self.ask_param_amount))
         question = 'What parameter do you want to change?'
         question_list = ['The bottom of the range?', 'The top of the range?',
-                         'The value between order?', 'The amount of alt per orders?',
-                         'The value of your initial spread?', 'Cancel one or more order',
+                         'The value between order?', 
+                         'The amount of alt per orders?',
+                         'The value of your initial spread?', 
                          'Add funds to your account']
         is_valid = False
         while is_valid is False:
             try:
                 choice = self.ask_to_select_in_a_list(question, question_list)
                 if choice < 3:
-                    params[editable_params[choice][0]] = editable_params[choice][1]()
-                    self.intervals = self.interval_generator(params['range_bot'], params['range_top'], params['increment_coef'])
+                    params[editable_params[choice][0]] = \
+                        editable_params[choice][1]()
+                    self.intervals = self.interval_generator(
+                        params['range_bot'], params['range_top'],
+                        params['increment_coef'])
                     params = self.change_spread(params)
                 elif choice == 3:
-                    params[editable_params[choice][0]] = editable_params[choice][1](params['range_bot'])
+                    params[editable_params[choice][0]] = \
+                        editable_params[choice][1](params['range_bot'])
                 elif choice == 4:
                     params = self.change_spread(params)
-                elif choice == 5:
-                    is_valid = False
-                    question = 'Which order do you want to remove?'
-                    question2 = 'Do you want to remove another order?'
-                    while is_valid is False:
-                        open_orders = self.get_orders(params['market']) #TODO
                 else:
                     self.wait_for_funds()
                 is_valid = True
@@ -1097,7 +1176,8 @@ class LazyStarter:
         price: string, price of the order.
         timestamp: int, timestamp of the order.
         side: string, buy or sell.
-        return: bool"""
+        return: boolean, True if the order is canceled correctly, False when the 
+        order have been filled before it's cancellation"""
         try:
             rsp = self.exchange.cancel_order(order_id)
             if rsp:
@@ -1125,6 +1205,13 @@ class LazyStarter:
             is_traded = self.order_in_history(price, trades, side, timestamp)
             if is_traded:
                 return False
+            else:
+                return True
+
+    def strat_init(self):
+        pass
+
+
 
     def exit(self):
         """Clean program exit"""
@@ -1154,23 +1241,12 @@ LazyStarter = LazyStarter()
 if __name__ == "__main__":
     LazyStarter.main()
 
-class abcd():
-    def __init__(self):
-        self.i = 0
-    def rec(self):
-        print('enter y')
-        try:
-            choice = input(' >> ')
-            if choice == 'y':
-                self.i = 0
-                print(i)
-                return choice
-            else:
-                raise ValueError('not y')
-        except Exception as e:
-            print(e)
-            self.i += 1
-            if self.i >= 10:
-                print('so much tries: ', self.i)
-                self.i = 0
-            return self.rec()
+
+def make_a_sum():
+    i = 15
+    i += ask_for_int()
+    print(i)
+
+def ask_for_int():
+    choice = input(' >> ')
+    return int(choice)
