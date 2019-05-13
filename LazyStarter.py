@@ -1038,8 +1038,8 @@ class LazyStarter:
         return: list, formatted trade history by ccxt."""
         try:
             order = self.exchange.create_limit_buy_order(market, amount, price)
-            return self.format_order(order['id'], price, amount, 
-                self.timestamp_formater(), 
+            return self.format_order(order['id'], price, amount,
+                self.timestamp_formater(),
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
         except Exception as e:
             msg = 'WARNING: ' + e 
@@ -1179,7 +1179,7 @@ class LazyStarter:
                 return True
 
     """
-    ###################### API REQUESTS FORMATTING ############################
+    ###################### API REQUESTS FORMATTERS ############################
     """
 
     def get_market_last_price(self, market):
@@ -1277,6 +1277,11 @@ class LazyStarter:
                 order[1], ', amount: ', order[2], ', value: ', order[3],\
                 ' timestamp: ', order[4])
 
+
+    """
+    ############################## FINALLY, LW ################################
+    """
+
     def strat_init(self):
         """
         """
@@ -1330,22 +1335,23 @@ class LazyStarter:
         if order['sell']:
             for order in orders['sell']:
                 remaining_orders['sell'] += order[1]
-        self.open_orders = orders
-        self.set_first_orders(remaining_orders)
+        self.set_first_orders(remaining_orders, orders)
 
-    def set_first_orders(self, remaining_orders):
+    def set_first_orders(self, remaining_orders, open_orders):
         """Open orders for the strategy.
-        remaining_orders: dict."""
+        remaining_orders: dict.
+        open_orders: dict."""
         spread_bot_index = self.intervals.index(params['spread_bot'])
         spread_top_index = spread_bot_index + 1
         buy_target = spread_bot_index - params['nb_buy_displayed']
         sell_target = spread_top_index + params['nb_sell_displayed']
         new_orders = {'sell': [], 'buy': []}
         # Move the safety buy order
-        if self.open_orders['buy'][0][1] == Decimal('0.00000001'):
-            new_orders['buy'] += self.open_orders['buy'][0][1]
-            self.open_orders['buy'].pop(0)
-        # Open an order if needed or move an already existing order
+        if open_orders['buy'][0][1] == Decimal('0.00000001'):
+            new_orders['buy'].append(open_orders['buy'][0][1])
+            open_orders['buy'].pop(0)
+        # Open an order if needed or move an already existing order from
+        # lowest buy price to highest buy price
         while buy_target <= spread_bot_index:
             if self.intervals[buy_target] not in remaining_orders['buy']:
                 order = self.init_limit_buy_order(self.selected_market,
@@ -1353,25 +1359,26 @@ class LazyStarter:
                 new_orders['buy'] += order
             else:
                 i = 0
-                for item in self.open_orders['buy']:
+                for item in open_orders['buy']:
                     if item[1] == self.intervals[buy_target]:
                         new_orders['buy'] += item
-                        self.open_orders['buy'].pop(i)
+                        open_orders['buy'].pop(i)
                         break
                     i += 1
             buy_target += 1
         # Cancel buy orders that should not be opened
-        for item in self.open_orders['buy']:
+        for item in open_orders['buy']:
             self.cancel_order(order[0], order[1], order[4], 'buy')
-            self.open_orders['buy'].pop(0)
+            open_orders['buy'].pop(0)
         # Check that everything is fine
-        if self.open_orders['buy']:
+        if open_orders['buy']:
             raise ValueError('self.open_orders[\'buy\'] should be empty!')
         # Move the safety sell order
-        if self.open_orders['sell'][-1][1] == Decimal('1'):
-            new_orders['sell'] += self.open_orders['sell'][0][1]
-            self.open_orders['sell'].pop(-1)
-        # Open an order if needed or move an already existing order
+        if open_orders['sell'][-1][1] == Decimal('1'):
+            new_orders['sell'].append(open_orders['sell'][0][1])
+            open_orders['sell'].pop(-1)
+        # Open an order if needed or move an already existing order from
+        # highest sell price to lowest sell price
         while sell_target >= spread_sell_index:
             if self.intervals[sell_target] not in remaining_orders['sell']:
                 order = self.init_limit_sell_order(self.selected_market,
@@ -1379,23 +1386,24 @@ class LazyStarter:
                 new_orders['sell'].insert(0, order)
             else:
                 i = 0
-                for item in self.open_orders['sell']:
+                for item in open_orders['sell']:
                     if item[1] == self.intervals[sell_target]:
                         new_orders['sell'].insert(0, item)
-                        self.open_orders['sell'].pop(i)
+                        open_orders['sell'].pop(i)
                         break
                     i += 1
             sell_target -= 1
         # Cancel sell orders that should not be opened
-        for item in self.open_orders['sell']:
+        for item in open_orders['sell']:
             self.cancel_order(order[0], order[1], order[4], 'sell')
-            self.open_orders['sell'].pop(0)
+            open_orders['sell'].pop(0)
         # Check that everything is fine
-        if self.open_orders['sell']:
+        if open_orders['sell']:
             raise ValueError('self.open_orders[\'sell\'] should be empty!')
         self.open_orders = new_orders
 
-
+    def self.compare_orders(self):
+        pass
 
     def exit(self):
         """Clean program exit"""
@@ -1403,7 +1411,7 @@ class LazyStarter:
         sys.exit(0)
 
     def lw_initialisation(self):
-        """Initializing parameters, check parameters then initializing LW.
+        """Initializing parameters, check parameters then initialize LW.
         """
         marketplace_name = self.select_marketplace() # temp modification
         #print('All of your balance for our balances on ', marketplace_name)
@@ -1412,7 +1420,19 @@ class LazyStarter:
         #self.intervals = self.interval_generator(Decimal('0.000012'), Decimal('0.000016'), Decimal('1.01'))
         #print(self.intervals)
         #self.check_for_enough_funds({"datetime": "2019-03-23 09:38:05.316085", "market": "MANA/BTC", "range_bot": Decimal("0.000012"), "range_top": Decimal("0.000016"), "spread_bot": Decimal("0.00001299"), "spread_top": Decimal("0.00001312"), "increment_coef": Decimal("1.01"), "amount": Decimal("6000")})
-        print(self.fetch_open_orders('DASH/BTC'))
+        self.ask_for_logfile()
+        self.strat_init()
+        self.main_loop()
+
+    def main_loop(self):
+        """Do the lazy whale strategy.
+        Simple execution loop.
+        """
+        while True:
+            self.debugger.debug('CYCLE START')
+            self.compare_orders()
+            self.debugger.debug('CYCLE STOP')
+            time.sleep(5)
 
     def main(self):
         self.debugger.info("Start the program")
