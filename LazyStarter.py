@@ -1277,7 +1277,6 @@ class LazyStarter:
                 order[1], ', amount: ', order[2], ', value: ', order[3],\
                 ' timestamp: ', order[4])
 
-
     """
     ############################## FINALLY, LW ################################
     """
@@ -1304,7 +1303,7 @@ class LazyStarter:
                     self.cancel_order(order[0], order[1], order[4], 'buy')
                     orders['buy'].pop(i)
                 else:
-                    self.orders_outside_strat += order[1]
+                    self.orders_outside_strat.append(order[1])
                     orders['buy'].pop(i)
             if order[2] < self.params['amount']:
                 r = self.simple_question(q2)
@@ -1320,7 +1319,7 @@ class LazyStarter:
                     self.cancel_order(order[0], order[1], order[4], 'sell')
                     orders['sell'].pop(i)
                 else:
-                    self.orders_outside_strat += order[1]
+                    self.orders_outside_strat.append(order[1])
                     orders['sell'].pop(i)
             if order[2] < self.params['amount']:
                 r = self.simple_question(q2)
@@ -1400,9 +1399,85 @@ class LazyStarter:
         # Check that everything is fine
         if open_orders['sell']:
             raise ValueError('self.open_orders[\'sell\'] should be empty!')
+        new_orders = self.remove_safety_order(new_orders)
+        new_orders = self.set_safety_orders(new_orders)
         self.open_orders = new_orders
 
-    def self.compare_orders(self):
+    def remove_safety_order(self, open_orders):
+        """Remove safety orders if there is any.
+        open_orders: dict.
+        return: dict.
+        """
+        if open_orders['buy']:
+            if open_orders['buy'][0][1] == Decimal('0.00000001'):
+                if open_orders['buy'][0][0]:
+                    self.cancel_order(open_orders['buy'][0][0],
+                        open_orders['buy'][0][1], open_orders['buy'][0][4],
+                        'buy')
+                open_orders['buy'].pop(0)
+        if open_orders['sell']:
+            if open_orders['sell'][-1][1] == Decimal('1'):
+                if open_orders['sell'][-1][0]:
+                    self.cancel_order(open_orders['sell'][-1][0],
+                        open_orders['sell'][-1][1], open_orders['sell'][-1][4],
+                        'sell')
+                open_orders['sell'].pop(-1)
+        return open_orders
+
+    def set_safety_orders(self, open_orders):
+        """Add safety orders to lock funds so user can start several times the
+        strategy on the same marketplace.
+        open_orders: dict.
+        return: dict."""
+        if open_orders['buy']:
+            lowest_buy_index = self.intervals.index(open_orders['buy'][0][1])
+            if lowest_buy_index > 1:
+                buy_sum = Decimal('0')
+                while lowest_buy_index > 1:
+                    buy_sum += self.params['amount']
+                    lowest_buy_index -= 1
+                open_orders['buy'].insert(0, self.init_limit_buy_order(
+                    self.selected_market, buy_sum, self.intervals[0]))
+            else:
+                open_orders['buy'] = self.create_fake_buy(open_orders['buy'])
+        else:
+            open_orders['buy'] = self.create_fake_buy(open_orders['buy'])
+        if open_orders['sell']:
+            highest_sell_index = self.intervals.index(open_orders['buy'][-1][1])
+            highest_target = len(self.intervals) - 2
+            if highest_sell_index < highest_target:
+                sell_sum = Decimal('0')
+                while highest_sell_index < highest_target:
+                    sell_sum += params['amount']
+                    highest_sell_index += 1
+                open_orders['sell'].append(self.init_limit_sell_order(
+                    self.selected_market, sell_sum, self.intervals[-1]))
+            else:
+                open_orders['sell'] = self.create_fake_sell(open_orders['sell'])
+        else:
+            open_orders['sell'] = self.create_fake_sell(open_orders['sell'])
+        return open_orders
+
+    def create_fake_buy(self, buy_list):
+        """Create a fake buy order and add it to the list.
+        buy_list: list of open buy orders.
+        return: list"""
+        buy_list.insert(0, [None, Decimal('0.00000001'),\
+            Decimal('0'), Decimal('0'), self.timestamp_formater(),\
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')])
+        return buy_list
+
+    def create_fake_sell(self, sell_list):
+        """Create a fake sell order and add it to the list.
+        sell_list: list of open sell orders.
+        return: list"""
+        sell_list.append([None, Decimal('1'), Decimal('0'), Decimal('0'),\
+            self.timestamp_formater(),\
+            datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')])
+        return sell_list
+
+
+    def compare_orders(self):
         pass
 
     def exit(self):
@@ -1443,6 +1518,3 @@ LazyStarter = LazyStarter()
 
 if __name__ == "__main__":
     LazyStarter.main()
-
-
-a = ['id', Decimal('456'), Decimal('789'), Decimal('756'), 1234567891234, 'Date']
