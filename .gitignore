@@ -7,6 +7,7 @@
 
 logfiles/*
 test.py
+tests/*
 
 venv/*
 keys.txt

@@ -3,6 +3,7 @@
 # if you don't get it, don't use it
 import ccxt
 import logging
+import logging.handlers
 import json
 import sys
 import os
@@ -20,6 +21,12 @@ class LazyStarter:
         self.keys_file = "keys.txt"
         self.log_file_name = 'logfiles/logger.log'
         self.debug_file_name = 'logfiles/debug.log'
+        self.formatter1 = '%(message)s'
+        self.formatter2 = '%(asctime)s - %(levelname)s - %(message)s'
+        self.logger = self.logger_setup('logs', self.log_file_name,
+            self.formatter1, logging.DEBUG, logging.INFO)
+        self.debugger = self.logger_setup('debugs', self.debug_file_name, 
+            self.formatter2, logging.DEBUG, logging.DEBUG)
         self.user_market_name_list = []
         self.ccxt_exchanges_list = self.exchanges_list_init()
         self.keys = self.keys_initialisation()
@@ -34,6 +41,40 @@ class LazyStarter:
         self.now = 0
         self.other_orders = []
 
+    # I'm not sure if it work well
+    def logger_setup(self, name, log_file, log_formatter, console_level,
+        file_level, logging_level=logging.DEBUG):
+        """Generate logging systems which display any level on the console
+        and starting from INFO into logging file
+        name: string, name of the logger,
+        log_file: string, name of the file where to place the log datas.
+        log_formatter: string, how the log is formated. See Formatter logging
+            rules.
+        console_level: logging object, the logging level to display in the
+            console. Need to be superior to logging_level.
+        file_level: logging object, the logging level to put in the
+            logging file. Need to be superior to logging_level.
+        logging_level: logging object, optional, the level of logging to catch.
+        return: logging object, contain rules for logging.
+        """
+        logger = logging.getLogger(name)
+        logger.setLevel(logging_level)
+        formatter = logging.Formatter(log_formatter)
+        # Console handler stream
+        ch = logging.StreamHandler()
+        ch.setLevel(console_level)
+        ch.setFormatter(formatter)
+        # File Handler stream
+        fh = logging.FileHandler(log_file)
+        fh.setLevel(file_level)
+        fh.setFormatter(formatter)
+        logger.addHandler(ch)
+        logger.addHandler(fh)
+        handler = logging.handlers.RotatingFileHandler(
+                  log_file, maxBytes=2000000, backupCount=20)       
+        logger.addHandler(handler)
+        return logger
+
     def exchanges_list_init(self):
         """Little hack to add zebitex to ccxt exchange list.
         return: list, list of exchanges."""
@@ -46,14 +87,14 @@ class LazyStarter:
         """
         if not os.path.isfile(self.keys_file):
             Path(self.keys_file).touch()
-            print('No file was found, an empty one has been created,\
-                   please fill it as indicated in the documentation')
+            self.debugger.critical('No file was found, an empty one has been \
+                created, please fill it as indicated in the documentation')
             self.exit()
         else:
             keys = self.keys_file_reader()
             if not keys:
-                print('Your key.txt file is empty, please fill it \
-                    as indicated to the documentation')
+                self.debugger.critical('Your key.txt file is empty, please \
+                    fill it as indicated to the documentation')
                 self.exit()
             else:
                 return keys
@@ -78,7 +119,7 @@ class LazyStarter:
                         if k not in self.ccxt_exchanges_list:
                             raise NameError('The marketplace name is invalid!')
                 except Exception as e:
-                    print('Something went wrong : ', e)
+                    self.debugger.critical('Something went wrong : %s', e)
                     self.exit()
                 keys.update(key)
             return keys
@@ -88,12 +129,8 @@ class LazyStarter:
         return: string, the name of the selected marketplace
         """
         """
-        question = 'Please select a market:'
-        choice = self.ask_to_select_in_a_list(question, self.user_market_name_list)
-        
-        self.exchange = eval('ccxt.' + self.user_market_name_list[0] + \
-             '(' + str(self.keys[self.user_market_name_list[0]]) + ')')
-        
+        q = 'Please select a market:'
+        choice = self.ask_to_select_in_a_list(q, self.user_market_name_list)
         if self.user_market_name_list[choice] == 'zebitex':
             self.exchange = zebitexFormatted.ZebitexFormatted(
                 self.keys[self.user_market_name_list[choice]]['apiKey'],
@@ -244,8 +281,8 @@ class LazyStarter:
                 try:
                     params = json.loads(params)
                 except Exception as e:
-                    print('Something went wrong with the first line of the \
-                           log file: ', e)
+                    self.debugger.critical('Something went wrong with the first \
+                        line of the log file: %s', e)
                     self.exit()
                 logs_data['params'] = self.params_checker(params)
                 for line in log_file:
@@ -732,15 +769,6 @@ class LazyStarter:
         self.set_logging_params()
         logging.info(self.params_to_str(self.params))
 
-    def set_logging_params(self):
-        """Logging parameters setup"""
-        logger = logging.getLogger()
-        logger.setLevel(logging.INFO)
-        fh = logging.FileHandler(self.log_file_name)
-        fh.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(message)s')
-        logger.addHandler(fh)
-
     def enter_params(self):
         """Series of questions to setup LW parameters.
         return: dict, valid parameters """
@@ -1215,7 +1243,7 @@ class LazyStarter:
 
     def exit(self):
         """Clean program exit"""
-        print("End the program")
+        self.debugger.critical("End the program")
         sys.exit(0)
 
     def lw_initialisation(self):
@@ -1228,11 +1256,10 @@ class LazyStarter:
         #self.intervals = self.interval_generator(Decimal('0.000012'), Decimal('0.000016'), Decimal('1.01'))
         #print(self.intervals)
         #self.check_for_enough_funds({"datetime": "2019-03-23 09:38:05.316085", "market": "MANA/BTC", "range_bot": Decimal("0.000012"), "range_top": Decimal("0.000016"), "spread_bot": Decimal("0.00001299"), "spread_top": Decimal("0.00001312"), "increment_coef": Decimal("1.01"), "amount": Decimal("6000")})
-        self.set_logging_params()
         print(self.fetch_open_orders('DASH/BTC'))
 
     def main(self):
-        print("Start the program")
+        self.debugger.info("Start the program")
         self.lw_initialisation()
         self.exit()
 
@@ -1240,13 +1267,3 @@ LazyStarter = LazyStarter()
 
 if __name__ == "__main__":
     LazyStarter.main()
-
-
-def make_a_sum():
-    i = 15
-    i += ask_for_int()
-    print(i)
-
-def ask_for_int():
-    choice = input(' >> ')
-    return int(choice)
