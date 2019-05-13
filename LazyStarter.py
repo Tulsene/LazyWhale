@@ -33,16 +33,18 @@ class LazyStarter:
         self.exchange = None
         self.user_balance = {}
         self.selected_market = None
-        self.active_orders = {'sell': [], 'buy': []}
+        self.open_orders = {'sell': [], 'buy': []}
         self.history = {'sell': [], 'buy': []}
         self.params = {}
         self.intervals = []
+        self.total_buy_funds_needed = None
+        self.total_sell_funds_needed = None
         self.err_counter = 0
         self.now = 0
         self.other_orders = []
 
     """
-    ########################## __INIT__ + MENDATORY ###########################
+    ########################## __INIT__ + MANDATORY ###########################
     """
 
     # I'm not sure if it work well
@@ -403,9 +405,10 @@ class LazyStarter:
 
     def timestamp_formater(self):
         """Format time.time() into the same format as timestamp
-        used in ccxt and put the result in global var."""
+        used in ccxt: 13 numbers.
+        return: int, formated timestamp"""
         timestamp = str(time.time()).split('.')
-        self.now = int(timestamp[0] + timestamp[1][:3])
+        return = int(timestamp[0] + timestamp[1][:3])
 
     def limitation_to_btc_market(self, market):
         """Special limitation to BTC market : only ALT/BTC for now.
@@ -547,18 +550,21 @@ class LazyStarter:
                 if total_sell_funds_needed > sell_balance:
                     sell_balance = self.look_for_moar_funds(total_sell_funds_needed,
                         sell_balance, 'sell')
-                print('Your actual strategy require:\n', pair[1], ' needed: ',
-                      total_buy_funds_needed, ' and you have ', buy_balance, 
-                      pair[1],  '\n ', pair[0], 'needed: ' , 
-                      total_sell_funds_needed, ' and you have ', sell_balance,
-                      pair[0], '.')
+                msg = 'Your actual strategy require:\n' + pair[1] + ' needed: ' +\
+                      total_buy_funds_needed + ' and you have ' + buy_balance +\
+                      pair[1] +  '\n ' + pair[0] + 'needed: ' +\
+                      total_sell_funds_needed + ' and you have ' + sell_balance +\
+                      pair[0] + '.'
+                self.debugger.info(msg)
                 if total_buy_funds_needed > buy_balance or\
                     total_sell_funds_needed > sell_balance:
                     raise ValueError('You don\'t own enough funds!')
                 is_valid = True
             except Exception as e:
-                print(e, '\nYou need to change some paramaters:')
+                self.debugger.warning('%s\nYou need to change some paramaters:', e)
                 params = self.change_params(params)
+        self.total_buy_funds_needed = total_buy_funds_needed
+        self.total_sell_funds_needed = total_sell_funds_needed
         return params
 
     def Calculate_buy_funds(self, index, amount):
@@ -635,8 +641,9 @@ class LazyStarter:
                                 funds += order[1] * order[2]
                             else:
                                 funds += order[2]
-                            print('You have now ', funds, ' ', side, ' funds \
-                                and you need ', funds_needed, '.')
+                            msg = 'You have now ' + funds + ' ' + side + \
+                                ' funds and you need ' + funds_needed + '.'
+                            self.debugger.info(msg)
                         if not orders_outside_strat:
                             is_valid = True
         return funds
@@ -773,12 +780,16 @@ class LazyStarter:
     def ask_nb_to_display(self):
         """Ask how much buy and sell orders are going to be in the book.
         return: dict, nb_buy_to_display + nb_sell."""
-        question = 'How many buy orders do you want to display? It must be less than' + str(len(self.intervals)) + '. 0 value = ' + str(len(self.intervals)) + ':'
-        nb_buy_to_display = self.ask_question(question, self.str_to_int, 
-                                              self.param_checker_nb_to_display)
-        question = 'How many sell orders do you want to display? It must be less than'+ str(len(self.intervals)) + '. 0 = ' + str(len(self.intervals)) + ':'
-        nb_sell_to_display = self.ask_question(question, self.str_to_int, 
-                                               self.param_checker_nb_to_display)
+        q = 'How many buy orders do you want to display? It must be \
+            less than' + str(len(self.intervals)) + '. 0 value = ' + \
+            str(len(self.intervals)) + ':'
+        nb_buy_to_display = self.ask_question(q, self.str_to_int,
+            self.param_checker_nb_to_display)
+        q = 'How many sell orders do you want to display? It must be \
+            less than'+ str(len(self.intervals)) + '. 0 = ' + \
+            str(len(self.intervals)) + ':'
+        nb_sell_to_display = self.ask_question(q, self.str_to_int,
+            self.param_checker_nb_to_display)
         return {'nb_buy_to_display': nb_buy_to_display, 
                 'nb_sell_to_display': nb_sell_to_display}
 
@@ -809,36 +820,40 @@ class LazyStarter:
            return pos - 1
 
     def ask_for_logfile(self):
-        """Ask and verify LW logfile parameters
+        """Allow user to use previous parameter if they exist and backup it.
+        At the end of this section, parameters are set and LW can be initialized.
         """
-        question = 'Do you want to check if a previous parameter is in logfile?'
-        if self.simple_question(question) is True:
+        q = 'Do you want to check if a previous parameter is in logfile?'
+        if self.simple_question(q) is True:
             if self.create_dir_when_none('logfiles') is True:
                 if self.create_file_when_none(self.log_file_name) is True:
                     if self.logfile_not_empty() is True:
                         log_file_datas = self.log_file_reader()
                         self.duplicate_log_file()
                         if log_file_datas is not False:
-                            print('Your previous parameters are:')
+                            msg = 'Your previous parameters are:'
                             for item in log_file_datas['params'].items():
-                                print(item)
-                            question = 'Do you want to display history from logs?'
-                            if self.simple_question(question) is True:
+                                msg = '\n' + item
+                            self.debugger.info(msg)
+                            q = 'Do you want to display history from logs?'
+                            if self.simple_question(q) is True:
                                 self.display_user_trades(log_file_datas)
-                            question = 'Do you want to use those params?'
-                            if self.simple_question(question) is True:
+                            q = 'Do you want to use those params?'
+                            if self.simple_question(q) is True:
                                 self.params = log_file_datas['params']
                         else:
-                            print('Your params are corrupted, please enter new one.')
+                            self.debugger.warning('Your parameters are \
+                                corrupted, please enter new one.')
                 else:
-                    print('No file was found, an empty one has been created!')
+                    self.debugger.warning('No file was found, an empty one has \
+                        been created!')
             else:
-                print('No Logfile directory have been found and one has been created')
+                self.debugger.warning('No Logfile directory have been found \
+                    and one has been created')
                 self.create_file_when_none(self.log_file_name)
         if not self.params:
             self.params = self.enter_params()
-        self.set_logging_params()
-        logging.info(self.params_to_str(self.params))
+        self.logger.info(self.params_to_str(self.params))
 
     def enter_params(self):
         """Series of questions to setup LW parameters.
@@ -849,10 +864,10 @@ class LazyStarter:
         params.update({'amount': self.ask_param_amount(params['range_bot'])})
         params.update(self.ask_params_spread())
         params = self.check_for_enough_funds(params)
-        question = 'Do you want to stop LW if range_bot is reach? (y) or (n) only.'
-        params.update({'stop_at_bot': self.ask_question(question, self.str_to_bool)})
-        question = 'Do you want to stop LW if range_top is reach? (y) or (n) only.'
-        params.update({'stop_at_top': self.ask_question(question, self.str_to_bool)})
+        q = 'Do you want to stop LW if range_bot is reach? (y) or (n) only.'
+        params.update({'stop_at_bot': self.ask_question(q, self.str_to_bool)})
+        q = 'Do you want to stop LW if range_top is reach? (y) or (n) only.'
+        params.update({'stop_at_top': self.ask_question(q, self.str_to_bool)})
         params.update(self.ask_nb_to_display())
         params.update({'benef_alloc': self.ask_benef_alloc()})
         return params
@@ -908,7 +923,7 @@ class LazyStarter:
             self.exit()
 
     def duplicate_log_file(self):
-        """Count the number of file starting by 'logfile.', duplicate lofile.log and create an empty one"""
+        """Count the number of file starting by 'logfile.', duplicate logfile.log and create an empty one"""
         i = 0
         for file in os.listdir('logfiles'):
             if file.startswith('logger.'):
@@ -1009,12 +1024,12 @@ class LazyStarter:
                 self.err_counter = 0
             return self.fetch_ticker(market)
 
-    def create_limit_buy_order(self, market, amount, price):
+    def init_limit_buy_order(self, market, amount, price):
         """Generate a timestamp before creating a buy order."""
-        self.timestamp_formater()
+        self.now = self.timestamp_formater()
         return self.put_limit_buy_order(market, amount, price)
 
-    def put_limit_buy_order(self, market, amount, price):
+    def create_limit_buy_order(self, market, amount, price):
         """Create a limit buy order on a market of a marketplace.
         Retry 1000 times when error and send a mail each 10 tries.
         market: string, market name.
@@ -1023,7 +1038,8 @@ class LazyStarter:
         return: list, formatted trade history by ccxt."""
         try:
             order = self.exchange.create_limit_buy_order(market, amount, price)
-            return self.format_order(order['id'], price, amount,\
+            return self.format_order(order['id'], price, amount, 
+                self.timestamp_formater(), 
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
         except Exception as e:
             msg = 'WARNING: ' + e 
@@ -1040,11 +1056,12 @@ class LazyStarter:
             else:
                 return rsp
 
-    def create_limit_sell_order(self, market, amount, price):
-        self.timestamp_formater()
+    def init_limit_sell_order(self, market, amount, price):
+        """Generate a global timestamp before calling """
+        self.now = self.timestamp_formater()
         return self.put_limit_sell_order(market, amount, price)
 
-    def put_limit_sell_order(self, market, amount, price):
+    def create_limit_sell_order(self, market, amount, price):
         """Create a limit sell order on a market of a marketplace.
         Retry 1000 times when error and send a mail each 10 tries.
         market: string, market name.
@@ -1054,7 +1071,8 @@ class LazyStarter:
                 or boolean True when the order is already filled"""
         try:
             order = self.exchange.create_limit_sell_order(market, amount, price)
-            return self.format_order(order['id'], price, amount,\
+            return self.format_order(order['id'], price, amount,
+                self.timestamp_formater(),
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
         except Exception as e:
             msg = 'WARNING: ' + e 
@@ -1192,8 +1210,9 @@ class LazyStarter:
         id: string, order unique identifier.
         price: float.
         amount: float.
+        timestamp: int.
         date: string.
-        return: list, containing id, price, amount, value and date.
+        return: list, containing: id, price, amount, value, timestamp and date.
         """
         return [order_id, Decimal(str(price)), Decimal(str(amount)),\
                 Decimal(str(price)) * Decimal(str(amount)) * Decimal('0.9975'),\
@@ -1258,9 +1277,123 @@ class LazyStarter:
                 order[1], ', amount: ', order[2], ', value: ', order[3],\
                 ' timestamp: ', order[4])
 
-
     def strat_init(self):
-        pass
+        """
+        """
+        # Add funds locker as intervals
+        self.intervals = [Decimal('0.00000001')] + self.intervals + \
+            [Decimal('1')]
+        orders = self.orders_price_ordering(self.get_orders())
+        remaining_orders = {'sell': [], 'buy': []}
+        self.orders_outside_strat = []
+        q = 'Do you want to remove this order ? (y or n)'
+        q2 = ' This order [' + ', '.join(str(item) for item in order) +\
+            '] has an amount < to params[\'amount\'], do you want to remove it? \
+            (y or no)'
+        # remove open orders outside the strategy
+        i = 0
+        for order in orders['buy']:
+            if order[1] not in self.intervals:
+                r = self.simple_question(q)
+                if r:
+                    self.cancel_order(order[0], order[1], order[4], 'buy')
+                    orders['buy'].pop(i)
+                else:
+                    self.orders_outside_strat += order[1]
+                    orders['buy'].pop(i)
+            if order[2] < self.params['amount']:
+                r = self.simple_question(q2)
+                if r:
+                    self.cancel_order(order[0], order[1], order[4], 'buy')
+                    orders['buy'].pop(i)
+            i += 1
+        i = 0
+        for order in orders['sell']:
+            if order[1] not in self.intervals:
+                r = self.simple_question(q)
+                if r:
+                    self.cancel_order(order[0], order[1], order[4], 'sell')
+                    orders['sell'].pop(i)
+                else:
+                    self.orders_outside_strat += order[1]
+                    orders['sell'].pop(i)
+            if order[2] < self.params['amount']:
+                r = self.simple_question(q2)
+                if r:
+                    self.cancel_order(order[0], order[1], order[4], 'sell')
+                    orders['sell'].pop(i)
+            i += 1
+        # Create lists with all remaining orders price
+        if order['buy']:
+            for order in orders['buy']:
+                remaining_orders['buy'] += order[1]
+        if order['sell']:
+            for order in orders['sell']:
+                remaining_orders['sell'] += order[1]
+        self.open_orders = orders
+        self.set_first_orders(remaining_orders)
+
+    def set_first_orders(self, remaining_orders):
+        """Open orders for the strategy.
+        remaining_orders: dict."""
+        spread_bot_index = self.intervals.index(params['spread_bot'])
+        spread_top_index = spread_bot_index + 1
+        buy_target = spread_bot_index - params['nb_buy_displayed']
+        sell_target = spread_top_index + params['nb_sell_displayed']
+        new_orders = {'sell': [], 'buy': []}
+        # Move the safety buy order
+        if self.open_orders['buy'][0][1] == Decimal('0.00000001'):
+            new_orders['buy'] += self.open_orders['buy'][0][1]
+            self.open_orders['buy'].pop(0)
+        # Open an order if needed or move an already existing order
+        while buy_target <= spread_bot_index:
+            if self.intervals[buy_target] not in remaining_orders['buy']:
+                order = self.init_limit_buy_order(self.selected_market,
+                    self.params['amount'], self.intervals[buy_target])
+                new_orders['buy'] += order
+            else:
+                i = 0
+                for item in self.open_orders['buy']:
+                    if item[1] == self.intervals[buy_target]:
+                        new_orders['buy'] += item
+                        self.open_orders['buy'].pop(i)
+                        break
+                    i += 1
+            buy_target += 1
+        # Cancel buy orders that should not be opened
+        for item in self.open_orders['buy']:
+            self.cancel_order(order[0], order[1], order[4], 'buy')
+            self.open_orders['buy'].pop(0)
+        # Check that everything is fine
+        if self.open_orders['buy']:
+            raise ValueError('self.open_orders[\'buy\'] should be empty!')
+        # Move the safety sell order
+        if self.open_orders['sell'][-1][1] == Decimal('1'):
+            new_orders['sell'] += self.open_orders['sell'][0][1]
+            self.open_orders['sell'].pop(-1)
+        # Open an order if needed or move an already existing order
+        while sell_target >= spread_sell_index:
+            if self.intervals[sell_target] not in remaining_orders['sell']:
+                order = self.init_limit_sell_order(self.selected_market,
+                    self.params['amount'], self.intervals[sell_target])
+                new_orders['sell'].insert(0, order)
+            else:
+                i = 0
+                for item in self.open_orders['sell']:
+                    if item[1] == self.intervals[sell_target]:
+                        new_orders['sell'].insert(0, item)
+                        self.open_orders['sell'].pop(i)
+                        break
+                    i += 1
+            sell_target -= 1
+        # Cancel sell orders that should not be opened
+        for item in self.open_orders['sell']:
+            self.cancel_order(order[0], order[1], order[4], 'sell')
+            self.open_orders['sell'].pop(0)
+        # Check that everything is fine
+        if self.open_orders['sell']:
+            raise ValueError('self.open_orders[\'sell\'] should be empty!')
+        self.open_orders = new_orders
 
 
 
@@ -1290,3 +1423,6 @@ LazyStarter = LazyStarter()
 
 if __name__ == "__main__":
     LazyStarter.main()
+
+
+a = ['id', Decimal('456'), Decimal('789'), Decimal('756'), 1234567891234, 'Date']
