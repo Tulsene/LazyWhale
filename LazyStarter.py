@@ -490,7 +490,7 @@ class LazyStarter:
             raise ValueError('Range top value is too low')
         while intervals[-1] <= range_top:
             intervals.append(self.interval_calculator(intervals[-1], increment))
-        intervals.pop()
+        del intervals[-1]
         if len(intervals) < 6:
             raise ValueError('Range top value is too low, or increment too high: need to generate at lease 6 intervals. Try again!')
         return intervals
@@ -643,7 +643,7 @@ class LazyStarter:
                         q = 'Which order do you want to remove:'
                         rsp = self.ask_to_select_in_a_list(q, 
                             orders_outside_strat)
-                        orders_outside_strat.pop(rsp)
+                        del orders_outside_strat[rsp]
                         rsp = self.cancel_order(orders_outside_strat[rsp][0],
                             orders_outside_strat[rsp][1],
                             orders_outside_strat[rsp][4], side)
@@ -1243,6 +1243,13 @@ class LazyStarter:
             else:
                 return True
 
+    def cancel_all(self, new_open_orders):
+        if open_orders['buy']:
+            for item in open_orders['buy']:
+                self.cancel_order(item[0], item[1], item[4], 'buy')
+        if open_orders['sell']:
+            self.cancel_order(item[0], item[1], item[4], 'sell')
+
     """
     ###################### API REQUESTS FORMATTERS ############################
     """
@@ -1366,15 +1373,15 @@ class LazyStarter:
                 r = self.simple_question(q)
                 if r:
                     self.cancel_order(order[0], order[1], order[4], 'buy')
-                    orders['buy'].pop(i)
+                    del orders['buy'][i]
                 else:
                     self.orders_outside_strat.append(order[1])
-                    orders['buy'].pop(i)
+                    del orders['buy'][i]
             if order[2] < self.params['amount']:
                 r = self.simple_question(q2)
                 if r:
                     self.cancel_order(order[0], order[1], order[4], 'buy')
-                    orders['buy'].pop(i)
+                    del orders['buy'][i]
             i += 1
         i = 0
         for order in orders['sell']:
@@ -1382,15 +1389,15 @@ class LazyStarter:
                 r = self.simple_question(q)
                 if r:
                     self.cancel_order(order[0], order[1], order[4], 'sell')
-                    orders['sell'].pop(i)
+                    del orders['sell'][i]
                 else:
                     self.orders_outside_strat.append(order[1])
-                    orders['sell'].pop(i)
+                    del orders['sell'][i]
             if order[2] < self.params['amount']:
                 r = self.simple_question(q2)
                 if r:
                     self.cancel_order(order[0], order[1], order[4], 'sell')
-                    orders['sell'].pop(i)
+                    del orders['sell'][i]
             i += 1
         # Create lists with all remaining orders price
         if orders['buy']:
@@ -1413,7 +1420,7 @@ class LazyStarter:
         # Move the safety buy order
         if open_orders['buy'][0][1] == Decimal('0.00000001'):
             new_orders['buy'].append(open_orders['buy'][0][1])
-            open_orders['buy'].pop(0)
+            del open_orders['buy'][0]
         # Open an order if needed or move an already existing order from
         # lowest buy price to highest buy price
         while buy_target <= spread_bot_index:
@@ -1426,21 +1433,21 @@ class LazyStarter:
                 for item in open_orders['buy']:
                     if item[1] == self.intervals[buy_target]:
                         new_orders['buy'] += item
-                        open_orders['buy'].pop(i)
+                        del open_orders['buy'][i]
                         break
                     i += 1
             buy_target += 1
         # Cancel buy orders that should not be opened
         for item in open_orders['buy']:
             self.cancel_order(order[0], order[1], order[4], 'buy')
-            open_orders['buy'].pop(0)
+            del open_orders['buy'][0]
         # Check that everything is fine
         if open_orders['buy']:
             raise ValueError('self.open_orders[\'buy\'] should be empty!')
         # Move the safety sell order
         if open_orders['sell'][-1][1] == Decimal('1'):
             new_orders['sell'].append(open_orders['sell'][0][1])
-            open_orders['sell'].pop(-1)
+            del open_orders['sell'][-1]
         # Open an order if needed or move an already existing order from
         # highest sell price to lowest sell price
         while sell_target >= spread_sell_index:
@@ -1453,14 +1460,14 @@ class LazyStarter:
                 for item in open_orders['sell']:
                     if item[1] == self.intervals[sell_target]:
                         new_orders['sell'].insert(0, item)
-                        open_orders['sell'].pop(i)
+                        del open_orders['sell'][i]
                         break
                     i += 1
             sell_target -= 1
         # Cancel sell orders that should not be opened
         for item in open_orders['sell']:
             self.cancel_order(order[0], order[1], order[4], 'sell')
-            open_orders['sell'].pop(0)
+            del open_orders['sell'][0]
         # Check that everything is fine
         if open_orders['sell']:
             raise ValueError('self.open_orders[\'sell\'] should be empty!')
@@ -1480,14 +1487,14 @@ class LazyStarter:
                     self.cancel_order(open_orders['buy'][0][0],
                         open_orders['buy'][0][1], open_orders['buy'][0][4],
                         'buy')
-                open_orders['buy'].pop(0)
+                del open_orders['buy'][0]
         if open_orders['sell']:
             if open_orders['sell'][-1][1] == Decimal('1'):
                 if open_orders['sell'][-1][0]:
                     self.cancel_order(open_orders['sell'][-1][0],
                         open_orders['sell'][-1][1], open_orders['sell'][-1][4],
                         'sell')
-                open_orders['sell'].pop(-1)
+                del open_orders['sell'][-1]
         return open_orders
 
     def set_safety_buy_order(self, open_orders):
@@ -1509,7 +1516,7 @@ class LazyStarter:
         else:
             open_orders.insert(0, self.create_fake_buy())
 
-    def set_safety_buy_order(self, open_orders):
+    def set_safety_sell_order(self, open_orders):
         """Add safety sell order to lock funds so user can start several times
         the strategy on the same marketplace.
         open_orders: list.
@@ -1551,13 +1558,13 @@ class LazyStarter:
             i = 0
             for order in new_open_orders['buy']:
                 if order[1] not in self.intervals:
-                    new_open_orders['buy'].pop(i)
+                    del new_open_orders['buy'][i]
                 i += 1
         if new_open_orders['sell']:
             i = 0
             for order in new_open_orders['sell']:
                 if order[1] not in self.intervals:
-                    new_open_orders['sell'].pop(i)
+                    del new_open_orders['sell'][i]
                 i += 1
         return self.remove_safety_order(new_open_orders)
 
@@ -1577,6 +1584,8 @@ class LazyStarter:
                 new_open_orders['buy'].append(self.create_fake_buy())
             elif target < 1:
                 if self.params['stop_at_bot']:
+                    self.cancel_all(self.remove_orders_off_strat(
+                        self.get_orders(self.select_marketplace)))
                     self.stratlog.critical('Bottom target reached!')
                     self.exit()
                 else:
@@ -1602,6 +1611,8 @@ class LazyStarter:
                 new_open_orders['sell'].append(self.create_fake_sell())
             elif start_index > len(self.intervals) - 2:
                 if self.params['stop_at_top']:
+                    self.cancel_all(self.remove_orders_off_strat(
+                        self.get_orders(self.select_marketplace)))
                     self.stratlog.critical('Top target reached!')
                     self.exit()
                 else:
@@ -1673,7 +1684,11 @@ class LazyStarter:
                 i += 1
 
     def limit_nb_orders(self):
-        pass
+        """Cancel open orders if there is too many."""
+        self.stratlog.debug('Limit nb orders')
+        new_open_orders = self.orders_price_ordering(self.get_orders(
+                self.select_market))
+
 
     def exit(self):
         """Clean program exit"""
