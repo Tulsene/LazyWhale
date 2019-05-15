@@ -8,6 +8,7 @@ import json
 import sys
 import os
 import zebitexFormatted
+import copy
 from decimal import *
 from pathlib import Path
 from bisect import bisect_left
@@ -23,9 +24,9 @@ class LazyStarter:
         self.debug_file_name = 'logfiles/debug.log'
         self.formatter1 = '%(message)s'
         self.formatter2 = '%(asctime)s - %(levelname)s - %(message)s'
-        self.logger = self.logger_setup('logs', self.log_file_name,
+        self.stratlog = self.logger_setup('logs', self.log_file_name,
             self.formatter1, logging.DEBUG, logging.INFO)
-        self.debugger = self.logger_setup('debugs', self.debug_file_name, 
+        self.applog = self.logger_setup('debugs', self.debug_file_name, 
             self.formatter2, logging.DEBUG, logging.DEBUG)
         self.user_market_name_list = []
         self.ccxt_exchanges_list = self.exchanges_list_init()
@@ -93,13 +94,13 @@ class LazyStarter:
         """
         if not os.path.isfile(self.keys_file):
             Path(self.keys_file).touch()
-            self.debugger.critical('No file was found, an empty one has been \
+            self.applog.critical('No file was found, an empty one has been \
                 created, please fill it as indicated in the documentation')
             self.exit()
         else:
             keys = self.keys_file_reader()
             if not keys:
-                self.debugger.critical('Your key.txt file is empty, please \
+                self.applog.critical('Your key.txt file is empty, please \
                     fill it as indicated to the documentation')
                 self.exit()
             else:
@@ -125,7 +126,7 @@ class LazyStarter:
                         if k not in self.ccxt_exchanges_list:
                             raise NameError('The marketplace name is invalid!')
                 except Exception as e:
-                    self.debugger.critical('Something went wrong : %s', e)
+                    self.applog.critical('Something went wrong : %s', e)
                     self.exit()
                 keys.update(key)
             return keys
@@ -197,7 +198,7 @@ class LazyStarter:
                 try:
                     params = json.loads(params)
                 except Exception as e:
-                    self.debugger.critical('Something went wrong with the first \
+                    self.applog.critical('Something went wrong with the first \
                         line of the log file: %s', e)
                     self.exit()
                 logs_data['params'] = self.params_checker(params)
@@ -565,13 +566,13 @@ class LazyStarter:
                       pair[1] +  '\n ' + pair[0] + 'needed: ' +\
                       total_sell_funds_needed + ' and you have ' + sell_balance +\
                       pair[0] + '.'
-                self.debugger.info(msg)
+                self.applog.info(msg)
                 if total_buy_funds_needed > buy_balance or\
                     total_sell_funds_needed > sell_balance:
                     raise ValueError('You don\'t own enough funds!')
                 is_valid = True
             except Exception as e:
-                self.debugger.warning('%s\nYou need to change some paramaters:', e)
+                self.applog.warning('%s\nYou need to change some paramaters:', e)
                 params = self.change_params(params)
         self.total_buy_funds_needed = total_buy_funds_needed
         self.total_sell_funds_needed = total_sell_funds_needed
@@ -653,7 +654,7 @@ class LazyStarter:
                                 funds += order[2]
                             msg = 'You have now ' + funds + ' ' + side + \
                                 ' funds and you need ' + funds_needed + '.'
-                            self.debugger.info(msg)
+                            self.applog.info(msg)
                         if not orders_outside_strat:
                             is_valid = True
         return funds
@@ -844,7 +845,7 @@ class LazyStarter:
                             msg = 'Your previous parameters are:'
                             for item in log_file_datas['params'].items():
                                 msg = '\n' + item
-                            self.debugger.info(msg)
+                            self.applog.info(msg)
                             q = 'Do you want to display history from logs?'
                             if self.simple_question(q) is True:
                                 self.display_user_trades(log_file_datas)
@@ -852,18 +853,18 @@ class LazyStarter:
                             if self.simple_question(q) is True:
                                 self.params = log_file_datas['params']
                         else:
-                            self.debugger.warning('Your parameters are \
+                            self.applog.warning('Your parameters are \
                                 corrupted, please enter new one.')
                 else:
-                    self.debugger.warning('No file was found, an empty one has \
+                    self.applog.warning('No file was found, an empty one has \
                         been created!')
             else:
-                self.debugger.warning('No Logfile directory have been found \
+                self.applog.warning('No Logfile directory have been found \
                     and one has been created')
                 self.create_file_when_none(self.log_file_name)
         if not self.params:
             self.params = self.enter_params()
-        self.logger.info(self.params_to_str(self.params))
+        self.stratlog.info(self.params_to_str(self.params))
 
     def enter_params(self):
         """Series of questions to setup LW parameters.
@@ -1089,7 +1090,7 @@ class LazyStarter:
                         Decimal('.00000001'), rounding=ROUND_HALF_EVEN)
                 amount.append((((btc_won - btc_to_spend) * Decimal(str(
                     params['benef_alloc'])) / Decimal('100')) * \
-                    params['amount']).quantize(Decimal('.00000001'), 
+                    params['amount']).quantize(Decimal('.00000001'),
                         rounding=ROUND_HALF_EVEN) + self.params['amount'])
                 start_index_copy += 1
         else:
@@ -1542,10 +1543,10 @@ class LazyStarter:
         return [None, Decimal('1'), 0, 0, self.timestamp_formater(),\
             datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')]
 
-    def remove_orders_off_strat(self):
+    def remove_orders_off_strat(self, new_open_orders):
         """Remove all orders that are not included in the strategy
-        return: dict, actual open orders on the market"""
-        new_open_orders = self.orders_price_ordering(self.get_orders())
+        new_open_orders: dict, every open orders on the market
+        return: dict, open orders wich are included in the strategy"""
         if new_open_orders['buy']:
             i = 0
             for order in new_open_orders['buy']:
@@ -1576,7 +1577,7 @@ class LazyStarter:
                 new_open_orders['buy'].append(self.create_fake_buy())
             elif target < 1:
                 if self.params['stop_at_bot']:
-                    self.logger.critical('Bottom target reached!')
+                    self.stratlog.critical('Bottom target reached!')
                     self.exit()
                 else:
                     new_open_orders['buy'].append(self.create_fake_buy())
@@ -1601,7 +1602,7 @@ class LazyStarter:
                 new_open_orders['sell'].append(self.create_fake_sell())
             elif start_index > len(self.intervals) - 2:
                 if self.params['stop_at_top']:
-                    self.logger.critical('Top target reached!')
+                    self.stratlog.critical('Top target reached!')
                     self.exit()
                 else:
                     new_open_orders['sell'].append(self.create_fake_sell())
@@ -1617,21 +1618,66 @@ class LazyStarter:
                     new_open_orders['sell'].append(order)
         return new_open_orders
 
-    def compare_orders(self):
-        pass
+    def compare_orders(self, new_open_orders):
+        """Compare between open order know by LW and buy order from the
+        marketplace.
+        """
+        executed_orders = {'buy': [], 'sell': []}
+        missing_orders = copy.deepcopy(self.open_orders)
+        # When a sell has occured
+        if new_open_orders['sell'][0][1] != self.open_orders['sell'][0][1]:
+            self.stratlog.info('A sell has occured')
+            for order in self.open_orders['sell']:
+                rsp = any(new_order[1] == order[1] \
+                    for new_order in new_open_orders['sell'])
+                if rsp:
+                    missing_orders['sell'].remove(order)
+            start_index = self.intervals.index([self.open_orders['sell'][0][1]])
+            target = self.intervals.index(new_orders['sell'][0][1]) - 1
+            if target - start_index > 0:
+                executed_orders['buy'] = self.set_several_buy(start_index,
+                    target, True)
+        # When a buy has occured
+        if new_open_orders['buy'][-1][1] != self.open_orders['buy'][-1][1]:
+            self.stratlog.info('A buy has occured')
+            for order in self.open_orders['buy']:
+                rsp = any(new_order[1] == order[1] \
+                    for new_order in new_open_orders['buy'])
+                if rsp:
+                    missing_orders['buy'].remove(order)
+            start_index = self.intervals.index(new_open_orders['buy'][-1][1])
+            target = self.intervals.index(self.open_orders['buy'][-1][1])
+            if target - start_index > 0:
+                executed_orders['sell'] = self.set_several_sell(start_index,
+                    target)
+        self.update_open_orders(missing_orders, executed_orders)
 
-    def update_buy_orders(self, sell_orders_missing, buy_orders_executed):
-        pass
 
-    def update_sell_orders(self, buy_orders_missing, sell_orders_executed):
-        pass
+    def update_open_orders(self, missing_orders, executed_orders):
+        """Update self.open_orders with orders missing or executed
+        missing_orders: dict, all the missing orders since the last LW cycle.
+        executed_order: dict, all the executed orders since the last LW cycle"""
+        if executed_orders['buy']:
+            self.stratlog.debug('Update self.open_orders[\'buy\']')
+            for order in missing_orders['sell']:
+                self.open_orders['sell'].remove(order)
+            for order in executed_orders['buy']:
+                self.open_orders['buy'].append(order)
+        if executed_orders['sell']:
+            self.stratlog.debug('Update self.open_orders[\'sell\']')
+            for order in missing_orders['buy']:
+                self.open_orders['buy'].remove(item)
+            i = 0
+            for order in executed_orders['sell']:
+                self.open_orders['sell'].insert(i, order)
+                i += 1
 
     def limit_nb_orders(self):
         pass
 
     def exit(self):
         """Clean program exit"""
-        self.debugger.critical("End the program")
+        self.applog.critical("End the program")
         sys.exit(0)
 
     def lw_initialisation(self):
@@ -1653,15 +1699,17 @@ class LazyStarter:
         Simple execution loop.
         """
         while True:
-            self.debugger.debug('CYCLE START')
-            new_open_orders = self.remove_orders_off_strat()
+            self.applog.debug('CYCLE START')
+            new_open_orders = self.orders_price_ordering(self.get_orders(
+                self.select_market))
+            new_open_orders = self.remove_orders_off_strat(new_open_orders)
             new_open_orders = self.check_if_no_orders(new_open_orders)
             self.compare_orders()
-            self.debugger.debug('CYCLE STOP')
+            self.applog.debug('CYCLE STOP')
             time.sleep(5)
 
     def main(self):
-        self.debugger.info("Start the program")
+        self.applog.info("Program starting!")
         self.lw_initialisation()
         self.exit()
 
