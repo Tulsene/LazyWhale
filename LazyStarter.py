@@ -32,6 +32,7 @@ class LazyStarter:
         self.ccxt_exchanges_list = self.exchanges_list_init()
         self.keys = self.keys_initialisation()
         self.exchange = None
+        self.fees_coef = Decimal('0.9975')
         self.user_balance = {}
         self.selected_market = None
         self.open_orders = {'sell': [], 'buy': []}
@@ -227,6 +228,11 @@ class LazyStarter:
                             print('Something went wrong with data formating in \
                                     the log file: ', e)
                             return False
+                # Limit the number of history to keep to the last 20 trades
+                while len(logs_data['buy']) > 20:
+                    del logs_data['buy'][0]
+                while len(logs_data['sell']) > 20:
+                    del logs_data['sell'][0]
             else:
                 raise ValueError('The first line of the log file do not \
                     contain parameters')
@@ -336,32 +342,32 @@ class LazyStarter:
 
     def create_dir_when_none(self, dir_name):
         """Check if a directory exist or create one.
-        return: bool True or None."""
+        return: bool."""
         if not os.path.isdir(dir_name):
             os.makedirs(dir_name)
-            return None
+            return False
         else:
             return True
 
     def create_file_when_none(self, file_name): # Need to be refactored
         """Check if a file exist or create one.
-        return: bool True or None.
+        return: bool.
         """
         if not os.path.isfile(file_name):
             Path(file_name).touch()
-            return None
+            return False
         else:
             return True
 
     def logfile_not_empty(self): # Need to be refactored
         """Check if there is data in the logfile.
-        return : bool True or None.
+        return : bool.
         """
         if os.path.getsize(self.log_file_name):
             return True
         else:
-            print('Logfile is empty!')
-            return None
+            self.applog.info('Logfile is empty!')
+            return False
 
     def str_to_decimal(self, s, error_message=None):
         """Convert a string to Decimal or raise an error.
@@ -378,7 +384,7 @@ class LazyStarter:
         str_date: string
         """
         try:
-            datetime.strptime(str_date, '%Y-%m-%d %H:%M:%S.%f')
+            return datetime.strptime(str_date, '%Y-%m-%d %H:%M:%S.%f')
         except Exception as e:
             raise ValueError(str_date, ' is not a valid date: ', e)
 
@@ -440,31 +446,36 @@ class LazyStarter:
         range_bot: decimal"""
         if range_bot < Decimal('0.000001'):
             raise ValueError('The bottom of the range is too low')
+        return True
 
     def param_checker_range_top(self, range_top):
         """Verifies the value of the top of the channel
         range_top: decimal"""
-        if range_top > Decimal('100000'):
+        if range_top > Decimal('0.99'):
             raise ValueError('The top of the range is too high')
+        return True
 
     def param_checker_interval(self, interval):
         """Verifies the value of interval between orders
         interval: decimal"""
         if Decimal('1.01') > interval or interval >  Decimal('1.50'):
             raise ValueError('Increment is too low (<=1%) or high (>=50%)')
+        return True
 
     def param_checker_amount(self, amount, minimum_amount): 
         """Verifies the value of each orders 
         amount: decimal"""
         if amount < minimum_amount or amount > Decimal('10000000'):
-            raise ValueError('Amount is too low (<' + str(minimum_amount) + ') or high (>10000000)')
+            raise ValueError('Amount is too low (<' + str(minimum_amount) +\
+                ') or high (>10000000)')
 
     def param_checker_nb_to_display(self, nb):
         """Verifie the nb of order to display
         nb: int"""
         if nb > len(self.intervals) and nb < 0:
-            raise ValueError('The number of order to display is too low (<0) or high ',
-                len(self.intervals))
+            raise ValueError('The number of order to display is too low (<0) \
+                or high ', len(self.intervals))
+        return True
 
     def param_checker_benef_alloc(self, nb):
         """Verifie the nb for benefice allocation
@@ -472,6 +483,7 @@ class LazyStarter:
         if 0 <= nb >= 100:
             raise ValueError('The benefice allocation too low (<0) or high (>100)',
                 nb)
+        return True
 
     def interval_calculator(self, number1, increment):
         """Format a multiplication between decimal correctly
@@ -497,7 +509,8 @@ class LazyStarter:
             intervals.append(self.interval_calculator(intervals[-1], increment))
         del intervals[-1]
         if len(intervals) < 6:
-            raise ValueError('Range top value is too low, or increment too high: need to generate at lease 6 intervals. Try again!')
+            raise ValueError('Range top value is too low, or increment too \
+                high: need to generate at lease 6 intervals. Try again!')
         return intervals
 
     def increment_coef_buider(self, nb):
@@ -514,7 +527,8 @@ class LazyStarter:
             raise ValueError(e)
 
     def check_for_enough_funds(self, params):
-        """Check if the user have enough funds to run LW with he's actual parameters.
+        """Check if the user have enough funds to run LW with he's actual
+        parameters.
         Printed value can be negative!
         Ask for params change if there's not.
         params: dict, parameters for LW.
@@ -531,41 +545,60 @@ class LazyStarter:
             spread_bot_index = self.intervals.index(params['spread_bot'])
             spread_top_index = spread_bot_index + 1
             try:
-                total_buy_funds_needed = self.Calculate_buy_funds(
+                total_buy_funds_needed = self.calculate_buy_funds(
                     spread_bot_index, params['amount'])
-                total_sell_funds_needed = self.Calculate_sell_funds(
+                total_sell_funds_needed = self.calculate_sell_funds(
                     spread_top_index, params['amount'])
+                # When the strategy will start with spread bot inferior or
+                # equal to the actual market price
                 if self.intervals[spread_bot_index] <= price:
                     incoming_buy_funds = Decimal('0')
                     i = spread_top_index
+                    # When the whole strategy is lower than actual price
                     if params['range_top'] < price:
                         while i < len(self.intervals):
-                            incoming_buy_funds += self.intervals[i] * params['amount'] * Decimal('0.9975')
+                            incoming_buy_funds += self.intervals[i] *\
+                                params['amount'] * self.fees_coef
                             i +=1
-                        incoming_buy_funds += params['range_top'] * params['amount'] * Decimal('0.9975')
+                        # should it be kept?
+                        incoming_buy_funds += params['range_top'] *\
+                            params['amount'] * self.fees_coef
+                    # When only few sell orders are planned to be under the
+                    # actual price
                     else:
                         while self.intervals[i] <= price:
-                            incoming_buy_funds += self.intervals[i] * params['amount'] * Decimal('0.9975')
+                            incoming_buy_funds += self.intervals[i] *\
+                                params['amount'] * self.fees_coef
                             i +=1
-                    total_buy_funds_needed = total_buy_funds_needed - incoming_buy_funds
+                    total_buy_funds_needed = total_buy_funds_needed -\
+                        incoming_buy_funds
+                # When the strategy will start with spread bot superior to the
+                # actual price on the market
                 else:
                     incoming_sell_funds = Decimal('0')
                     i = spread_bot_index
+                    # When the whole strategy is upper than actual price
                     if params['spread_bot'] > price:
                         while i >= 0:
-                            incoming_sell_funds += params['amount'] * Decimal('0.9975')
+                            incoming_sell_funds += params['amount'] *\
+                                self.fees_coef
                             i -=1
+                    # When only few buy orders are planned to be upper the
+                    # actual price
                     else:
                         while self.intervals[i] >= price:
-                            incoming_sell_funds += params['amount'] * Decimal('0.9975')
+                            incoming_sell_funds += params['amount'] *\
+                                self.fees_coef
                             i -=1
                     total_sell_funds_needed = total_sell_funds_needed - incoming_sell_funds
+                # In case there is not enough funds, check if there is none stuck 
+                # before asking to change params
                 if total_buy_funds_needed > buy_balance:
                     buy_balance = self.look_for_moar_funds(total_buy_funds_needed,
                         buy_balance, 'buy')
                 if total_sell_funds_needed > sell_balance:
-                    sell_balance = self.look_for_moar_funds(total_sell_funds_needed,
-                        sell_balance, 'sell')
+                    sell_balance = self.look_for_moar_funds(
+                        total_sell_funds_needed, sell_balance, 'sell')
                 msg = 'Your actual strategy require:\n' + pair[1] + ' needed: ' +\
                       total_buy_funds_needed + ' and you have ' + buy_balance +\
                       pair[1] +  '\n ' + pair[0] + 'needed: ' +\
@@ -583,7 +616,7 @@ class LazyStarter:
         self.total_sell_funds_needed = total_sell_funds_needed
         return params
 
-    def Calculate_buy_funds(self, index, amount):
+    def calculate_buy_funds(self, index, amount):
         """Calculate the buy funds required to execute the strategy
         price: Decimal, the actual market price
         amount: Decimal, allocated ALT per order
@@ -596,7 +629,7 @@ class LazyStarter:
             i += 1
         return buy_funds_needed
 
-    def Calculate_sell_funds(self, index, amount):
+    def calculate_sell_funds(self, index, amount):
         """Calculate the sell funds required to execute the strategy
         price: Decimal, the actual market price
         amount: Decimal, allocated ALT per order
@@ -640,11 +673,8 @@ class LazyStarter:
                 is_valid = False
                 while is_valid is False:
                     q = 'Do you want to remove some orders outside of the \
-                    strategy to get enough funds to run it?'
-                    rsp = self.simple_question(q)
-                    if not rsp:
-                        is_valid = True
-                    else:
+                    strategy to get enough funds to run it? (y or n)'
+                    if self.simple_question(q):
                         q = 'Which order do you want to remove:'
                         rsp = self.ask_to_select_in_a_list(q, 
                             orders_outside_strat)
@@ -662,6 +692,8 @@ class LazyStarter:
                             self.applog.info(msg)
                         if not orders_outside_strat:
                             is_valid = True
+                    else:
+                        is_valid = True
         return funds
 
     """
@@ -673,15 +705,14 @@ class LazyStarter:
         question: string, the question to ask.
         return: boolean True or None, yes of no
         """
-        valid_choice = False
-        while valid_choice is False:
-            print(question)
+        while True:
+            self.applog.info(question)
             choice = input(' >> ')
+            self.applog.debug(choice)
             if choice == 'y':
-                valid_choice = True
+                return True
             if choice == 'n':
-                valid_choice = None
-        return valid_choice
+                return False
 
     def ask_question(self, question, formater_func, control_func=None):
         """Ask any question to the user, control the value returned or ask again.
@@ -691,18 +722,18 @@ class LazyStarter:
                        within the requested parameters
         return: formated (int, decimal, ...) choice of the user
         """
-        print(question)
-        is_valid = False
-        while is_valid is False:
+        self.applog.info(question)
+        while True:
             try:
                 choice = input(' >> ')
+                self.applog.debug(choice)
                 choice = formater_func(choice)
                 if control_func:
                     control_func(choice)
-                is_valid = True
+                return choice
             except Exception as e:
-                print(question, 'invalid choice: ', choice, ' -> ', e)
-        return choice
+                msg = question + 'invalid choice: ' + choice + ' -> ' + e
+                self.applog.info(msg)
 
     def ask_to_select_in_a_list(self, question, a_list):
         """Ask to the user to choose between items in a list
@@ -710,24 +741,25 @@ class LazyStarter:
         question: string.
         return: int, the position of this item """
         i = 1
-        is_valid = False
-        print(question)
+        self.applog.info(question)
         question = ''
         for item in a_list:
             question += str(i) + ': ' + str(item) + ', '
             i += 1
-        print(question)
-        while is_valid is False:
+        self.applog.info(question)
+        while True:
             try:
                 choice = input(' >> ')
+                self.applog.debug(choice)
                 choice = self.str_to_int(choice)
                 if 0 < choice <= i:
-                    choice -= 1
-                    is_valid = True
+                    return choice - 1
                 else:
-                    print('You need to enter a number between 1 and ', i)
+                    self.applog.info('You need to enter a number between 1 \
+                        and ', i)
             except Exception as e:
-                print(question, 'invalid choice: ', choice, ' -> ', e)
+                msg = question + 'invalid choice: ' + choice + ' -> ' + e
+                self.applog.info(msg)
         return choice
 
     def ask_param_range_bot(self):
@@ -735,29 +767,27 @@ class LazyStarter:
         return: decimal."""
         question = 'Enter a value for the bottom of the range. It must be superior to 100 stats:'
         return self.ask_question(question, self.str_to_decimal, 
-                                 self.param_checker_range_bot)
+            self.param_checker_range_bot)
 
     def ask_param_range_top(self):
         """Ask the user to enter a value for the top of the range.
         return: decimal."""
-        question = 'Enter a value for the top of the range. It must be inferior to 1000000 BTC:'
+        question = 'Enter a value for the top of the range. It must be inferior to 0.99 BTC:'
         return self.ask_question(question, self.str_to_decimal, 
-                                 self.param_checker_range_top)
+            self.param_checker_range_top)
 
     def ask_param_amount(self, range_bot):
         """Ask the user to enter a value of ALT to sell at each order.
         return: decimal."""
-        is_valid = False
         minimum_amount = Decimal('0.001') / range_bot
         question = 'How much ' + self.selected_market[:4] + ' do you want to sell per order? It must be between ' + str(minimum_amount) + ' and 10000000:'
-        while is_valid is False:
+        while True:
             try:
                 amount = self.ask_question(question, self.str_to_decimal)
                 self.param_checker_amount(amount, minimum_amount)
-                is_valid = True
+                return amount
             except Exception as e:
                 print(e)
-        return amount
 
     def ask_param_increment(self):
         """Ask the user to enter a value for the spread between each order.
@@ -788,8 +818,9 @@ class LazyStarter:
         """
         price = self.get_market_last_price(self.selected_market)
         print('The actual price of', self.selected_market, ' is ', price)
-        question = 'Please select the price of your highest buy order (spread_bot) in the list'
-        position = self.ask_to_select_in_a_list(question, self.intervals)
+        q = 'Please select the price of your highest buy order (spread_bot) \
+            in the list'
+        position = self.ask_to_select_in_a_list(q, self.intervals)
         return {'spread_bot': self.intervals[position], 
                 'spread_top': self.intervals[position + 1]} # Can be improved by suggesting a value
 
@@ -817,30 +848,12 @@ class LazyStarter:
                                         self.param_checker_benef_alloc)
         return benef_alloc
 
-    def position_closest(self, a_list, a_nb):
-        """Find the closest position of a value in a list for a a_nb.
-        a_list: list, a sorted list of number (int or float or Decimal).
-        a_nb: int or float or Decimal, element to look for.
-
-        return: int, position in a list. If two match are equally close,
-        return the smallest number.
-        """
-        pos = bisect_left(a_list, a_nb)
-        if pos == 0 or pos == len(a_list):
-            return pos
-        before = a_list[pos - 1]
-        after = a_list[pos]
-        if after - a_nb < a_nb - before:
-           return pos
-        else:
-           return pos - 1
-
     def ask_for_logfile(self):
         """Allow user to use previous parameter if they exist and backup it.
         At the end of this section, parameters are set and LW can be initialized.
         """
         q = 'Do you want to check if a previous parameter is in logfile?'
-        if self.simple_question(q) is True:
+        if self.simple_question(q):
             if self.create_dir_when_none('logfiles') is True:
                 if self.create_file_when_none(self.log_file_name) is True:
                     if self.logfile_not_empty() is True:
@@ -852,10 +865,10 @@ class LazyStarter:
                                 msg = '\n' + item
                             self.applog.info(msg)
                             q = 'Do you want to display history from logs?'
-                            if self.simple_question(q) is True:
+                            if self.simple_question(q):
                                 self.display_user_trades(log_file_datas)
                             q = 'Do you want to use those params?'
-                            if self.simple_question(q) is True:
+                            if self.simple_question(q):
                                 self.params = log_file_datas['params']
                         else:
                             self.applog.warning('Your parameters are \
@@ -870,6 +883,7 @@ class LazyStarter:
         if not self.params:
             self.params = self.enter_params()
         self.stratlog.info(self.params_to_str(self.params))
+        return True
 
     def enter_params(self):
         """Series of questions to setup LW parameters.
@@ -933,9 +947,8 @@ class LazyStarter:
 
     def wait_for_funds(self):
         """The answer is in the question!"""
-        question = 'Waiting for funds to arrive, (y) when you\'re ready, (n) to leave.'
-        choice = self.simple_question(question)
-        if not choice:
+        q = 'Waiting for funds to arrive, (y) when you\'re ready, (n) to leave.'
+        if not self.simple_question(q):
             self.exit()
 
     def duplicate_log_file(self):
@@ -1088,10 +1101,10 @@ class LazyStarter:
             start_index_copy = start_index
             while start_index_copy <= target:
                 btc_won = (self.intervals[start_index_copy + 1] *\
-                    self.params['amount'] * Decimal('0.9975')).quantize(
+                    self.params['amount'] * self.fees_coef).quantize(
                         Decimal('.00000001'), rounding=ROUND_HALF_EVEN)
                 btc_to_spend = (self.intervals[start_index_copy] *\
-                    self.params['amount'] * Decimal('0.9975')).quantize(
+                    self.params['amount'] * self.fees_coef).quantize(
                         Decimal('.00000001'), rounding=ROUND_HALF_EVEN)
                 amount.append((((btc_won - btc_to_spend) * Decimal(str(
                     params['benef_alloc'])) / Decimal('100')) * \
@@ -1265,7 +1278,7 @@ class LazyStarter:
         return: decimal"""
         return Decimal(f"{self.fetch_ticker(market)['last']:.8f}")
 
-    def get_balances(self):
+    def get_balances(self): # Need to be refactored
         """Get the non empty balance of a user on a marketplace and make it global"""
         balance = self.fetch_balance()
         user_balance = {}
@@ -1275,13 +1288,14 @@ class LazyStarter:
                     for item in value:
                         value[item] = str(value[item])
                     user_balance.update({key: value})
-        self.user_balance = user_balance# Need to be refactored
+        self.user_balance = user_balance
         return
 
     def display_user_balance(self):
         """Display the user balance"""
         for key, value in self.user_balance.items():
-            print(key, ': ', value)
+            msg = key + ': ' + value + '\n'
+        self.applog.debug(msg)
         return
 
     def format_order(self, order_id, price, amount, timestamp, date):
@@ -1294,7 +1308,7 @@ class LazyStarter:
         return: list, containing: id, price, amount, value, timestamp and date.
         """
         return [order_id, Decimal(str(price)), Decimal(str(amount)),\
-                Decimal(str(price)) * Decimal(str(amount)) * Decimal('0.9975'),\
+                Decimal(str(price)) * Decimal(str(amount)) * self.fees_coef,\
                 timestamp, date]
 
     def get_orders(self, market):
@@ -1349,14 +1363,18 @@ class LazyStarter:
         """Pretify and display orders list.
         orders: dict, contain all orders.
         """
-        for order in orders['sell']:
-            print('Sell on: ', order[5], ', id: ', order[0], ', price: ',\
-                order[1], ', amount: ', order[2], ', value: ', order[3],\
-                ' timestamp: ', order[4])
-        for order in orders['buy']:
-            print('Buy on: ', order[5], ', id: ', order[0], ', price: ',\
-                order[1], ', amount: ', order[2], ', value: ', order[3],\
-                ' timestamp: ', order[4])
+        if orders['sell']:
+            for order in orders['sell']:
+                msg = 'Sell on: ' + order[5] + ', id: ' + order[0] +\
+                ', price: ' + order[1] + ', amount: ' + order[2] +\
+                ', value: ' + order[3] + ' timestamp: ' + order[4] + '\n'
+            self.applog.info(msg)
+        if orders['buy']:
+            for order in orders['buy']:
+                msg = 'Buy on: ' + order[5] + ', id: ' + order[0] +\
+                ', price: ' + order[1] + ', amount: ' + order[2] +\
+                ', value: ' + order[3] + ' timestamp: ' + order[4] + '\n'
+            self.applog.info(msg)
         return
 
     """
@@ -1385,32 +1403,28 @@ class LazyStarter:
         i = 0
         for order in open_orders['buy']:
             if order[1] not in self.intervals:
-                r = self.simple_question(q)
-                if r:
+                if self.simple_question(q):
                     self.cancel_order(order[0], order[1], order[4], 'buy')
                     del open_orders['buy'][i]
                 else:
                     self.orders_outside_strat.append(order[1])
                     del open_orders['buy'][i]
             elif order[2] < self.params['amount']:
-                r = self.simple_question(q2)
-                if r:
+                if self.simple_question(q2):
                     self.cancel_order(order[0], order[1], order[4], 'buy')
                     del open_orders['buy'][i]
             i += 1
         i = 0
         for order in open_orders['sell']:
             if order[1] not in self.intervals:
-                r = self.simple_question(q)
-                if r:
+                if self.simple_question(q):
                     self.cancel_order(order[0], order[1], order[4], 'sell')
                     del open_orders['sell'][i]
                 else:
                     self.orders_outside_strat.append(order[1])
                     del open_orders['sell'][i]
             elif order[2] < self.params['amount']:
-                r = self.simple_question(q2)
-                if r:
+                if self.simple_question(q2):
                     self.cancel_order(order[0], order[1], order[4], 'sell')
                     del open_orders['sell'][i]
             i += 1
