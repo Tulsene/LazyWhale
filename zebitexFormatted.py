@@ -11,13 +11,6 @@ class ZebitexFormatted():
         self.ze = Zebitex(access_key, secret_key, is_staging)
         self.fees = Decimal('0.0015')
         self.symbols = None
-
-    def get_symbols(self):
-        tickers = self.load_markets()
-        symbols = []
-        for item in tickers:
-            symbols.append(item)
-        self.symbols = symbols
     
     def fetch_balance(self):
         balance = self.ze.funds()
@@ -100,7 +93,18 @@ class ZebitexFormatted():
                          'high24hr': ticker['high'],
                          'low24hr': ticker['low']
                          }}})
-        return fetched_tickers
+        self.symbols = self.format_symbols_list(tickers)
+        return
+
+    def format_symbols_list(self, tickers):
+        symbols = []
+        for item in tickers:
+            if item[-4:] == 'usdt':
+                item = f'{item[:-4]}/{item[-4:]}'
+            else:
+                item = f'{item[:-3]}/{item[-3:]}'
+            symbols.append(item.upper())
+        return symbols
 
     def fetch_ticker(self, ticker_name):
         formatted_ticker_name = ticker_name.split('/')

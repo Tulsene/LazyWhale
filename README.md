@@ -64,7 +64,7 @@ Follow the instructions to setup your parameters.
 - [ ] Add Fees coef in params
 - [ ] add market depth (actually limited to BTC markets)
 - [ ] Send email
-- [ ] Use f'' to format strings
+- [x] Use f'' to format strings
 
 ## TOTEST
 - [ ] logger_setup
