@@ -36,8 +36,6 @@ class LazyStarter:
         self.history = {'sell': [], 'buy': []}
         self.params = {}
         self.intervals = []
-        self.total_buy_funds_needed = None
-        self.total_sell_funds_needed = None
         self.err_counter = 0
         self.now = 0
         self.safety_buy_value = '0.00000001'
@@ -191,26 +189,26 @@ fill it as indicated to the documentation')
             if file.startswith(file_name_root):
                 file_list.append(file)
         repo_name += '/'
-        file_name_root = repo_name + file_name_root + file_type
+        file_name_root = f'{repo_name}{file_name_root}{file_type}'
         # Care if there is none or only one strat.log file name
         if len(file_list) == 0:
             file_name = file_name_root
             Path(file_name).touch()
         elif len(file_list) == 1:
-            if not self.logfile_not_empty(file_list[0]):
+            if not self.logfile_not_empty(f'{repo_name}{file_list[0]}'):
                 file_name = file_name_root
             else:
-                file_name = file_name_root + '.1'
+                file_name = f'{file_name_root}.1'
                 Path(file_name).touch()
                 params_file_name = file_name_root
         else:
-            if not self.logfile_not_empty(file_list[-1]):
-                file_name = repo_name + file_list[-1]
-                params_file_name = repo_name + file_list[-2]
+            if not self.logfile_not_empty(f'{repo_name}{file_list[-1]}'):
+                file_name = f'{repo_name}{file_list[-1]}'
+                params_file_name = f'{repo_name}{file_list[-2]}'
             else:
-                file_name = file_name_root + str(len(file_list) + 1)
+                file_name = f'{file_name_root}.{len(file_list)}'
                 Path(file_name).touch()
-                params_file_name = repo_name + file_list[-1]
+                params_file_name = f'{repo_name}{file_list[-1]}'
         self.stratlog = self.logger_setup('logs', file_name,
             '%(message)s', logging.DEBUG, logging.INFO)
         return params_file_name
@@ -282,7 +280,6 @@ contain parameters')
         params: dict.
         return: dict with valid parameters, or False.
         """
-        self.applog.debug(f'param_checker, params: {params}')
         try:
             # Check if values exist
             if not params['datetime']:
@@ -305,48 +302,45 @@ contain parameters')
                 raise ValueError('Stop at bottom isn\'t set')
             if not params['stop_at_top']:
                 raise ValueError('Stop at top isn\'t set')
-            if not params['nb_buy_displayed']:
+            if not params['nb_buy_to_display']:
                 raise ValueError('Number of buy displayed isn\'t set')
-            if not params['nb_sell_displayed']:
+            if not params['nb_sell_to_display']:
                 raise ValueError('Number of sell displayed isn\'t set')
             if not params['benef_alloc']:
                 raise ValueError('Benefices allocation isn\'t set')
             # Convert values
-            error_message = 'params[\'range_bot\'] is not a string for decimal: '
+            error_message = f"params['range_bot'] is not a string:"
             params['range_bot'] = self.str_to_decimal(
                 params['range_bot'], error_message)
-            error_message = 'params[\'range_top\'] is not a string for decimal: '
+            error_message = f"params['range_top'] is not a string:"
             params['range_top'] = self.str_to_decimal(
                 params['range_top'], error_message)
-            error_message = 'params[\'spread_bot\'] is not a string for \
-                decimal: '
+            error_message = f"params['spread_bot'] is not a string:"
             params['spread_bot'] = self.str_to_decimal(params['spread_bot'],
                 error_message)
-            error_message = 'params[\'spread_top\'] is not a string for \
-                decimal: '
+            error_message = f"params['spread_top'] is not a string:"
             params['spread_top'] = self.str_to_decimal(params['spread_top'],
                 error_message)
-            error_message = 'params[\'increment_coef\'] is not a string for \
-                decimal: '
+            error_message = f"params['increment_coef'] is not a string:"
             params['increment_coef'] = self.str_to_decimal(
                 params['increment_coef'], error_message)
-            error_message = 'params[\'amount\'] is not a string for decimal: '
+            error_message = f"params['amount'] is not a string:"
             params['amount'] = self.str_to_decimal(
                 params['amount'], error_message)
-            error_message = 'params[\'stop_at_bot\'] is not a boolean: '
+            error_message = f"params['stop_at_bot'] is not a boolean:"
             params['stop_at_bot'] = self.str_to_bool(params['stop_at_bot'],
                 error_message)
-            error_message = 'params[\'stop_at_top\'] is not a boolean: '
+            error_message = f"params['stop_at_top'] is not a boolean:"
             params['stop_at_top'] = self.str_to_bool(params['stop_at_top'],
                 error_message)
-            error_message = 'params[\'nb_buy_displayed\'] is not an int: '
-            params['nb_buy_displayed'] = self.str_to_int(
-                params['nb_buy_displayed'], error_message)
-            error_message = 'params[\'nb_sell_displayed\'] is not an int: '
-            params['nb_sell_displayed'] = self.str_to_int(
-                params['nb_sell_displayed'], error_message)
-            error_message = 'params[\'benef_alloc\'] is not an int: '
-            params['benef_alloc'] = self.str_to_int(params['nb_sell_displayed'],
+            error_message = f"params['nb_buy_to_display'] is not an int:"
+            params['nb_buy_to_display'] = self.str_to_int(
+                params['nb_buy_to_display'], error_message)
+            error_message = f"params['nb_sell_to_display'] is not an int:"
+            params['nb_sell_to_display'] = self.str_to_int(
+                params['nb_sell_to_display'], error_message)
+            error_message = f"params['benef_alloc'] is not an int:"
+            params['benef_alloc'] = self.str_to_int(params['benef_alloc'],
                 error_message)
             self.applog.debug(f'param_checker, params: {params}')
             # Test if values are correct
@@ -561,7 +555,7 @@ or high {len(self.intervals)}')
         """
         try:
             nb = Decimal(str(nb))
-            nb = self.safety_sell_value + nb / Decimal('100')
+            nb = Decimal('1') + nb / Decimal('100')
             self.param_checker_interval(nb)
             return nb
         except Exception as e:
@@ -640,9 +634,9 @@ or high {len(self.intervals)}')
                 if total_sell_funds_needed > sell_balance:
                     sell_balance = self.look_for_moar_funds(
                         total_sell_funds_needed, sell_balance, 'sell')
-                self.stratlog.debug(f'Your actual strategy require: {pair[1]} \
+                self.applog.debug(f'Your actual strategy require: {pair[1]} \
 needed: {total_buy_funds_needed} and you have {buy_balance} {pair[1]}; \
-{pair[0]} needed {total_sell_funds_needed} and you have {sell_balance} \
+{pair[0]} needed: {total_sell_funds_needed} and you have {sell_balance} \
 {pair[0]}.')
                 if total_buy_funds_needed > buy_balance or\
                     total_sell_funds_needed > sell_balance:
@@ -651,8 +645,6 @@ needed: {total_buy_funds_needed} and you have {buy_balance} {pair[1]}; \
             except ValueError as e:
                 self.stratlog.warning('%s\nYou need to change some paramaters:', e)
                 params = self.change_params(params)
-        self.total_buy_funds_needed = total_buy_funds_needed
-        self.total_sell_funds_needed = total_sell_funds_needed
         return params
 
     def calculate_buy_funds(self, index, amount):
@@ -729,7 +721,7 @@ needed: {total_buy_funds_needed} and you have {buy_balance} {pair[1]}; \
                                 funds += order[1] * order[2]
                             else:
                                 funds += order[2]
-                            self.stratlog.info(f'You have now {funds} {side} \
+                            self.stratlog.debug(f'You have now {funds} {side} \
 funds and you need {funds_needed}.')
                     else:
                         is_valid = True
@@ -906,7 +898,8 @@ be between 0 and 100, both included:'
                         self.display_user_trades(log_file_datas)
                     q = 'Do you want to use those params?'
                     if self.simple_question(q):
-                        self.params = log_file_datas['params']
+                        self.params = self.check_for_enough_funds(
+                            log_file_datas['params'])
                 else:
                     self.applog.warning('Your parameters are \
 corrupted, please enter new one.')
@@ -1073,7 +1066,7 @@ corrupted, please enter new one.')
     def init_limit_buy_order(self, market, amount, price):
         """Generate a timestamp before creating a buy order."""
         self.now = self.timestamp_formater()
-        return self.put_limit_buy_order(market, amount, price)
+        return self.create_limit_buy_order(market, amount, price)
 
     def create_limit_buy_order(self, market, amount, price):
         """Create a limit buy order on a market of a marketplace.
@@ -1143,7 +1136,7 @@ corrupted, please enter new one.')
     def init_limit_sell_order(self, market, amount, price):
         """Generate a global timestamp before calling """
         self.now = self.timestamp_formater()
-        return self.put_limit_sell_order(market, amount, price)
+        return self.create_limit_sell_order(market, amount, price)
 
     def create_limit_sell_order(self, market, amount, price):
         """Create a limit sell order on a market of a marketplace.
@@ -1227,7 +1220,8 @@ corrupted, please enter new one.')
         timestamp: int, timestamp of the order.
         return: boolean."""
         if side == 'buy':
-            coef = Decimal('2') - params['increment_coef'] + Decimal('0.001')
+            coef = Decimal('2') - Decimal(self.params['increment_coef']) +\
+                Decimal('0.001')
             for item in a_list:
                 if item[4] >= timestamp:
                     if target * coef <= item[1] <= target:
@@ -1434,68 +1428,81 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
         # Add funds locker in intervals
         self.intervals = [self.safety_buy_value] + self.intervals + \
             [self.safety_sell_value]
-        self.stratlog.debug(f'strat_init, intervals: {self.intervals}')
         open_orders = self.orders_price_ordering(self.get_orders(
-            self.selected_market))
+            self.selected_market))        
+        self.stratlog.debug(f'strat_init, open_orders: {open_orders}')
         # In case there is an old safety orders
         open_orders = self.remove_safety_order(open_orders)
         remaining_orders_price = {'sell': [], 'buy': []}
+        orders_to_remove = {'sell': [], 'buy': []}
         order = None
         order_to_select = []
         q = 'Do you want to remove this order ? (y or n)'
         q3 = f'Those orders have the same price that is used by the strategy. \
-            Which one cancel : '
-        # remove open orders outside the strategy
+    Which one of the two to cancel : '
+        # select open orders outside the strategy, cancel it and put their
+        # index in a dedicated list
         for i, order in enumerate(open_orders['buy']):
             if order[1] not in self.intervals:
                 self.stratlog.info(f'{order}')
                 if self.simple_question(q):
                     self.cancel_order(order[0], order[1], order[4], 'buy')
-                    del open_orders['buy'][i]
+                    orders_to_remove['buy'].append(i)
                 else:
-                    del open_orders['buy'][i]
-            elif order[2] < self.params['amount']:
+                    orders_to_remove['buy'].append(i)
+            elif order[2] < Decimal(self.params['amount']):
                 q2 = f'This order {order} has an amount < \
-                    to params[\'amount\']. Do you want to remove it? (y or no)'
+    to params[\'amount\']. Do you want to cancel it? (y or no)'
                 if self.simple_question(q2):
                     self.cancel_order(order[0], order[1], order[4], 'buy')
-                    del open_orders['buy'][i]
-            # When there is to order with the same price, remove one
-            if order[1] == open_orders['buy'][i - 1][1]:
-                order_to_select = [order, open_orders['buy'][i - 1]]
-                rsp = self.ask_to_select_in_a_list(q3, order_to_select)
-                if rsp == 0:
-                    self.cancel_order(order[0], order[1], order[4], 'buy')
-                else:
-                    self.cancel_order(open_orders['buy'][i - 1][0],
-                        open_orders['buy'][i - 1][1],
-                        open_orders['buy'][i - 1][4], 'buy')
-                    del open_orders['buy'][i - 1]
+                    orders_to_remove['buy'].append(i)
+            # When there is two order with the same price, cancel one
+            if i > 0:
+                if order[1] == open_orders['buy'][i - 1][1]:
+                    order_to_select = [order, open_orders['buy'][i - 1]]
+                    rsp = int(self.ask_to_select_in_a_list(q3, order_to_select))
+                    if rsp == 1:
+                        self.cancel_order(order[0], order[1], order[4], 'buy')
+                        orders_to_remove['buy'].append(i)
+                    else:
+                        self.cancel_order(order_to_select[1][0],
+                            order_to_select[1][1],
+                            order_to_select[1][4], 'buy')
+                        orders_to_remove['buy'].append(i - 1)
         for i, order in enumerate(open_orders['sell']):
             if order[1] not in self.intervals:
                 self.stratlog.info(f'{order}')
                 if self.simple_question(q):
                     self.cancel_order(order[0], order[1], order[4], 'sell')
-                    del open_orders['sell'][i]
+                    orders_to_remove['sell'].append(i)
                 else:
-                    del open_orders['sell'][i]
-            elif order[2] < self.params['amount']:
+                    orders_to_remove['sell'].append(i)
+            elif order[2] < Decimal(self.params['amount']):
                 q2 = f'This order {order} has an amount < \
-                    to params[\'amount\']. Do you want to remove it? (y or no)'
+    to params[\'amount\']. Do you want to cancel it? (y or no)'
                 if self.simple_question(q2):
                     self.cancel_order(order[0], order[1], order[4], 'sell')
-                    del open_orders['sell'][i]
-            # When there is to order with the same price, remove one
-            if order[1] == open_orders['sell'][i - 1][1]:
-                order_to_select = [order, open_orders['buy'][i - 1]]
-                rsp = self.ask_to_select_in_a_list(q3, order_to_select)
-                if rsp == 0:
-                    self.cancel_order(order[0], order[1], order[4], 'buy')
-                else:
-                    self.cancel_order(open_orders['buy'][i - 1][0],
-                        open_orders['buy'][i - 1][1],
-                        open_orders['buy'][i - 1][4], 'buy')
-                    del open_orders['buy'][i - 1]
+                    orders_to_remove['sell'].append(i)
+            # When there is two order with the same price, cancel one
+            if i > 0:
+                if order[1] == open_orders['sell'][i - 1][1]:
+                    order_to_select = [order, open_orders['buy'][i - 1]]
+                    rsp = int(self.ask_to_select_in_a_list(q3, order_to_select))
+                    if rsp == 1:
+                        self.cancel_order(order[0], order[1], order[4], 'buy')
+                        orders_to_remove['sell'].append(i)
+                    else:
+                        self.cancel_order(open_orders['buy'][i - 1][0],
+                            open_orders['buy'][i - 1][1],
+                            open_orders['buy'][i - 1][4], 'buy')
+                        orders_to_remove['sell'].append(i - 1)
+        # Remove open orders which have been canceled
+        if orders_to_remove['buy']:
+            for i, index in enumerate(orders_to_remove['buy']):
+                del open_orders['buy'][index - i]
+        if orders_to_remove['sell']:
+            for i, index in enumerate(orders_to_remove['sell']):
+                del open_orders['sell'][index - i]
         # Create lists with all remaining orders price
         if open_orders['buy']:
             for order in open_orders['buy']:
@@ -1511,20 +1518,20 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
         remaining_orders_price: dict.
         open_orders: dict.
         return: dict, of open orders used for the strategy."""
-        buy_target = self.intervals.index(self.params['spread_bot'])
+        buy_target = self.intervals.index(Decimal(self.params['spread_bot']))
         lowest_sell_index = buy_target + 1
-        self. max_sell_index = len(self.intervals) - 2
+        self. max_sell_index = str(len(self.intervals) - 2)
         new_orders = {'sell': [], 'buy': []}
-        # params['nb_buy_displayed'] == 0 mean open orders as much as possible
-        if params['nb_buy_displayed'] == 0:
-            params['nb_buy_displayed'] = self.max_sell_index
+        # params['nb_buy_to_display'] == 0 mean open orders as much as possible
+        if self.params['nb_buy_to_display'] == '0':
+            self.params['nb_buy_to_display'] = self.max_sell_index
         # Set the buy_target of order 
-        if buy_target - params['nb_buy_displayed'] > 1:
-            lowest_buy_index = buy_target - params['nb_buy_displayed']
+        if buy_target - int(self.params['nb_buy_to_display']) > 1:
+            lowest_buy_index = buy_target - int(self.params['nb_buy_to_display'])
         else:
             lowest_buy_index = 1
-        # Open an order if needed or move an already existing order from
-        # lowest buy price to highest buy price
+        # Open an order if needed or move an already existing open order. From
+        # the lowest buy price to the highest buy price
         while lowest_buy_index <= buy_target:
             if self.intervals[lowest_buy_index] not in\
                 remaining_orders_price['buy']:
@@ -1544,19 +1551,19 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
             del open_orders['buy'][0]
         # Check that everything is fine
         if open_orders['buy']:
-            raise ValueError('self.open_orders[\'buy\'] should be empty!')
+            raise ValueError(f"self.open_orders['buy'] should be empty!")
         self.stratlog.debug(f'set_first_orders, remaining_orders_price buy: \
             {remaining_orders_price["buy"]}')
         # Now sell side
-        if params['nb_sell_displayed'] == 0:
-            params['nb_sell_displayed'] = self.max_sell_index
-        if lowest_sell_index + params['nb_sell_displayed'] <\
-            len(self.intervals.index) - 2:
-            sell_target = lowest_sell_index + params['nb_sell_displayed']
+        if self.params['nb_sell_to_display'] == '0':
+            self.params['nb_sell_to_display'] = self.max_sell_index
+        if lowest_sell_index + int(self.params['nb_sell_to_display']) <\
+            len(self.intervals) - 2:
+            sell_target = lowest_sell_index + int(self.params['nb_sell_to_display'])
         else:
             sell_target = len(self.intervals.index) - 2 
-        # Open an order if needed or move an already existing order from
-        # highest sell price to lowest sell price
+        # Open an order if needed or move an already existing open order. From
+        # the lowest sell price to the highest sell price
         while lowest_sell_index <= sell_target:
             if self.intervals[sell_target] not in remaining_orders_price['sell']:
                 order = self.init_limit_sell_order(self.selected_market,
@@ -1575,7 +1582,7 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
             del open_orders['sell'][0]
         # Check that everything is fine
         if open_orders['sell']:
-            raise ValueError('self.open_orders[\'sell\'] should be empty!')
+            raise ValueError(f"self.open_orders['sell'] should be empty!")
         self.stratlog.debug(f'set_first_orders, remaining_orders_price sell: \
             {remaining_orders_price["sell"]}')
         return new_orders
@@ -1688,8 +1695,8 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                     new_open_orders['buy'].append(self.create_fake_buy())
             else:
                 # Set the number of orders to execute
-                if target - params['nb_buy_displayed'] >= 1:
-                    start_index = target - params['nb_buy_displayed']
+                if target - int(params['nb_buy_to_display']) >= 1:
+                    start_index = target - int(params['nb_buy_to_display'])
                 else:
                     start_index = target -1
                 # Create orders
@@ -1721,9 +1728,9 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                     new_open_orders['sell'].append(self.create_fake_sell())
             else:
                 # Set the number of orders to execute
-                if start_index + self.params['nb_sell_displayed'] >=\
+                if start_index + int(self.params['nb_sell_to_display']) >=\
                     self.max_sell_index:
-                    target = start_index + self.params['nb_sell_displayed']
+                    target = start_index + int(self.params['nb_sell_to_display'])
                 else:
                     target = self.max_sell_index
                 # Create orders
@@ -1734,7 +1741,7 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                 else:
                     self.open_orders['sell'].append(self.create_fake_sell())
             self.stratlog.debug(f'check_if_no_orders, updated sell orders: \
-                {new_open_orders["sell"]}')
+    {new_open_orders["sell"]}')
         return new_open_orders
 
     def compare_orders(self, new_open_orders):
@@ -1809,12 +1816,12 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
         else:
             nb_orders = 0
         # When there is too much buy orders on the order book
-        if nb_orders > self.params['nb_buy_displayed']:
-            self.stratlog.debug(f'nb_orders > params[\'nb_buy_displayed\']')
+        if nb_orders > self.params['nb_buy_to_display']:
+            self.stratlog.debug(f'nb_orders > params[\'nb_buy_to_display\']')
             # Care of the fake order
             if not self.open_orders['buy'][0][0]:
                 del self.open_orders['buy'][0]
-            nb_orders -= self.params['nb_buy_displayed']
+            nb_orders -= int(self.params['nb_buy_to_display'])
             while nb_orders > 0:
                 self.cancel_order(new_open_orders['buy'][0][0],
                     new_open_orders['buy'][0][1], new_open_orders['buy'][0][4],
@@ -1822,14 +1829,14 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                 del self.open_orders['buy'][0]
                 nb_orders -= 1
         # When there is not enough buy order in the order book
-        elif nb_orders < self.params['nb_buy_displayed']:
-            self.stratlog.debug(f'nb_orders < params[\'nb_buy_displayed\']')
+        elif nb_orders < int(self.params['nb_buy_to_display']):
+            self.stratlog.debug(f'nb_orders < params[\'nb_buy_to_display\']')
             # Ignore if the bottom of the range is reached
             if self.open_orders['buy'][0][0]:
                 # Set the range of buy orders to create
                 target = self.intervals.index(self.open_orders['buy'][0][1]) - 1
-                if target - self.params['nb_buy_displayed'] >= 1:
-                    start_index = target - self.params['nb_buy_displayed']
+                if target - int(self.params['nb_buy_to_display']) >= 1:
+                    start_index = target - int(self.params['nb_buy_to_display'])
                 else:
                     start_index = target - 1
                 # Care if there is no buy orders to create
@@ -1843,12 +1850,12 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
         else:
             nb_orders = 0
         # When there is too much buy orders on the order book
-        if nb_orders > self.params['nb_sell_displayed']:
-            self.stratlog.debug(f'nb_orders > params[\'nb_sell_displayed\']')
+        if nb_orders > int(self.params['nb_sell_to_display']):
+            self.stratlog.debug(f'nb_orders > params[\'nb_sell_to_display\']')
             # Care of th fake order
             if not self.open_orders['sell'][-1][0]:
                 del self.open_orders['sell'][-1]
-            nb_orders -= self.params['nb_sell_displayed']
+            nb_orders -= int(self.params['nb_sell_to_display'])
             while nb_orders > 0:
                 self.cancel_order(new_open_orders['sell'][-1][0],
                     new_open_orders['sell'][-1][1], 
@@ -1857,16 +1864,16 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                 del self.open_orders['sell'][-1]
                 nb_orders -= 1
         # When there is not enough buy order in the order book
-        elif nb_orders < self.params['nb_sell_displayed']:
-            self.stratlog.debug(f'nb_orders < params[\'nb_sell_displayed\']')
+        elif nb_orders < int(self.params['nb_sell_to_display']):
+            self.stratlog.debug(f'nb_orders < params[\'nb_sell_to_display\']')
             # Ignore if the top of the range is reached
             if self.open_orders['sell'][-1][0]:
                 # Set the range of buy orders to create
                 start_index = self.intervals.index(
                     self.open_orders['sell'][-1][1]) + 1
-                if start_index + self.params['nb_sell_displayed'] <=\
+                if start_index + int(self.params['nb_sell_to_display']) <=\
                     self.max_sell_index:
-                    target = start_index + self.params['nb_sell_displayed']
+                    target = start_index + int(self.params['nb_sell_to_display'])
                 else:
                     target = self.max_sell_index
                 # Care if there is no sell orders to create

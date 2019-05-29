@@ -1,0 +1,8 @@
+INFO:root:{'info': {'success': True, 'message': '', 'result': {'uuid': '12966596-774f-47f8-81b4-cdef14ec6438'}}, 'id': '12966596-774f-47f8-81b4-cdef14ec6438', 'symbol': 'MANA/BTC', 'type': 'limit', 'side': 'sell', 'status': 'open'}
+INFO:root:{'info': {'success': True, 'message': '', 'result': {'uuid': '12966596-774f-47f8-81b4-cdef14ec6438'}}, 'id': '12966596-774f-47f8-81b4-cdef14ec6438', 'symbol': 'MANA/BTC', 'type': 'limit', 'side': 'sell', 'status': 'open'} tralala
+INFO:root:tada 
+ prout
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (1): staging.zebitex.com:443
+DEBUG:urllib3.connectionpool:https://staging.zebitex.com:443 "GET /api/v1/orders/tickers HTTP/1.1" 200 None
+DEBUG:urllib3.connectionpool:Starting new HTTPS connection (1): staging.zebitex.com:443
+DEBUG:urllib3.connectionpool:https://staging.zebitex.com:443 "GET /api/v1/orders/tickers HTTP/1.1" 200 None

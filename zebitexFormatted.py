@@ -18,9 +18,14 @@ class ZebitexFormatted():
         for key, value in balance.items():
             if value['balance'] == '0.00000000' or value['balance'] == '1E-8':
                 value['balance'] = '0.0'
-            if value['lockedBalance'] == '0.00000000' or value['lockedBalance'] == '1E-8':
+            if value['lockedBalance'] == '0.00000000' or\
+                value['lockedBalance'] == '1E-8':
                 value['lockedBalance'] = '0.0'
-            fetched_balance.update({key: {'free': str(Decimal(value['balance']) - Decimal(value ['lockedBalance'])), 'used': value ['lockedBalance'], 'total': value['balance']}})
+            fetched_balance.update(
+                {key: {'free': str(Decimal(value['balance']) -\
+                                   Decimal(value ['lockedBalance'])), 
+                       'used': value ['lockedBalance'], 
+                       'total': value['balance']}})
         return fetched_balance
 
     def fetch_open_orders(self, market=None):
@@ -40,7 +45,8 @@ class ZebitexFormatted():
                      'type': order['ordType'],
                      'rate': order['price'],
                      'startingAmount': order['amount'],
-                     'amount': str(Decimal(order['amount']) - Decimal(order['filled'])),
+                     'amount': str(Decimal(order['amount']) - Decimal(
+                          order['filled'])),
                      'total': order['total'],
                      'date': order['updatedAt'],
                      'margin': 0,
@@ -56,10 +62,12 @@ class ZebitexFormatted():
                 'type': order['ordType'],
                 'side': order['side'],
                 'price': float(order['price']),
-                'cost': float(self.calculate_filled_cost(order['filled'], order['price'])),
+                'cost': float(self.calculate_filled_cost(order['filled'],
+                    order['price'])),
                 'amount': float(order['amount']),
                 'filled': float(order['filled']),
-                'remaining': float(Decimal(order['amount']) - Decimal(order['filled'])),
+                'remaining': float(Decimal(order['amount']) - Decimal(
+                    order['filled'])),
                 'trades': None if float(order['filled']) != 0 else True,
                 'fee': float(self.calcultate_paid_fees(order['filled']))
                 }
@@ -141,7 +149,8 @@ class ZebitexFormatted():
                          'low24hr': None}}
 
     def fetch_trades(self, market):
-        history = self.ze.trade_history('buy', '2018-04-01', date.today().isoformat(), 1, 1000)
+        history = self.ze.trade_history('buy', '2018-04-01',
+            date.today().isoformat(), 1, 1000)
         my_trades = []
         for item in history['items']:
             market_name = item['baseCurrency'] + '/' + item['quoteCurrency']
@@ -173,31 +182,34 @@ class ZebitexFormatted():
                 'cost':  float(trade['quoteAmount']),
                 'fee': {'type': None,
                         'rate': 0.0015,
-                        'cost': float(self.calcultate_paid_fees(trade['quoteAmount'])),
+                        'cost': float(self.calcultate_paid_fees(
+                            trade['quoteAmount'])),
                         'currency': trade['quoteCurrency']}}
 
     def create_limit_buy_order(self, symbol, amount, price):
-        symbol = symbol.split('/')
-        return self.ze.new_order(bid, ask, 'bid', price, amount,\
-            symbol[0].lower() + symbol[1].lower(), 'limit')
+        symbol = symbol.lower().split('/')
+        return self.ze.new_order(symbol[0], symbol[1], 'bid', price, amount,
+            symbol[0] + symbol[1], 'limit')
 
     def create_limit_sell_order(self, symbol, amount, price):
-        symbol = symbol.split('/')
-        return self.ze.new_order(bid, ask, 'ask', price, amount,\
-            symbol[0].lower() + symbol[1].lower(), 'limit')
+        symbol = symbol.lower().split('/')
+        return self.ze.new_order(symbol[0], symbol[1], 'ask', price, amount,
+            symbol[0] + symbol[1], 'limit')
 
     def cancel_order(self, order_id):
         return self.ze.cancel_order(int(order_id))
 
     def str_to_epoch(self, date_string):
-        return int(str(time.mktime(datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S').timetuple())).split('.')[0] + '000')
+        return int(str(time.mktime(datetime.strptime(date_string,
+            '%Y-%m-%d %H:%M:%S').timetuple())).split('.')[0] + '000')
 
     def epoch_to_str(self, epoch):
         return datetime.fromtimestamp(epoch).isoformat() + '.000Z'
 
     def calculate_filled_cost(self, amt_filled, price):
-        return (Decimal(amt_filled) * Decimal(price) * (Decimal('1') - self.fees).quantize(Decimal('.00000001'), rounding=ROUND_HALF_EVEN))
+        return (Decimal(amt_filled) * Decimal(price) * (Decimal('1') -\
+            self.fees).quantize(Decimal('.00000001'), rounding=ROUND_HALF_EVEN))
     
     def calcultate_paid_fees(self, amt_filled):
-        return (Decimal(amt_filled) * self.fees).quantize(Decimal('.00000001'), 
-                                                          rounding=ROUND_HALF_EVEN)
+        return (Decimal(amt_filled) * self.fees).quantize(Decimal('.00000001'),
+                                                      rounding=ROUND_HALF_EVEN)
