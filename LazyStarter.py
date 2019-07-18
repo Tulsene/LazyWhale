@@ -46,7 +46,6 @@ class LazyStarter:
     ########################## __INIT__ + MANDATORY ###########################
     """
 
-    # I'm not sure if it work well
     def logger_setup(self, name, log_file, log_formatter, console_level,
         file_level, logging_level=logging.DEBUG):
         """Generate logging systems which display any level on the console
@@ -93,14 +92,20 @@ class LazyStarter:
         """
         if not os.path.isfile(self.keys_file):
             Path(self.keys_file).touch()
-            self.applog.critical('No file was found, an empty one has been \
-created, please fill it as indicated in the documentation')
+            msg = (
+                    f'No file was found, an empty one has been created, '
+                    f'please fill it as indicated in the documentation'
+                )
+            self.applog.critical(msg)
             self.exit()
         else:
             keys = self.keys_file_reader()
             if not keys:
-                self.applog.critical('Your key.txt file is empty, please \
-fill it as indicated to the documentation')
+                msg = (
+                    f'Your key.txt file is empty, please '
+                    f'fill it as indicated to the documentation'
+                )
+                self.applog.critical(msg)
                 self.exit()
             else:
                 return keys
@@ -118,8 +123,11 @@ fill it as indicated to the documentation')
                     key = json.loads(line)
                     for k in key.keys():
                         if k in self.user_market_name_list:
-                            raise KeyError('You already have a key for this \
-                                            marketplace, please RTFM')
+                            msg = (
+                                    f'You already have a key for this '
+                                    f'marketplace, please RTFM'
+                                )
+                            raise KeyError(msg)
                         else:
                             self.user_market_name_list.append(k)
                         if k not in self.ccxt_exchanges_list:
@@ -148,8 +156,11 @@ fill it as indicated to the documentation')
                 self.keys[self.user_market_name_list[choice]]['secret'],
                 True)
         else:
-            self.exchange = eval('ccxt.' + self.user_market_name_list[choice] + \
-             '(' + str(self.keys[self.user_market_name_list[choice]]) + ')')
+            msg = (
+                    f'ccxt.{self.user_market_name_list[choice]}'
+                    f'({str(self.keys[self.user_market_name_list[choice]])})'
+                )
+            self.exchange = eval(msg)
         """
         self.exchange = zebitexFormatted.ZebitexFormatted(
                 self.keys[self.user_market_name_list[2]]['apiKey'],
@@ -179,14 +190,14 @@ fill it as indicated to the documentation')
 
     def set_strat_log_file(self):
         """"""
-        repo_name = 'logfiles'
+        repo_name = f'{os.path.dirname(sys.argv[0])}/logfiles'
         file_name_root = 'strat'
         file_type = '.log'
         params_file_name = None
         file_list = []
         # Make a list with all strat.log files name
         for file in os.listdir(repo_name):
-            if file.startswith(file_name_root):
+            if file.startswith(file_name_root): 
                 file_list.append(file)
         repo_name += '/'
         file_name_root = f'{repo_name}{file_name_root}{file_type}'
@@ -235,8 +246,11 @@ fill it as indicated to the documentation')
                 try:
                     params = json.loads(params)
                 except Exception as e:
-                    self.applog.critical(f'Something went wrong with the first \
-line of the log file: {e}')
+                    msg = (
+                            f'Something went wrong with the first '
+                            f'line of the log file: {e}'
+                        )
+                    self.applog.critical(msg)
                     self.exit()
                 params = self.params_checker(params)
                 if params is False:
@@ -261,8 +275,11 @@ line of the log file: {e}')
                                 order['side'] == 'canceled_sell':
                                 logs_data['sell'].append(formated_order)
                         except Exception as e:
-                            self.applog.warning(f'Something went wrong with data \
-formating in the log file: {e}')
+                            msg = (
+                                    f'Something went wrong with data '
+                                    f'formating in the log file: {e}'
+                                )
+                            self.applog.warning(msg)
                             return False
                 # Limit the number of history to keep to the last 20 trades
                 while len(logs_data['buy']) > 20:
@@ -270,8 +287,11 @@ formating in the log file: {e}')
                 while len(logs_data['sell']) > 20:
                     del logs_data['sell'][0]
             else:
-                raise ValueError('The first line of the log file do not \
-contain parameters')
+                msg = (
+                            f'The first line of the log file do not '
+                            f'contain parameters'
+                        )
+                raise ValueError(msg)
             self.applog.debug(logs_data)
             return logs_data
 
@@ -346,11 +366,14 @@ contain parameters')
             # Test if values are correct
             self.is_date(params['datetime'])
             if params['market'] not in self.exchange.symbols:
-                raise ValueError('Market isn\'t set properly for this \
-                    marketplace')
+                msg = 'Market isn\'t set properly for this marketplace'
+                raise ValueError(msg)
             if params['market'] != self.selected_market:
-                raise ValueError(f'self.selected_market: \
-{self.selected_market} != params["market"] {params["market"]}')
+                msg = (
+                        f'self.selected_market: {self.selected_market}'
+                        f'!= params["market"] {params["market"]}'
+                    )
+                raise ValueError(msg)
             market_test = self.limitation_to_btc_market(params['market'])
             if market_test is not True:
                 raise ValueError(market_test[1])
@@ -361,8 +384,11 @@ contain parameters')
                                                      params['range_top'],
                                                      params['increment_coef'])
             if self.intervals is False:
-                raise ValueError('Range top value is too low, or increment too \
-                    high: need to generate at lease 6 intervals.')
+                msg = (
+                        f'Range top value is too low, or increment too '
+                        f'high: need to generate at lease 6 intervals.'
+                    )
+                raise ValueError(msg)
             if params['spread_bot'] not in self.intervals:
                 raise ValueError('Spread_bot isn\'t properly configured')
             spread_bot_index = self.intervals.index(params['spread_bot'])
@@ -508,16 +534,22 @@ contain parameters')
         """Verifie the nb of order to display
         nb: int"""
         if nb > len(self.intervals) and nb < 0:
-            raise ValueError(f'The number of order to display is too low (<0) \
-or high {len(self.intervals)}')
+            msg = (
+                    f'The number of order to display is too low (<0) '
+                    f'or high {len(self.intervals)}'
+                )
+            raise ValueError(msg)
         return True
 
     def param_checker_benef_alloc(self, nb):
         """Verifie the nb for benefice allocation
         nb: int"""
         if 0 <= nb >= 100:
-            raise ValueError(f'The benefice allocation too low (<0) or high \
-(>100) {nb}')
+            msg = (
+                    f'The benefice allocation too low (<0) or high '
+                    f'(>100) {nb}'
+                )
+            raise ValueError(msg)
         return True
 
     def interval_calculator(self, number1, increment):
@@ -544,8 +576,11 @@ or high {len(self.intervals)}')
             intervals.append(self.interval_calculator(intervals[-1], increment))
         del intervals[-1]
         if len(intervals) < 6:
-            raise ValueError('Range top value is too low, or increment too \
-                high: need to generate at lease 6 intervals. Try again!')
+            msg = (
+                    f'Range top value is too low, or increment too '
+                    f'high: need to generate at lease 6 intervals. Try again!'
+                )
+            raise ValueError(msg)
         return intervals
 
     def increment_coef_buider(self, nb):
@@ -625,7 +660,8 @@ or high {len(self.intervals)}')
                             incoming_sell_funds += params['amount'] *\
                                 self.fees_coef
                             i -=1
-                    total_sell_funds_needed = total_sell_funds_needed - incoming_sell_funds
+                    total_sell_funds_needed = total_sell_funds_needed\
+                    - incoming_sell_funds
                 # In case there is not enough funds, check if there is none stuck 
                 # before asking to change params
                 if total_buy_funds_needed > buy_balance:
@@ -634,10 +670,13 @@ or high {len(self.intervals)}')
                 if total_sell_funds_needed > sell_balance:
                     sell_balance = self.look_for_moar_funds(
                         total_sell_funds_needed, sell_balance, 'sell')
-                self.applog.debug(f'Your actual strategy require: {pair[1]} \
-needed: {total_buy_funds_needed} and you have {buy_balance} {pair[1]}; \
-{pair[0]} needed: {total_sell_funds_needed} and you have {sell_balance} \
-{pair[0]}.')
+                    msg = (
+                        f'Your actual strategy require: {pair[1]} needed: '
+                        f'{total_buy_funds_needed} and you have {buy_balance} '
+                        f'{pair[1]}; {pair[0]} needed: {total_sell_funds_needed}'
+                        f' and you have {sell_balance} {pair[0]}.'
+                    )
+                self.applog.debug(msg)
                 if total_buy_funds_needed > buy_balance or\
                     total_sell_funds_needed > sell_balance:
                     raise ValueError('You don\'t own enough funds!')
@@ -721,8 +760,11 @@ needed: {total_buy_funds_needed} and you have {buy_balance} {pair[1]}; \
                                 funds += order[1] * order[2]
                             else:
                                 funds += order[2]
-                            self.stratlog.debug(f'You have now {funds} {side} \
-funds and you need {funds_needed}.')
+                            msg = (
+                                    f'You have now {funds} {side} '
+                                    f'funds and you need {funds_needed}.'
+                                )
+                            self.stratlog.debug(msg)
                     else:
                         is_valid = True
         return funds
@@ -783,8 +825,8 @@ funds and you need {funds_needed}.')
                 if 0 < choice <= i:
                     return choice - 1
                 else:
-                    self.applog.info(f'You need to enter a number between 1 \
-and {i}')
+                    msg = f'You need to enter a number between 1 and {i}'
+                    self.applog.info(msg)
             except Exception as e:
                 self.applog.info(f'{q} invalid choice: {choice} -> {e}')
         return choice
@@ -792,16 +834,20 @@ and {i}')
     def ask_param_range_bot(self):
         """Ask the user to enter a value for the bottom of the range.
         return: decimal."""
-        q = 'Enter a value for the bottom of the range. It must be superior \
-to 100 stats:'
+        q = (
+                f'Enter a value for the bottom of the range. It must be '
+                f'superior to 100 stats:'
+            )
         return self.ask_question(q, self.str_to_decimal,
             self.param_checker_range_bot)
 
     def ask_param_range_top(self):
         """Ask the user to enter a value for the top of the range.
         return: decimal."""
-        q = 'Enter a value for the top of the range. It must be inferior to \
-0.99 BTC:'
+        q = (
+                f'Enter a value for the top of the range. It must be '
+                f'inferior to 0.99 BTC:'
+            )
         return self.ask_question(q, self.str_to_decimal,
             self.param_checker_range_top)
 
@@ -809,8 +855,10 @@ to 100 stats:'
         """Ask the user to enter a value of ALT to sell at each order.
         return: decimal."""
         minimum_amount = Decimal('0.001') / range_bot
-        q = f'How much {self.selected_market[:4]} do you want to sell \
-per order? It must be between {minimum_amount} and 10000000:'
+        q = (
+                f'How much {self.selected_market[:4]} do you want to sell '
+                f'per order? It must be between {minimum_amount} and 10000000:'
+            )
         while True:
             try:
                 amount = self.ask_question(q, self.str_to_decimal)
@@ -822,8 +870,10 @@ per order? It must be between {minimum_amount} and 10000000:'
     def ask_param_increment(self):
         """Ask the user to enter a value for the spread between each order.
         return: decimal."""
-        q = f'How much % of spread between two orders? It must be \
-between 1% and 50%'
+        q = (
+                f'How much % of spread between two orders? It must be '
+                f'between 1% and 50%'
+            )
         return self.ask_question(q, self.increment_coef_buider)
 
     def ask_range_setup(self):
@@ -852,8 +902,10 @@ between 1% and 50%'
         price = self.get_market_last_price(self.selected_market)
         msg = f'The actual price of {self.selected_market} is {price}'
         self.applog.info(msg)
-        q = 'Please select the price of your highest buy order (spread_bot) \
-in the list'
+        q = (
+                f'Please select the price of your highest buy order '
+                f'(spread_bot) in the list'
+            )
         position = self.ask_to_select_in_a_list(q, self.intervals)
         return {'spread_bot': self.intervals[position], 
                 'spread_top': self.intervals[position + 1]} # Can be improved by suggesting a value
@@ -861,12 +913,18 @@ in the list'
     def ask_nb_to_display(self):
         """Ask how much buy and sell orders are going to be in the book.
         return: dict, nb_buy_to_display + nb_sell."""
-        q = f'How many buy orders do you want to display? It must be \
-less than {len(self.intervals)}. 0 value = {len(self.intervals)} :'
+        q = (
+                f'How many buy orders do you want to display? It must be '
+                f'less than {len(self.intervals)}. 0 value = '
+                f'{len(self.intervals)} :'
+            )
         nb_buy_to_display = self.ask_question(q, self.str_to_int,
             self.param_checker_nb_to_display)
-        q = f'How many sell orders do you want to display? It must be \
-less than {len(self.intervals)}. 0 value = {len(self.intervals)} :'
+        q = (
+                f'How many sell orders do you want to display? It must be '
+                f'less than {len(self.intervals)}. 0 value = '
+                f'{len(self.intervals)} :'
+            )
         nb_sell_to_display = self.ask_question(q, self.str_to_int,
             self.param_checker_nb_to_display)
         return {'nb_buy_to_display': nb_buy_to_display, 
@@ -875,9 +933,11 @@ less than {len(self.intervals)}. 0 value = {len(self.intervals)} :'
     def ask_benef_alloc(self):
         """Ask for benefice allocation.
         return: int."""
-        question = 'How do you want to allocate your benefice in %. It must \
-be between 0 and 100, both included:'
-        benef_alloc = self.ask_question(question, self.str_to_int, 
+        q = (
+                f'How do you want to allocate your benefice in %. It must '
+                f'be between 0 and 100, both included:'
+            )
+        benef_alloc = self.ask_question(q, self.str_to_int, 
             self.param_checker_benef_alloc)
         return benef_alloc
 
@@ -891,8 +951,11 @@ be between 0 and 100, both included:'
             if file_name:
                 log_file_datas = self.log_file_reader(file_name)
                 if log_file_datas is not False:
-                    self.applog.info(f'Your previous parameters are: \
-{log_file_datas["params"]}')
+                    msg = (
+                            f'Your previous parameters are: '
+                            f'{log_file_datas["params"]}'
+                        )
+                    self.applog.info(msg)
                     q = 'Do you want to display history from logs?'
                     if self.simple_question(q):
                         self.display_user_trades(log_file_datas)
@@ -901,8 +964,11 @@ be between 0 and 100, both included:'
                         self.params = self.check_for_enough_funds(
                             log_file_datas['params'])
                 else:
-                    self.applog.warning('Your parameters are \
-corrupted, please enter new one.')
+                    msg = (
+                            f'Your parameters are '
+                            f'corrupted, please enter new one.'
+                        )
+                    self.applog.warning(msg)
             else:
                 self.applog.warning('You don\'t have parameters in app.log')
         if not self.params:
@@ -1253,8 +1319,11 @@ corrupted, please enter new one.')
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
                 return True
             else:
-                self.stratlog.warning(f'The {side} {order_id} have been filled \
-before being canceled')
+                msg = (
+                        f'The {side} {order_id} have been filled '
+                        f'before being canceled'
+                    )
+                self.stratlog.warning(msg)
                 return rsp
         except Exception as e:
             logging.warning(f'WARNING: {e}')
@@ -1275,8 +1344,11 @@ before being canceled')
             trades = self.get_user_history(market)[side]
             is_traded = self.order_in_history(price, trades, side, timestamp)
             if is_traded:
-                self.stratlog.warning(f'The {side} {order_id} have been filled \
-before being canceled')
+                msg = (
+                        f'The {side} {order_id} have been filled '
+                        f'before being canceled'
+                    )
+                self.stratlog.warning(msg)
                 return False
             else:
                 self.order_logger_formatter(cancel_side, order['id'], price,
@@ -1302,7 +1374,8 @@ before being canceled')
         return Decimal(f"{self.fetch_ticker(market)['last']:.8f}")
 
     def get_balances(self): # Need to be refactored
-        """Get the non empty balance of a user on a marketplace and make it global"""
+        """Get the non empty balance of a user on a marketplace and make 
+        it global."""
         balance = self.fetch_balance()
         user_balance = {}
         for key, value in balance.items():
@@ -1312,7 +1385,7 @@ before being canceled')
                         value[item] = str(value[item])
                     user_balance.update({key: value})
         self.user_balance = user_balance
-        return
+        return user_balance
 
     def display_user_balance(self):
         """Display the user balance"""
@@ -1389,14 +1462,20 @@ before being canceled')
         """
         if orders['buy']:
             for order in orders['buy']:
-                self.stratlog.info(f'Buy on: {order[5]}, id: {order[0]}, \
-price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
-{order[4]}, date: {order[5]}')
+                msg = (
+                        f'Buy on: {order[5]}, id: {order[0]}, price: {order[1]}, '
+                        f'amount: {order[2]}, value: {order[3]}, timestamp: '
+                        f'{order[4]}, date: {order[5]}'
+                    )
+                self.stratlog.info(msg)
         if orders['sell']:
             for order in orders['sell']:
-                self.stratlog.info(f'Sell on: {order[5]}, id: {order[0]}, \
-price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
-{order[4]}, date: {order[5]}')
+                msg = (
+                        f'Sell on: {order[5]}, id: {order[0]}, price: {order[1]}, '
+                        f'amount: {order[2]}, value: {order[3]}, timestamp: '
+                        f'{order[4]}, date: {order[5]}'
+                    )
+                self.stratlog.info(msg)
         return
 
     def order_logger_formatter(self, side, order_id, price, amount, timestamp,\
@@ -1409,9 +1488,11 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
         timestamp: int, formated timestamp.
         datetime: string, formated datetime.
         return: tuple with timestamp and datetime"""
-        msg = '{' + f'"side": {side}, "order_id": {order_id}, "price": \
-{price},  "amount": {amount}, "timestamp": {timestamp}, "datetime": {datetime}'\
-+ '}'
+        msg = (
+                f'{{"side": {side}, "order_id": {order_id}, "price": {price}, '
+                f'"amount": {amount}, "timestamp": {timestamp}, "datetime": '
+                f'{datetime} }}'
+            )
         self.stratlog.warning(msg)
         return timestamp, datetime
 
@@ -1438,8 +1519,10 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
         order = None
         order_to_select = []
         q = 'Do you want to remove this order ? (y or n)'
-        q3 = f'Those orders have the same price that is used by the strategy. \
-    Which one of the two to cancel : '
+        q3 = (
+                f'Those orders have the same price that is used by the strategy. '
+                f'Which one of the two to cancel : '
+            )
         # select open orders outside the strategy, cancel it and put their
         # index in a dedicated list
         for i, order in enumerate(open_orders['buy']):
@@ -1451,8 +1534,10 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                 else:
                     orders_to_remove['buy'].append(i)
             elif order[2] < Decimal(self.params['amount']):
-                q2 = f'This order {order} has an amount < \
-    to params[\'amount\']. Do you want to cancel it? (y or no)'
+                q2 = (
+                        f"This order {order} has an amount < to params['amount']. "
+                        f"Do you want to cancel it? (y or no)"
+                    )
                 if self.simple_question(q2):
                     self.cancel_order(order[0], order[1], order[4], 'buy')
                     orders_to_remove['buy'].append(i)
@@ -1478,8 +1563,10 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                 else:
                     orders_to_remove['sell'].append(i)
             elif order[2] < Decimal(self.params['amount']):
-                q2 = f'This order {order} has an amount < \
-    to params[\'amount\']. Do you want to cancel it? (y or no)'
+                q2 = (
+                        f"This order {order} has an amount < to params['amount']. "
+                        f"Do you want to cancel it? (y or no)"
+                    )
                 if self.simple_question(q2):
                     self.cancel_order(order[0], order[1], order[4], 'sell')
                     orders_to_remove['sell'].append(i)
@@ -1552,13 +1639,16 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
         # Check that everything is fine
         if open_orders['buy']:
             raise ValueError(f"self.open_orders['buy'] should be empty!")
-        self.stratlog.debug(f'set_first_orders, remaining_orders_price buy: \
-            {remaining_orders_price["buy"]}')
+        msg = (
+                f'set_first_orders, remaining_orders_price buy: '
+                f'{remaining_orders_price["buy"]}'
+            )
+        self.stratlog.debug(msg)
         # Now sell side
         if self.params['nb_sell_to_display'] == '0':
             self.params['nb_sell_to_display'] = self.max_sell_index
         if lowest_sell_index + int(self.params['nb_sell_to_display']) <\
-            len(self.intervals) - 2:
+        len(self.intervals) - 2:
             sell_target = lowest_sell_index + int(self.params['nb_sell_to_display'])
         else:
             sell_target = len(self.intervals.index) - 2 
@@ -1583,8 +1673,11 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
         # Check that everything is fine
         if open_orders['sell']:
             raise ValueError(f"self.open_orders['sell'] should be empty!")
-        self.stratlog.debug(f'set_first_orders, remaining_orders_price sell: \
-            {remaining_orders_price["sell"]}')
+        msg = (
+                f'set_first_orders, remaining_orders_price sell: '
+                f'{remaining_orders_price["sell"]}'
+            )
+        self.stratlog.debug(msg)
         return new_orders
 
     def remove_safety_order(self, open_orders):
@@ -1636,9 +1729,12 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
         else:
             if self.open_orders['sell'][-1][1] != self.safety_sell_value:
                 self.open_orders['sell'].append(self.create_fake_sell())
-        self.stratlog.debug(f'set_safety_orders, safety buy: \
-            {self.open_orders["buy"][0]}, safety sell: \
-            {self.open_orders["sell"][-1]}')
+        msg = (
+                f'set_safety_orders, safety buy: '
+                f'{self.open_orders["buy"][0]}, safety sell: '
+                f'{self.open_orders["sell"][-1]}'
+            )
+        self.stratlog.debug(msg)
         return
 
     def create_fake_buy(self):
@@ -1673,8 +1769,11 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
     def check_if_no_orders(self, new_open_orders):
         """Open orders when there is no orders open on the market
         return: dict"""
-        self.stratlog.debug(f'check_if_no_orders, new_open_orders: \
-            {new_open_orders}')
+        msg = (
+                f'check_if_no_orders, new_open_orders: '
+                f'{new_open_orders}'
+            )
+        self.stratlog.debug(msg)
         if not new_open_orders['buy']:
             # Take care of fake orders
             if len(self.open_orders['buy']) > 1:
@@ -1706,8 +1805,11 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                         new_open_orders['buy'].append(order)
                 else:
                     self.open_orders['buy'].insert(0, self.create_fake_buy())
-            self.stratlog.debug(f'check_if_no_orders, updated buy orders: \
-                {new_open_orders["buy"]}')
+            msg = (
+                    f'check_if_no_orders, updated buy orders: '
+                    f'{new_open_orders["buy"]}'
+                )
+            self.stratlog.debug(msg)
         if not new_open_orders['sell']:
             # Take care of fake order
             if len(self.open_orders['sell']) > 1:
@@ -1720,16 +1822,16 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                 new_open_orders['sell'].append(self.create_fake_sell())
             elif start_index > self.max_sell_index:
                 if self.params['stop_at_top']:
+                    self.stratlog.critical('Top target reached!')
                     self.cancel_all(self.remove_orders_off_strat(
                         self.get_orders(self.select_marketplace)))
-                    self.stratlog.critical('Top target reached!')
                     self.exit()
                 else:
                     new_open_orders['sell'].append(self.create_fake_sell())
             else:
                 # Set the number of orders to execute
-                if start_index + int(self.params['nb_sell_to_display']) >=\
-                    self.max_sell_index:
+                if start_index + int(self.params['nb_sell_to_display'])\
+                >= self.max_sell_index:
                     target = start_index + int(self.params['nb_sell_to_display'])
                 else:
                     target = self.max_sell_index
@@ -1740,8 +1842,11 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                         new_open_orders['sell'].append(order)
                 else:
                     self.open_orders['sell'].append(self.create_fake_sell())
-            self.stratlog.debug(f'check_if_no_orders, updated sell orders: \
-    {new_open_orders["sell"]}')
+            msg = (
+                    f'check_if_no_orders, updated sell orders: '
+                    f'{new_open_orders["sell"]}'
+                )
+            self.stratlog.debug(msg)
         return new_open_orders
 
     def compare_orders(self, new_open_orders):
@@ -1755,7 +1860,7 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
             self.stratlog.info('A buy has occurred')
             for order in self.open_orders['buy']:
                 rsp = any(new_order[1] == order[1] \
-                    for new_order in new_open_orders['buy'])
+                for new_order in new_open_orders['buy'])
                 if rsp:
                     missing_orders['buy'].remove(order)
             start_index = self.intervals.index(new_open_orders['buy'][-1][1])
@@ -1768,7 +1873,7 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
             self.stratlog.info('A sell has occurred')
             for order in self.open_orders['sell']:
                 rsp = any(new_order[1] == order[1] \
-                    for new_order in new_open_orders['sell'])
+                for new_order in new_open_orders['sell'])
                 if rsp:
                     missing_orders['sell'].remove(order)
             start_index = self.intervals.index([self.open_orders['sell'][0][1]])
@@ -1776,8 +1881,11 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
             if target - start_index > 0:
                 executed_orders['buy'] = self.set_several_buy(start_index,
                     target, True)
-        self.stratlog.debug(f'compare_orders, missing_orders: {missing_orders} \
-            executed_orders: {executed_orders}')
+        msg = (
+                f'compare_orders, missing_orders: {missing_orders} '
+                f'executed_orders: {executed_orders}'
+            )
+        self.stratlog.debug(msg)
         self.update_open_orders(missing_orders, executed_orders)
         return
 
@@ -1791,16 +1899,22 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                 self.open_orders['sell'].remove(order)
             for order in executed_orders['buy']:
                 self.open_orders['buy'].append(order)
-            self.stratlog.debug(f'update_open_orders, self.open_orders buy: \
-                {self.open_orders["buy"]}')
+            msg = (
+                    f'update_open_orders, self.open_orders buy: '
+                    f'{self.open_orders["buy"]}'
+                )
+            self.stratlog.debug(msg)
         if executed_orders['sell']:
             self.stratlog.debug('Update self.open_orders[\'sell\']')
             for order in missing_orders['buy']:
                 self.open_orders['buy'].remove(item)
             for i, order in enumerate(executed_orders['sell']):
                 self.open_orders['sell'].insert(i, order)
-            self.stratlog.debug(f'update_open_orders, self.open_orders sell: \
-                {self.open_orders["sell"]}')
+            msg = (
+                    f'update_open_orders, self.open_orders sell: '
+                    f'{self.open_orders["sell"]}'
+                )
+            self.stratlog.debug(msg)
         return
 
     def limit_nb_orders(self):
@@ -1808,8 +1922,8 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
         not enough of it"""
         new_open_orders = self.orders_price_ordering(self.get_orders(
                 self.select_market))
-        self.stratlog.debug(f'Limit nb orders, new_open_orders: \
-            {new_open_orders}')
+        msg = f'Limit nb orders, new_open_orders: {new_open_orders}'
+        self.stratlog.debug(msg)
         # Don't mess up if all buy orders have been filled during the cycle
         if new_open_orders['buy']:
             nb_orders = len(new_open_orders['buy'])
@@ -1817,7 +1931,7 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
             nb_orders = 0
         # When there is too much buy orders on the order book
         if nb_orders > self.params['nb_buy_to_display']:
-            self.stratlog.debug(f'nb_orders > params[\'nb_buy_to_display\']')
+            self.stratlog.debug(f'nb_orders > params["nb_buy_to_display"]')
             # Care of the fake order
             if not self.open_orders['buy'][0][0]:
                 del self.open_orders['buy'][0]
@@ -1830,7 +1944,7 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                 nb_orders -= 1
         # When there is not enough buy order in the order book
         elif nb_orders < int(self.params['nb_buy_to_display']):
-            self.stratlog.debug(f'nb_orders < params[\'nb_buy_to_display\']')
+            self.stratlog.debug(f'nb_orders < params["nb_buy_to_display"]')
             # Ignore if the bottom of the range is reached
             if self.open_orders['buy'][0][0]:
                 # Set the range of buy orders to create
@@ -1851,7 +1965,7 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
             nb_orders = 0
         # When there is too much buy orders on the order book
         if nb_orders > int(self.params['nb_sell_to_display']):
-            self.stratlog.debug(f'nb_orders > params[\'nb_sell_to_display\']')
+            self.stratlog.debug(f'nb_orders > params["nb_sell_to_display"]')
             # Care of th fake order
             if not self.open_orders['sell'][-1][0]:
                 del self.open_orders['sell'][-1]
@@ -1865,7 +1979,7 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                 nb_orders -= 1
         # When there is not enough buy order in the order book
         elif nb_orders < int(self.params['nb_sell_to_display']):
-            self.stratlog.debug(f'nb_orders < params[\'nb_sell_to_display\']')
+            self.stratlog.debug(f'nb_orders < params["nb_sell_to_display"]')
             # Ignore if the top of the range is reached
             if self.open_orders['sell'][-1][0]:
                 # Set the range of buy orders to create
@@ -1881,8 +1995,8 @@ price: {order[1]}, amount: {order[2]}, value: {order[3]}, timestamp: \
                     orders = self.set_several_sell(start_index, target)
                     for order in orders:
                         self.open_orders.append(order)
-        self.stratlog.debug(f'limit_nb_orders, self.open_orders: \
-            {self.open_orders}')
+        msg = f'limit_nb_orders, self.open_orders: {self.open_orders}'
+        self.stratlog.debug(msg)
         return
 
     def exit(self):
