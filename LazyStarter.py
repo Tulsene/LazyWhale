@@ -20,9 +20,13 @@ class LazyStarter:
     getcontext().prec = 8
 
     def __init__(self):
-        self.keys_file = "keys.txt"
-        self.stratlog = None
-        self.applog = self.logger_setup('debugs', 'logfiles/app.log',
+        # Without assigning it first, it always return true
+        self.script_position = os.path.dirname(sys.argv[0])
+        self.root_path = f'{self.script_position}/' if self.script_position else ''
+        self.keys_file = f'{self.root_path}keys.txt'
+        self.stratlog = self.logger_setup('stratlogs', 'strat.log',
+            '%(message)s', logging.DEBUG, logging.INFO)
+        self.applog = self.logger_setup('debugs', 'app.log',
             '%(asctime)s - %(levelname)s - %(message)s', logging.DEBUG,
             logging.DEBUG)
         self.user_market_name_list = []
@@ -61,7 +65,9 @@ class LazyStarter:
         logging_level: logging object, optional, the level of logging to catch.
         return: logging object, contain rules for logging.
         """
+        dir_name = f'{self.root_path}logfiles'
         self.create_dir_when_none('logfiles')
+        log_file = f'{dir_name}/{log_file}'
         logger = logging.getLogger(name)
         logger.setLevel(logging_level)
         formatter = logging.Formatter(log_formatter)
@@ -188,118 +194,71 @@ class LazyStarter:
                 self.applog.info(limitation)"""
         return 'DASH/BTC' #choice
 
-    def set_strat_log_file(self):
-        """"""
-        repo_name = f'{os.path.dirname(sys.argv[0])}/logfiles'
-        file_name_root = 'strat'
-        file_type = '.log'
-        params_file_name = None
-        file_list = []
-        # Make a list with all strat.log files name
-        for file in os.listdir(repo_name):
-            if file.startswith(file_name_root): 
-                file_list.append(file)
-        repo_name += '/'
-        file_name_root = f'{repo_name}{file_name_root}{file_type}'
-        # Care if there is none or only one strat.log file name
-        if len(file_list) == 0:
-            file_name = file_name_root
-            Path(file_name).touch()
-        elif len(file_list) == 1:
-            if not self.logfile_not_empty(f'{repo_name}{file_list[0]}'):
-                file_name = file_name_root
-            else:
-                file_name = f'{file_name_root}.1'
-                Path(file_name).touch()
-                params_file_name = file_name_root
-        else:
-            if not self.logfile_not_empty(f'{repo_name}{file_list[-1]}'):
-                file_name = f'{repo_name}{file_list[-1]}'
-                params_file_name = f'{repo_name}{file_list[-2]}'
-            else:
-                file_name = f'{file_name_root}.{len(file_list)}'
-                Path(file_name).touch()
-                params_file_name = f'{repo_name}{file_list[-1]}'
-        self.stratlog = self.logger_setup('logs', file_name,
-            '%(message)s', logging.DEBUG, logging.INFO)
-        return params_file_name
-
     """
     ######################## DATA CHECKER/FORMATTER ###########################
     """
 
-    def log_file_reader(self, file_name):
-        """Import data from logfile and organize it.
-        file_name: string, path and name of the previous log file.
+    def log_file_reader(self):
+        """Import the last 20 order from strat.log and organize it.
         return: None or dict containing : list of exectuted buy, 
                                           list of executed sell, 
                                           dict of parameters
         """
-        logs_data = {'sell': [], 'buy': [], 'params': {}}        
-        with open(file_name , mode='r', encoding='utf-8') as log_file:
-            self.applog.debug("Reading the log file")
-            params = log_file.readline()
-            if params[0] == '#':
-                params = params.replace('\n', '')
-                params = params.replace("#", '')
-                params = params.replace("'", '"')
-                try:
-                    params = json.loads(params)
-                except Exception as e:
-                    msg = (
-                            f'Something went wrong with the first '
-                            f'line of the log file: {e}'
-                        )
-                    self.applog.critical(msg)
-                    self.exit()
-                params = self.params_checker(params)
-                if params is False:
-                    return False
-                logs_data['params'] = params
-                for line in log_file:
-                    if line[0] == '{':
-                        line = line.replace('\n', '')
-                        line = line.replace("'", '"')
-                        try:
-                            order = json.loads(line)
-                            formated_order = self.format_order(
-                                    order['id'],
-                                    order['price'],
-                                    order['amount'],
-                                    order['timestamp'],
-                                    order['datetime'])
-                            if order['side'] == 'buy'or\
-                                order['side'] == 'canceled_buy':
-                                logs_data['buy'].append(formated_order)
-                            if order['side'] == 'sell' or\
-                                order['side'] == 'canceled_sell':
-                                logs_data['sell'].append(formated_order)
-                        except Exception as e:
-                            msg = (
-                                    f'Something went wrong with data '
-                                    f'formating in the log file: {e}'
-                                )
-                            self.applog.warning(msg)
-                            return False
-                # Limit the number of history to keep to the last 20 trades
-                while len(logs_data['buy']) > 20:
-                    del logs_data['buy'][0]
-                while len(logs_data['sell']) > 20:
-                    del logs_data['sell'][0]
-            else:
-                msg = (
-                            f'The first line of the log file do not '
-                            f'contain parameters'
-                        )
-                raise ValueError(msg)
-            self.applog.debug(logs_data)
-            return logs_data
+        strat_log_file = f'{self.root_path}logfiles/strat.log'
+        raw_data = []
+        logs_data = {'buy': [], 'sell': []}
+        # In case there is no log file
+        if not self.create_file_when_none(strat_log_file):
+            self.applog.warning("params.txt file have been created")
+            return
+        self.applog.debug("Reading the strat.log file")
+        nb_of_lines = self.file_line_counter(strat_log_file)
+        # In case the log file is empty
+        if not nb_of_lines:
+            self.applog.warning('Your strat.log file was empty')
+            return
+        target = nb_of_lines - 20 if nb_of_lines > 20 else 0
+        # Get the last 20 orders saved in log file
+        while target < nb_of_lines:
+            line = self.read_one_line(strat_log_file, nb_of_lines)
+            try:
+                line = json.loads(line)
+                raw_data.append(line)
+            except Exception as e:
+                target = target - 1 if target - 1 >= 0 else target
+            nb_of_lines -= 1
+        # It's better when it's pretty to display
+        for order in raw_data:
+            formated_order = self.format_log_order(
+                    order['side'],
+                    order['order_id'],
+                    order['price'],
+                    order['amount'],
+                    order['timestamp'],
+                    order['datetime'])
+            if order['side'] == 'buy'or\
+                order['side'] == 'canceled_buy':
+                logs_data['buy'].append(formated_order)
+            if order['side'] == 'sell' or\
+                order['side'] == 'canceled_sell':
+                logs_data['sell'].append(formated_order)
+        self.display_user_trades(logs_data)
+        return logs_data
 
-    def params_checker(self, params):
+    def params_reader(self, file_path):
         """Check the integrity of all parameters and return False if it's not.
-        params: dict.
+        file_path: string, params.txt relative path.
         return: dict with valid parameters, or False.
         """
+        if not self.create_file_when_none(file_path):
+            self.applog.warning('There was no params.txt. One have been created')
+            return
+        try:
+            params = json.loads(self.read_one_line(file_path, 0))
+        except Exception as e:
+            msg = f'Something went wrong when loading params: {e}'
+            self.applog.warning(msg)
+            return
         try:
             # Check if values exist
             if not params['datetime']:
@@ -429,6 +388,38 @@ class LazyStarter:
         else:
             self.applog.info('Logfile is empty!')
             return False
+
+    def read_one_line(self, file_name, line_nb):
+        """Read and return a specific line in a file.
+        return: string."""
+        with open(file_name) as f:
+            return f.readlines()[line_nb].replace('\n', '').replace("'", '"')
+
+    def file_line_counter(self, file_name):
+        """Line counter for any file.
+        return: int, number of line. Start at 0."""
+        try:
+            with open(file_name, mode='r', encoding='utf-8') as log_file:
+                for i, l in enumerate(log_file):
+                    pass
+            return i
+        except NameError:
+            self.applog.info(f'{file_name} is empty')
+            return
+
+    def simple_file_writer(self, file_name, text):
+        """Write a text in a file.
+        file_name: string, full path of the file.
+        text: string.
+        return: boolean.
+        """
+        try:
+            with open(file_name, mode='w', encoding='utf-8') as file:
+                file.write(text)
+            return True
+        except Exception as e:
+            self.applog.critical(f'File writer error: {e}')
+            self.exit()
 
     def str_to_decimal(self, s, error_message=None):
         """Convert a string to Decimal or raise an error.
@@ -670,11 +661,11 @@ class LazyStarter:
                 if total_sell_funds_needed > sell_balance:
                     sell_balance = self.look_for_moar_funds(
                         total_sell_funds_needed, sell_balance, 'sell')
-                    msg = (
-                        f'Your actual strategy require: {pair[1]} needed: '
-                        f'{total_buy_funds_needed} and you have {buy_balance} '
-                        f'{pair[1]}; {pair[0]} needed: {total_sell_funds_needed}'
-                        f' and you have {sell_balance} {pair[0]}.'
+                msg = (
+                    f'Your actual strategy require: {pair[1]} needed: '
+                    f'{total_buy_funds_needed} and you have {buy_balance} '
+                    f'{pair[1]}; {pair[0]} needed: {total_sell_funds_needed}'
+                    f' and you have {sell_balance} {pair[0]}.'
                     )
                 self.applog.debug(msg)
                 if total_buy_funds_needed > buy_balance or\
@@ -941,39 +932,28 @@ class LazyStarter:
             self.param_checker_benef_alloc)
         return benef_alloc
 
-    def ask_for_logfile(self):
+    def ask_for_params(self):
         """Allow user to use previous parameter if they exist and backup it.
         At the end of this section, parameters are set and LW can be initialized.
         """
-        q = 'Do you want to check if a previous parameter is in logfile?'
+        q = 'Do you want to check if a previous parameter is in params.txt?'
+        file_path = f'{self.root_path}params.txt'
         if self.simple_question(q):
-            file_name = self.set_strat_log_file()
-            if file_name:
-                log_file_datas = self.log_file_reader(file_name)
-                if log_file_datas is not False:
-                    msg = (
-                            f'Your previous parameters are: '
-                            f'{log_file_datas["params"]}'
-                        )
-                    self.applog.info(msg)
-                    q = 'Do you want to display history from logs?'
-                    if self.simple_question(q):
-                        self.display_user_trades(log_file_datas)
-                    q = 'Do you want to use those params?'
-                    if self.simple_question(q):
-                        self.params = self.check_for_enough_funds(
-                            log_file_datas['params'])
-                else:
-                    msg = (
-                            f'Your parameters are '
-                            f'corrupted, please enter new one.'
-                        )
-                    self.applog.warning(msg)
+            params = self.params_reader(file_path)
+            if params:
+                self.applog.info(f'Your previous parameters are: {params}')
+                q = 'Do you want to display history from logs?'
+                if self.simple_question(q):
+                    self.log_file_reader()
+                q = 'Do you want to use those params?'
+                if self.simple_question(q):
+                    self.params = self.check_for_enough_funds(params)
             else:
-                self.applog.warning('You don\'t have parameters in app.log')
+                msg = 'Your parameters are corrupted, please enter new one!'
+                self.applog.warning(msg)
         if not self.params:
             self.params = self.enter_params()
-        self.stratlog.warning(self.params_to_str(self.params))
+        self.simple_file_writer(file_path, self.dict_to_str(self.params))
         return True
 
     def enter_params(self):
@@ -1406,6 +1386,19 @@ class LazyStarter:
                 Decimal(str(price)) * Decimal(str(amount)) * self.fees_coef,\
                 timestamp, date]
 
+    def format_log_order(self, side, order_id, price, amount, timestamp, date):
+        """Sort the information of an order in a list of 6 items.
+        id: string, order unique identifier.
+        price: float.
+        amount: float.
+        timestamp: int.
+        date: string.
+        return: list, containing: id, price, amount, value, timestamp and date.
+        """
+        return [side, order_id, Decimal(str(price)), Decimal(str(amount)),\
+                Decimal(str(price)) * Decimal(str(amount)) * self.fees_coef,\
+                timestamp, date]
+
     def get_orders(self, market):
         """Get actives orders from a marketplace and organize them.
         return: dict, containing list of buys & sells.
@@ -1462,21 +1455,17 @@ class LazyStarter:
         """
         if orders['buy']:
             for order in orders['buy']:
-                msg = (
-                        f'Buy on: {order[5]}, id: {order[0]}, price: {order[1]}, '
-                        f'amount: {order[2]}, value: {order[3]}, timestamp: '
-                        f'{order[4]}, date: {order[5]}'
-                    )
-                self.stratlog.info(msg)
+                self.stratlog.info(self.format_order_to_display(order))
         if orders['sell']:
             for order in orders['sell']:
-                msg = (
-                        f'Sell on: {order[5]}, id: {order[0]}, price: {order[1]}, '
-                        f'amount: {order[2]}, value: {order[3]}, timestamp: '
-                        f'{order[4]}, date: {order[5]}'
-                    )
-                self.stratlog.info(msg)
+                self.stratlog.info(self.format_order_to_display(order))
         return
+
+    def format_order_to_display(self, order):
+        return (
+                f'{order[0]} on: {order[6]}, id: {order[1]}, price: {order[2]}, '
+                f'amount: {order[3]}, value: {order[4]}, timestamp: {order[5]}'
+               )
 
     def order_logger_formatter(self, side, order_id, price, amount, timestamp,\
         datetime):
@@ -1489,9 +1478,9 @@ class LazyStarter:
         datetime: string, formated datetime.
         return: tuple with timestamp and datetime"""
         msg = (
-                f'{{"side": {side}, "order_id": {order_id}, "price": {price}, '
-                f'"amount": {amount}, "timestamp": {timestamp}, "datetime": '
-                f'{datetime} }}'
+                f'{{"side": "{str(side)}", "order_id": "{str(order_id)}", '
+                f'"price": "{str(price)}", "amount": "{str(amount)}", '
+                f'"timestamp": "{str(timestamp)}", "datetime": "{str(datetime)}" }}'
             )
         self.stratlog.warning(msg)
         return timestamp, datetime
@@ -1894,7 +1883,7 @@ class LazyStarter:
         missing_orders: dict, all the missing orders since the last LW cycle.
         executed_order: dict, all the executed orders since the last LW cycle"""
         if executed_orders['buy']:
-            self.stratlog.debug('Update self.open_orders[\'buy\']')
+            self.stratlog.debug('Update self.open_orders["buy"]')
             for order in missing_orders['sell']:
                 self.open_orders['sell'].remove(order)
             for order in executed_orders['buy']:
@@ -1905,7 +1894,7 @@ class LazyStarter:
                 )
             self.stratlog.debug(msg)
         if executed_orders['sell']:
-            self.stratlog.debug('Update self.open_orders[\'sell\']')
+            self.stratlog.debug('Update self.open_orders["sell"]')
             for order in missing_orders['buy']:
                 self.open_orders['buy'].remove(item)
             for i, order in enumerate(executed_orders['sell']):
@@ -2009,7 +1998,7 @@ class LazyStarter:
         """
         marketplace_name = self.select_marketplace() # temp modification
         self.selected_market = self.select_market() # temp modification
-        self.ask_for_logfile()
+        self.ask_for_params()
         self.open_orders = self.strat_init()
         self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0]),
             self.intervals.index(self.open_orders['sell'][-1]))

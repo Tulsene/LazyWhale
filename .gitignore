@@ -11,3 +11,4 @@ tests/*
 
 venv/*
 keys.txt
+params.txt

@@ -44,6 +44,10 @@ SyntaxError: invalid syntax
 
 Create key.txt and follow the scheme in `keySkeletton.txt`
 
+### Strategy parameters
+
+Are in params.txt file and are not kept forever. Please backup it if you neet it!
+
 ### Run LW
 
 **Your virtualenv need to be properly setup and running!**
