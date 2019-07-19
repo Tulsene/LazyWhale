@@ -22,10 +22,10 @@ class ZebitexFormatted():
                 value['lockedBalance'] == '1E-8':
                 value['lockedBalance'] = '0.0'
             fetched_balance.update(
-                {key: {'free': str(Decimal(value['balance']) -\
-                                   Decimal(value ['lockedBalance'])), 
-                       'used': value ['lockedBalance'], 
-                       'total': value['balance']}})
+                {key: {'free': value['balance'],
+                       'used': value ['lockedBalance'],
+                       'total': str(Decimal(value['balance']) +\
+                                   Decimal(value ['lockedBalance']))}})
         return fetched_balance
 
     def fetch_open_orders(self, market=None):
