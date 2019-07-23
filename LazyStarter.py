@@ -148,7 +148,6 @@ class LazyStarter:
         """Marketplace sélection menu, connect to the selected marketplace.
         return: string, the name of the selected marketplace
         """
-        """
         q = 'Please select a market:'
         choice = self.ask_to_select_in_a_list(q, self.user_market_name_list)
         if self.user_market_name_list[choice] == 'zebitex':
@@ -167,19 +166,12 @@ class LazyStarter:
                     f'({str(self.keys[self.user_market_name_list[choice]])})'
                 )
             self.exchange = eval(msg)
-        """
-        self.exchange = zebitexFormatted.ZebitexFormatted(
-                self.keys[self.user_market_name_list[2]]['apiKey'],
-                self.keys[self.user_market_name_list[2]]['secret'],
-                True)
-        return  self.user_market_name_list[2] #self.user_market_name_list[choice]
 
     def select_market(self):
         """Market selection menu.
         return: string, selected market.
         """
         self.load_markets()
-        """
         market_list = self.exchange.symbols
         valid_choice = False
         while valid_choice is False:
@@ -191,8 +183,8 @@ class LazyStarter:
                     self.selected_market = choice
                     valid_choice = True
             else:
-                self.applog.info(limitation)"""
-        return 'DASH/BTC' #choice
+                self.applog.info(limitation)
+        return choice
 
     """
     ######################## DATA CHECKER/FORMATTER ###########################
