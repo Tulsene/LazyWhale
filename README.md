@@ -1,22 +1,30 @@
 # LazyWhale trading assistant
 
-Easy tool for lazy whale
+This is a dangerous tools in bad tradings hands. Anyway, **use it at your own risks**!
+
+The purpose of this script is to automate sells & buys during range or bullish movement.
+
+LW is a simple script compatible with ccxt marketplaces wich simply buy and sell in a preset range. 
 
 ## Instalation for linux
 ### Prerequisite
-#### Python >= 3.6
-https://solarianprogrammer.com/2017/06/30/building-python-ubuntu-wsl-debian/
+#### Python >= 3.6 
+
+For debian and other debian like linux versions:
+`https://solarianprogrammer.com/2017/06/30/building-python-ubuntu-wsl-debian/`
 
 Configure it with pip : `./configure --enable-optimizations --with-ensurepip=install` !!!
 
 **You must have python >= 3.6 or you will get the following error:**
 
 ```
-File "LazyStarter.py", line 183
-    return Decimal(f"{self.exchange.fetchTicker(market)['last']:.8f}")
+File "LazyStarter.py", line XXXX
+    xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
                                                                     ^
 SyntaxError: invalid syntax
 ```
+
+For other OS do a PR if you want it!
 
 #### Virtual Env
 
@@ -38,15 +46,13 @@ SyntaxError: invalid syntax
 
 `cd LazyWhale`
 
-`git checkout dev`
-
 ### API Keys Configuration
 
 Create key.txt and follow the scheme in `keySkeletton.txt`
 
 ### Strategy parameters
 
-Are in params.txt file and are not kept forever. Please backup it if you neet it!
+Are in params.txt file and are not kept forever. Backup it before entering new parameters!
 
 ### Run LW
 
@@ -54,61 +60,12 @@ Are in params.txt file and are not kept forever. Please backup it if you neet it
 
 `python LazyStarter.py` 
 
-### Read logs
-
-`tail -f Lazy.log`
-
-## What is it?
-
-LW is a simple script compatible with ccxt marketplaces wich do a simple market making in a preset range. 
-
-Follow the instructions to setup your parameters.
 
 ## TODO
-- [ ] Add Fees coef in params
-- [ ] add market depth (actually limited to BTC markets)
-- [ ] Send email
-- [x] Use f'' to format strings
+- [ ] Send slack message.
+- [ ] Improve marketplace selection by adding it into params.
+- [ ] Organize this mess!
 
-## TOTEST
-- [ ] logger_setup
-- [ ] self.stratlog
-- [ ] self.applog
-- [ ] select_marketplace
-- [ ] select_market
-- [ ] ask_for_logfile
-- [ ] log_file_reader
-- [ ] params_checker
-- [ ] dict_to_str
-- [ ] check_for_enough_funds
-- [ ] buy funds
-- [ ] not enough
-- [ ] Check maths when the whole strategy is under actual price
-- [ ] look for moar funds
-- [ ] sell funds
-- [ ] not enough
-- [ ] look for moar funds
-- [ ] display_user_trades
-- [ ] strat_init
-- [ ] remove open orders outside the strategy
-- [ ] Create lists with all remaining orders price
-- [ ] set_first_orders
-- [ ] Open an order if needed or move an already existing order
-- [ ] remove_safety_order
-- [ ] set_safety_orders
-- [ ] remove_orders_off_strat
-- [ ] check_if_no_orders
-- [ ] Create a fake buy order if needed or stop LW
-- [ ] Create orders
-- [ ] Create a fake sell order if needed or stop LW
-- [ ] Create orders
-- [ ] compare_orders
-- [ ] Buys
-- [ ] set_several_buy maths
-- [ ] Sells
-- [ ] update_open_orders
-- [ ] limit_nb_orders
-- [ ] When there is too much buy orders on the order book
-- [ ] When there is not enough buy order in the order book
-- [ ] When there is too much sell orders on the order book
-- [ ] When there is not enough sell order in the order book
+### If you want to help
+
+Open an issue on github or do a pull request on the dev branch
