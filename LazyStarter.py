@@ -721,7 +721,6 @@ class LazyStarter:
         orders_outside_strat = []
         # simple addition of funds stuck in open order and will be used for the
         # strategy
-        print(f'funds: {funds} {type(funds)}')
         if side == 'buy':
             for order in orders['buy']:
                 if order[1] in self.intervals\
@@ -768,7 +767,6 @@ class LazyStarter:
                             self.stratlog.debug(msg)
                     else:
                         is_valid = True
-        print(funds)
         return funds
 
     """
@@ -1552,7 +1550,6 @@ class LazyStarter:
         for i, order in enumerate(open_orders['buy']):
             if order[1] in self.intervals:
                 if not lowest_buy <= order[1] <=  self.params['spread_bot']:
-                    print(f"{lowest_buy} <= {order[1]} <=  {self.params['spread_bot']}")
                     self.cancel_order(order[0], order[1], order[4], 'buy')
                     orders_to_remove['buy'].append(i)
                     continue
@@ -1584,7 +1581,6 @@ class LazyStarter:
         for i, order in enumerate(open_orders['sell']):
             if order[1] in self.intervals:
                 if not self.params['spread_top'] <= order[1] <= highest_sell:
-                    print(f"{self.params['spread_top']} <= {order[1]} <= {highest_sell}")
                     self.cancel_order(order[0], order[1], order[4], 'sell')
                     orders_to_remove['sell'].append(i)
                     continue
@@ -1680,7 +1676,6 @@ class LazyStarter:
             not in remaining_orders_price['sell']:
                 order = self.init_limit_sell_order(self.selected_market,
                     self.params['amount'], self.intervals[lowest_sell_index])
-                #print(f'new sell order: {order}')
                 new_orders['sell'].append(order)
             else:
                 for i, item in enumerate(open_orders['sell']):
@@ -1695,7 +1690,7 @@ class LazyStarter:
     def remove_safety_order(self, open_orders, local=False):
         """Remove safety orders if there is any.
         open_orders: dict.
-        local: boolean, optional when you want to also remove safety orders
+        local: boolean, optional, when you want to also remove safety orders
             from self.open_orders set it as True
         return: dict.
         """
