@@ -484,7 +484,7 @@ class LazyStarter:
     def param_checker_range_bot(self, range_bot):
         """Verifies the value of the bottom of the channel
         range_bot: decimal"""
-        if range_bot < Decimal('0.000001'):
+        if range_bot < Decimal('0.00000001'):
             raise ValueError('The bottom of the range is too low')
         return True
 
@@ -828,7 +828,7 @@ class LazyStarter:
         return: decimal."""
         q = (
                 f'Enter a value for the bottom of the range. It must be '
-                f'superior to 100 stats:'
+                f'superior to 1 stats:'
             )
         return self.ask_question(q, self.str_to_decimal,
             self.param_checker_range_bot)
