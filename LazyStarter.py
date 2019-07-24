@@ -1655,6 +1655,7 @@ class LazyStarter:
                 order = self.init_limit_buy_order(self.selected_market,
                     self.params['amount'], self.intervals[lowest_buy_index])
                 new_orders['buy'].append(order)
+                sleep(0.2)
             else:
                 for i, item in enumerate(open_orders['buy']):
                     if item[1] == self.intervals[lowest_buy_index]:
