@@ -12,12 +12,11 @@ from time import time, sleep
 from copy import deepcopy
 from decimal import *
 from pathlib import Path
-from bisect import bisect_left
 from datetime import datetime
 from operator import itemgetter
 
 class LazyStarter:
-    getcontext().prec = 8
+    getcontext().prec = 10
 
     def __init__(self):
         # Without assigning it first, it always return true
@@ -531,14 +530,19 @@ class LazyStarter:
             raise ValueError(msg)
         return True
 
-    def interval_calculator(self, number1, increment):
-        """Format a multiplication between decimal correctly
-        number1: Decimal.
-        increment: Decimal, 2nd number of the multiplication.
-        return: Decimal, multiplied number formated correctly
+    def multiplier(self, nb1, nb2, nb3=Decimal('1')):
+        """Do a simple multiplication between Decimal.
+        nb1: Decimal.
+        nb2: Decimal.
+        nb3: Decimal, optional.
+        return: Decimal.
         """
-        return (number1 * increment).quantize(Decimal('.00000001'),
-                    rounding=ROUND_HALF_EVEN)
+        return self.quantizator(nb1 * nb2 * nb3)
+
+    def quantizator(self, nb):
+        """Format a Decimal object to 8 decimals
+        return: Decimal"""
+        return nb.quantize(Decimal('.00000001'), rounding=ROUND_HALF_EVEN)
 
     def interval_generator(self, range_bottom, range_top, increment):
         """Generate a list of interval inside a range by incrementing values
@@ -548,11 +552,11 @@ class LazyStarter:
         return: list, value from [range_bottom, range_top[
         """ 
         intervals = [range_bottom]
-        intervals.append(self.interval_calculator(intervals[-1], increment))
+        intervals.append(self.multiplier(intervals[-1], increment))
         if range_top <= intervals[1]:
             raise ValueError('Range top value is too low')
         while intervals[-1] <= range_top:
-            intervals.append(self.interval_calculator(intervals[-1], increment))
+            intervals.append(self.multiplier(intervals[-1], increment))
         del intervals[-1]
         if len(intervals) < 6:
             msg = (
@@ -613,18 +617,17 @@ class LazyStarter:
                     # When the whole strategy is lower than actual price
                     if params['range_top'] < price:
                         while i < len(self.intervals):
-                            incoming_buy_funds += self.intervals[i] *\
-                                params['amount'] * self.fees_coef
+                            incoming_buy_funds += self.multiplier(
+                                self.intervals[i], params['amount'],
+                                self.fees_coef)
                             i +=1
-                        # should it be kept?
-                        incoming_buy_funds += params['range_top'] *\
-                            params['amount'] * self.fees_coef
                     # When only few sell orders are planned to be under the
                     # actual price
                     else:
                         while self.intervals[i] <= price:
-                            incoming_buy_funds += self.intervals[i] *\
-                                params['amount'] * self.fees_coef
+                            incoming_buy_funds += self.multiplier(
+                                self.intervals[i], params['amount'],
+                                self.fees_coef)
                             i +=1
                             # It crash when price >= range_top
                             if i == len(self.intervals):
@@ -639,15 +642,15 @@ class LazyStarter:
                     # When the whole strategy is upper than actual price
                     if params['spread_bot'] > price:
                         while i >= 0:
-                            incoming_sell_funds += params['amount'] *\
-                                self.fees_coef
+                            incoming_sell_funds += self.multiplier(
+                                params['amount'], self.fees_coef)
                             i -=1
                     # When only few buy orders are planned to be upper the
                     # actual price
                     else:
                         while self.intervals[i] >= price:
-                            incoming_sell_funds += params['amount'] *\
-                                self.fees_coef
+                            incoming_sell_funds += self.multiplier(
+                                params['amount'], self.fees_coef)
                             i -=1
                             if i < 0:
                                 break
@@ -736,8 +739,8 @@ class LazyStarter:
                     if not orders_outside_strat:
                         is_valid = True
                     q = (
-                            f'Do you want to remove some orders outside of the '
-                            f'strategy to get enough funds to run it? (y or n)'
+                        f'Do you want to remove some orders outside of the '
+                        f'strategy to get enough funds to run it? (y or n)'
                         )
                     if self.simple_question(q):
                         q = 'Which order do you want to remove:'
@@ -752,11 +755,9 @@ class LazyStarter:
                                 funds += order[1] * order[2]
                             else:
                                 funds += order[2]
-                            msg = (
-                                    f'You have now {funds} {side} '
-                                    f'funds and you need {funds_needed}.'
-                                )
-                            self.stratlog.debug(msg)
+                            self.stratlog.debug(
+                                f'You have now {funds} {side} '
+                                f'funds and you need {funds_needed}.')
                     else:
                         is_valid = True
         return funds
@@ -827,9 +828,8 @@ class LazyStarter:
         """Ask the user to enter a value for the bottom of the range.
         return: decimal."""
         q = (
-                f'Enter a value for the bottom of the range. It must be '
-                f'superior to 1 stats:'
-            )
+            f'Enter a value for the bottom of the range. It must be '
+            f'superior to 1 stats:')
         return self.ask_question(q, self.str_to_decimal,
             self.param_checker_range_bot)
 
@@ -837,8 +837,8 @@ class LazyStarter:
         """Ask the user to enter a value for the top of the range.
         return: decimal."""
         q = (
-                f'Enter a value for the top of the range. It must be '
-                f'inferior to 0.99 BTC:'
+            f'Enter a value for the top of the range. It must be '
+            f'inferior to 0.99 BTC:'
             )
         return self.ask_question(q, self.str_to_decimal,
             self.param_checker_range_top)
@@ -848,9 +848,8 @@ class LazyStarter:
         return: decimal."""
         minimum_amount = Decimal('0.001') / range_bot
         q = (
-                f'How much {self.selected_market[:4]} do you want to sell '
-                f'per order? It must be between {minimum_amount} and 10000000:'
-            )
+            f'How much {self.selected_market[:4]} do you want to sell '
+            f'per order? It must be between {minimum_amount} and 10000000:')
         while True:
             try:
                 amount = self.ask_question(q, self.str_to_decimal)
@@ -863,9 +862,8 @@ class LazyStarter:
         """Ask the user to enter a value for the spread between each order.
         return: decimal."""
         q = (
-                f'How much % of spread between two orders? It must be '
-                f'between 1% and 50%'
-            )
+            f'How much % of spread between two orders? It must be '
+            f'between 1% and 50%')
         return self.ask_question(q, self.increment_coef_buider)
 
     def ask_range_setup(self):
@@ -895,9 +893,8 @@ class LazyStarter:
         msg = f'The actual price of {self.selected_market} is {price}'
         self.applog.info(msg)
         q = (
-                f'Please select the price of your highest buy order '
-                f'(spread_bot) in the list'
-            )
+            f'Please select the price of your highest buy order '
+            f'(spread_bot) in the list')
         position = self.ask_to_select_in_a_list(q, self.intervals)
         return {'spread_bot': self.intervals[position], 
                 'spread_top': self.intervals[position + 1]} # Can be improved by suggesting a value
@@ -906,17 +903,15 @@ class LazyStarter:
         """Ask how much buy and sell orders are going to be in the book.
         return: dict, nb_buy_to_display + nb_sell."""
         q = (
-                f'How many buy orders do you want to display? It must be '
-                f'less than {len(self.intervals)}. 0 value = '
-                f'{len(self.intervals)} :'
-            )
+            f'How many buy orders do you want to display? It must be '
+            f'less than {len(self.intervals)}. 0 value = '
+            f'{len(self.intervals)} :')
         nb_buy_to_display = self.ask_question(q, self.str_to_int,
             self.param_checker_nb_to_display)
         q = (
-                f'How many sell orders do you want to display? It must be '
-                f'less than {len(self.intervals)}. 0 value = '
-                f'{len(self.intervals)} :'
-            )
+            f'How many sell orders do you want to display? It must be '
+            f'less than {len(self.intervals)}. 0 value = '
+            f'{len(self.intervals)} :')
         nb_sell_to_display = self.ask_question(q, self.str_to_int,
             self.param_checker_nb_to_display)
         return {'nb_buy_to_display': nb_buy_to_display, 
@@ -926,9 +921,8 @@ class LazyStarter:
         """Ask for benefice allocation.
         return: int."""
         q = (
-                f'How do you want to allocate your benefice in %. It must '
-                f'be between 0 and 100, both included:'
-            )
+            f'How do you want to allocate your benefice in %. It must '
+            f'be between 0 and 100, both included:')
         benef_alloc = self.ask_question(q, self.str_to_int, 
             self.param_checker_benef_alloc)
         return benef_alloc
@@ -1158,16 +1152,15 @@ class LazyStarter:
             amount = []
             start_index_copy = start_index
             while start_index_copy <= target:
-                btc_won = (self.intervals[start_index_copy + 1] *\
-                    self.params['amount'] * self.fees_coef).quantize(
-                        Decimal('.00000001'), rounding=ROUND_HALF_EVEN)
-                btc_to_spend = (self.intervals[start_index_copy] *\
-                    self.params['amount'] * self.fees_coef).quantize(
-                        Decimal('.00000001'), rounding=ROUND_HALF_EVEN)
-                amount.append((((btc_won - btc_to_spend) * Decimal(str(
-                    self.params['benef_alloc'])) / Decimal('100')) * \
-                    self.params['amount']).quantize(Decimal('.00000001'),
-                        rounding=ROUND_HALF_EVEN) + self.params['amount'])
+                btc_won = self.multiplier(self.intervals[start_index_copy + 1],
+                    self.params['amount'], self.fees_coef)
+                btc_to_spend = self.multiplier(self.intervals[start_index_copy],
+                    self.params['amount'], self.fees_coef)
+                print(f'btc_won: {btc_won}, btc_to_spend: {btc_to_spend}')
+                amount.append(((btc_won - btc_to_spend) * Decimal(
+                    self.params['benef_alloc']) / Decimal('100') + \
+                    btc_to_spend) / self.intervals[start_index_copy]).quantize(
+                    Decimal('.00000001'), rounding=ROUND_HALF_EVEN)
                 start_index_copy += 1
         else:
             amount = [self.params['amount'] for x in range(target - start_index)]
@@ -1194,7 +1187,7 @@ class LazyStarter:
         return: list, formatted trade history by ccxt
                 or boolean True when the order is already filled"""
         try:
-            order = self.exchange.create_limit_sell_order(market, amount, price)
+            order = self.exchange.create_limit_sell_order(market, str(amount), str(price))
             date = self.order_logger_formatter('sell', order['id'], price,
                 amount, self.timestamp_formater(),
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))

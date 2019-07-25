@@ -65,6 +65,7 @@ Are in params.txt file and are not kept forever. Backup it before entering new p
 
 
 ## TODO
+- [ ] Set spread before asking max amount and set max amount per order
 - [ ] Send slack message.
 - [ ] Improve marketplace selection by adding it into params.
 - [ ] Organize this mess!
