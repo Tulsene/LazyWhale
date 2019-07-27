@@ -16,7 +16,7 @@ from datetime import datetime
 from operator import itemgetter
 
 class LazyStarter:
-    getcontext().prec = 10
+    getcontext().prec = 15
 
     def __init__(self):
         # Without assigning it first, it always return true
@@ -310,7 +310,7 @@ class LazyStarter:
             params['nb_sell_to_display'] = self.str_to_int(
                 params['nb_sell_to_display'], error_message)
             error_message = f"params['benef_alloc'] is not an int:"
-            params['benef_alloc'] = self.str_to_int(params['benef_alloc'],
+            params['benef_alloc'] = self.str_to_decimal(params['benef_alloc'],
                 error_message)
             self.applog.debug(f'param_checker, params: {params}')
             # Test if values are correct
@@ -522,7 +522,7 @@ class LazyStarter:
     def param_checker_benef_alloc(self, nb):
         """Verifie the nb for benefice allocation
         nb: int"""
-        if 0 <= nb >= 100:
+        if Decimal('0') <= nb >= Decimal('100'):
             msg = (
                     f'The benefice allocation too low (<0) or high '
                     f'(>100) {nb}'
@@ -1156,11 +1156,10 @@ class LazyStarter:
                     self.params['amount'], self.fees_coef)
                 btc_to_spend = self.multiplier(self.intervals[start_index_copy],
                     self.params['amount'], self.fees_coef)
-                print(f'btc_won: {btc_won}, btc_to_spend: {btc_to_spend}')
-                amount.append(((btc_won - btc_to_spend) * Decimal(
+                total = ((btc_won - btc_to_spend) * Decimal(
                     self.params['benef_alloc']) / Decimal('100') + \
-                    btc_to_spend) / self.intervals[start_index_copy]).quantize(
-                    Decimal('.00000001'), rounding=ROUND_HALF_EVEN)
+                    btc_to_spend) / self.intervals[start_index_copy]
+                amount.append(self.quantizator(total))
                 start_index_copy += 1
         else:
             amount = [self.params['amount'] for x in range(target - start_index)]
