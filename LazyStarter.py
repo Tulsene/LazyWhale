@@ -44,6 +44,7 @@ class LazyStarter:
         self.safety_buy_value = Decimal('0.00000001')
         self.safety_sell_value = Decimal('1')
         self.max_sell_index = None
+        self.is_kraken = False
 
     """
     ########################## __INIT__ + MANDATORY ###########################
@@ -149,6 +150,8 @@ class LazyStarter:
         """
         q = 'Please select a market:'
         choice = self.ask_to_select_in_a_list(q, self.user_market_name_list)
+        self.is_kraken = True if self.user_market_name_list[choice] == 'kraken'\
+        else False
         if self.user_market_name_list[choice] == 'zebitex':
             self.exchange = zebitexFormatted.ZebitexFormatted(
                 self.keys[self.user_market_name_list[choice]]['apiKey'],
@@ -165,6 +168,7 @@ class LazyStarter:
                     f'({str(self.keys[self.user_market_name_list[choice]])})'
                 )
             self.exchange = eval(msg)
+        return
 
     def select_market(self):
         """Market selection menu.
@@ -838,8 +842,7 @@ class LazyStarter:
         return: decimal."""
         q = (
             f'Enter a value for the top of the range. It must be '
-            f'inferior to 0.99 BTC:'
-            )
+            f'inferior to 0.99 BTC:')
         return self.ask_question(q, self.str_to_decimal,
             self.param_checker_range_top)
 
@@ -1053,7 +1056,7 @@ class LazyStarter:
                 self.err_counter = 0
             self.load_markets()
 
-    def fetch_open_orders(self, market):
+    def fetch_open_orders(self, market=None):
         """Get open orders of a market from a marketplace.
         Retry 1000 times when error and send a mail each 10 tries.
         market: string, market name.
@@ -1359,6 +1362,36 @@ class LazyStarter:
                     for item in value:
                         value[item] = str(value[item])
                     user_balance.update({key: value})
+        if self.is_kraken:
+            orders = self.fetch_open_orders()
+            for order in orders:
+                if order['side'] == 'buy':
+                    coin = order['symbol'].split('/')[1]
+                    if user_balance[coin]['used'] == 'None':
+                        user_balance[coin]['used'] = Decimal(order['price'])\
+                        * Decimal(order['amount'])
+                    else:
+                        user_balance[coin]['used'] = user_balance[coin]['used']\
+                        + Decimal(order['price']) * Decimal(order['amount'])
+                else:
+                    coin = order['symbol'].split('/')[0]
+                    if user_balance[coin]['used'] == 'None':
+                        user_balance[coin]['used'] = Decimal(order['amount'])
+                    else:
+                        user_balance[coin]['used'] = user_balance[coin]['used']\
+                        + Decimal(order['amount'])
+            for coin in user_balance:
+                if user_balance[coin]['used'] != 'None':
+                    user_balance[coin]['free'] = str(
+                        Decimal(user_balance[coin]['total'])\
+                        - user_balance[coin]['used'])
+                    user_balance[coin]['used'] = str(user_balance[coin]['used']) 
+                else:
+                    user_balance[coin]['used'] = '0.0'
+                    user_balance[coin]['free'] = user_balance[coin]['total']
+                if user_balance[coin]['free'] == 'None':
+                    user_balance[coin]['free'] = '0.0'
+        print(user_balance)
         self.user_balance = user_balance
         return user_balance
 
@@ -1633,7 +1666,7 @@ class LazyStarter:
         < len(self.intervals) - 2:
             sell_target = lowest_sell_index + self.params['nb_sell_to_display']
         else:
-            sell_target = len(self.intervals.index) - 2
+            sell_target = len(self.intervals) - 2
         self.stratlog.debug(
                 f'buy target: {buy_target}, lowest_buy_index: '
                 f'{lowest_buy_index}, lowest_sell_index: {lowest_sell_index}, '
@@ -2022,8 +2055,8 @@ class LazyStarter:
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.
         """
-        marketplace_name = self.select_marketplace() # temp modification
-        self.selected_market = self.select_market() # temp modification
+        marketplace_name = self.select_marketplace()
+        self.selected_market = self.select_market()
         self.ask_for_params()
         self.open_orders = self.strat_init()
         self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
