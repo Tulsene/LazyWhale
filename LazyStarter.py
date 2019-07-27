@@ -29,7 +29,7 @@ class LazyStarter:
             '%(asctime)s - %(levelname)s - %(message)s', logging.DEBUG,
             logging.DEBUG)
         self.user_market_name_list = []
-        self.ccxt_exchanges_list = self.exchanges_list_init()
+        self.exchanges_list = self.exchanges_list_init()
         self.keys = self.keys_initialisation()
         self.exchange = None
         self.fees_coef = Decimal('0.9975')
@@ -89,8 +89,8 @@ class LazyStarter:
     def exchanges_list_init(self):
         """Little hack to add zebitex to ccxt exchange list.
         return: list, list of exchanges."""
-        ccxt_exchanges_list = ccxt.exchanges
-        return ccxt_exchanges_list + ['zebitex', 'zebitex_testnet']
+        exchanges_list = ccxt.exchanges
+        return exchanges_list + ['zebitex', 'zebitex_testnet']
 
     def keys_initialisation(self): # Need to be refactored
         """Check if a key.txt file exist and create one if none.
@@ -136,7 +136,7 @@ class LazyStarter:
                             raise KeyError(msg)
                         else:
                             self.user_market_name_list.append(k)
-                        if k not in self.ccxt_exchanges_list:
+                        if k not in self.exchanges_list:
                             raise NameError('The marketplace name is invalid!')
                 except Exception as e:
                     self.applog.critical(f'Something went wrong : {e}')
@@ -144,14 +144,22 @@ class LazyStarter:
                 keys.update(key)
             return keys
 
-    def select_marketplace(self):
-        """Marketplace sélection menu, connect to the selected marketplace.
-        return: string, the name of the selected marketplace
+    def select_marketplace(self, marketplace=None):
+        """Select a marketplace among the loaded keys.
+        Connect to the selected marketplace.
+        return: String, name of the selected marketplace.
         """
-        q = 'Please select a market:'
-        choice = self.ask_to_select_in_a_list(q, self.user_market_name_list)
+        if not marketplace:
+            q = 'Please select a market:'
+            choice = self.ask_to_select_in_a_list(q, self.user_market_name_list)
+        else:
+            print(marketplace)
+            choice = self.user_market_name_list.index(marketplace)
+            print(choice)
+        # Because kraken balance has no free and used balance
         self.is_kraken = True if self.user_market_name_list[choice] == 'kraken'\
         else False
+
         if self.user_market_name_list[choice] == 'zebitex':
             self.exchange = zebitexFormatted.ZebitexFormatted(
                 self.keys[self.user_market_name_list[choice]]['apiKey'],
@@ -168,26 +176,33 @@ class LazyStarter:
                     f'({str(self.keys[self.user_market_name_list[choice]])})'
                 )
             self.exchange = eval(msg)
-        return
+        self.load_markets()
+        return self.user_market_name_list[choice]
 
-    def select_market(self):
+    def select_market(self, market=None):
         """Market selection menu.
         return: string, selected market.
         """
-        self.load_markets()
-        market_list = self.exchange.symbols
-        valid_choice = False
-        while valid_choice is False:
-            self.applog.info(f'Please enter the name of a market: {market_list}')
-            choice = input(' >> ').upper()
-            limitation = self.limitation_to_btc_market(choice)
-            if limitation is True:
-                if choice in market_list:
-                    self.selected_market = choice
-                    valid_choice = True
-            else:
-                self.applog.info(limitation)
-        return choice
+        if market:
+            if market not in self.exchange.symbols:
+                raise ValueError(f'{market} not in self.exchange.symbols')
+            limitation = self.limitation_to_btc_market(market)
+            if limitation != True:
+                raise ValueError(limitation)
+        else:
+            valid_choice = False
+            while valid_choice is False:
+                self.applog.info(
+                    f'Please enter the name of a market: {self.exchange.symbols}')
+                market = input(' >> ').upper()
+                limitation = self.limitation_to_btc_market(market)
+                if limitation is True:
+                    if market in self.exchange.symbols:
+                        valid_choice = True
+                else:
+                    self.applog.info(limitation)
+        self.selected_market = market
+        return market
 
     """
     ######################## DATA CHECKER/FORMATTER ###########################
@@ -258,6 +273,8 @@ class LazyStarter:
             # Check if values exist
             if not params['datetime']:
                 raise ValueError('Datetime isn\'t set')
+            if not params['marketplace']:
+                raise ValueError('Market isn\'t set')
             if not params['market']:
                 raise ValueError('Market isn\'t set')
             if not params['range_bot']:
@@ -319,18 +336,14 @@ class LazyStarter:
             self.applog.debug(f'param_checker, params: {params}')
             # Test if values are correct
             self.is_date(params['datetime'])
-            if params['market'] not in self.exchange.symbols:
-                msg = 'Market isn\'t set properly for this marketplace'
-                raise ValueError(msg)
-            if params['market'] != self.selected_market:
-                msg = (
-                        f'self.selected_market: {self.selected_market}'
-                        f'!= params["market"] {params["market"]}'
-                    )
-                raise ValueError(msg)
-            market_test = self.limitation_to_btc_market(params['market'])
-            if market_test is not True:
-                raise ValueError(market_test[1])
+            if params['marketplace'] not in self.exchanges_list:
+                raise ValueError(f"You can't choose {params['marketplace']}"
+                    f" as marketplace")
+            if params['marketplace'] not in self.keys:
+                raise ValueError(f"You don't own api key for"
+                    f" {params['marketplace']}")
+            self.select_marketplace(params['marketplace'])
+            self.select_market(params['market'])
             self.param_checker_range_bot(params['range_bot'])
             self.param_checker_range_top(params['range_top'])
             self.param_checker_interval(params['increment_coef'])
@@ -338,11 +351,9 @@ class LazyStarter:
                                                      params['range_top'],
                                                      params['increment_coef'])
             if self.intervals is False:
-                msg = (
+                raise ValueError(
                         f'Range top value is too low, or increment too '
-                        f'high: need to generate at lease 6 intervals.'
-                    )
-                raise ValueError(msg)
+                        f'high: need to generate at lease 6 intervals.')
             if params['spread_bot'] not in self.intervals:
                 raise ValueError('Spread_bot isn\'t properly configured')
             spread_bot_index = self.intervals.index(params['spread_bot'])
@@ -957,8 +968,9 @@ class LazyStarter:
     def enter_params(self):
         """Series of questions to setup LW parameters.
         return: dict, valid parameters """
-        params = {'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
-                  'market'  : self.selected_market}
+        params = {'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}
+        params.update({'marketplace': self.select_marketplace()})
+        params.update({'market': self.select_market()})
         params.update(self.ask_range_setup())
         params.update({'amount': self.ask_param_amount(params['range_bot'])})
         params.update(self.ask_params_spread())
@@ -2055,8 +2067,8 @@ class LazyStarter:
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.
         """
-        marketplace_name = self.select_marketplace()
-        self.selected_market = self.select_market()
+        #marketplace_name = self.select_marketplace()
+        #self.selected_market = self.select_market()
         self.ask_for_params()
         self.open_orders = self.strat_init()
         self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
