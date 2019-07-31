@@ -85,7 +85,7 @@ class ZebitexFormatted():
                 'limits': {'amount': {'min': 1e-07, ' max': 1000000000},
                            'price': {'min': 1e-08, 'max': 1000000000},
                            'cost': {'min': 0.000001}},
-                'id': ticker['base_unit'].upper() + '_' + ticker['quote_unit'].upper(),
+                'id': f"{ticker['base_unit']}_{ticker['quote_unit']}".upper(),
                 'symbol': ticker['name'],
                 'baseId': ticker['base_unit'].upper(),
                 'quoteId': ticker['quote_unit'].upper(),
@@ -116,7 +116,8 @@ class ZebitexFormatted():
 
     def fetch_ticker(self, ticker_name):
         formatted_ticker_name = ticker_name.split('/')
-        formatted_ticker_name = (formatted_ticker_name[0] + formatted_ticker_name[1]).lower()
+        formatted_ticker_name = (f'{formatted_ticker_name[0]}'
+            f'{formatted_ticker_name[1]}').lower()
         ticker = self.ze.ticker(formatted_ticker_name)
         return {'symbol': ticker_name, 
                 'timestamp': ticker['at'], 
@@ -153,7 +154,7 @@ class ZebitexFormatted():
             date.today().isoformat(), 1, 1000)
         my_trades = []
         for item in history['items']:
-            market_name = item['baseCurrency'] + '/' + item['quoteCurrency']
+            market_name = f"{item['baseCurrency']}/{item['quoteCurrency']}"
             if market:
                 if market_name == market:
                     my_trades.append(self.trade_formatted(item, market_name))
@@ -189,12 +190,12 @@ class ZebitexFormatted():
     def create_limit_buy_order(self, symbol, amount, price):
         symbol = symbol.lower().split('/')
         return self.ze.new_order(symbol[0], symbol[1], 'bid', price, amount,
-            symbol[0] + symbol[1], 'limit')
+            f'{symbol[0]}{symbol[1]}', 'limit')
 
     def create_limit_sell_order(self, symbol, amount, price):
         symbol = symbol.lower().split('/')
         return self.ze.new_order(symbol[0], symbol[1], 'ask', price, amount,
-            symbol[0] + symbol[1], 'limit')
+            f'{symbol[0]}{symbol[1]}', 'limit')
 
     def cancel_order(self, order_id):
         return self.ze.cancel_order(int(order_id))

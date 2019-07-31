@@ -14,6 +14,7 @@ from decimal import *
 from pathlib import Path
 from datetime import datetime
 from operator import itemgetter
+import pdb
 
 class LazyStarter:
     getcontext().prec = 15
@@ -297,7 +298,7 @@ class LazyStarter:
                 raise ValueError('Number of buy displayed isn\'t set')
             if not params['nb_sell_to_display']:
                 raise ValueError('Number of sell displayed isn\'t set')
-            if not params['benef_alloc']:
+            if not params['profits_alloc']:
                 raise ValueError('Benefices allocation isn\'t set')
             # Convert values
             error_message = f"params['range_bot'] is not a string:"
@@ -330,8 +331,8 @@ class LazyStarter:
             error_message = f"params['nb_sell_to_display'] is not an int:"
             params['nb_sell_to_display'] = self.str_to_int(
                 params['nb_sell_to_display'], error_message)
-            error_message = f"params['benef_alloc'] is not an int:"
-            params['benef_alloc'] = self.str_to_decimal(params['benef_alloc'],
+            error_message = f"params['profits_alloc'] is not an int:"
+            params['profits_alloc'] = self.str_to_decimal(params['profits_alloc'],
                 error_message)
             self.applog.debug(f'param_checker, params: {params}')
             # Test if values are correct
@@ -360,7 +361,7 @@ class LazyStarter:
             if params['spread_top'] != self.intervals[spread_bot_index + 1]:
                 raise ValueError('Spread_top isn\'t properly configured')
             self.param_checker_amount(params['amount'], params['spread_bot'])
-            self.param_checker_benef_alloc(params['benef_alloc'])
+            self.param_checker_profits_alloc(params['profits_alloc'])
         except Exception as e:
             self.applog.warning(f'The LW parameters are not well configured: {e}')
             return False
@@ -480,11 +481,11 @@ class LazyStarter:
         return b_dict.replace("'", '"')
 
     def timestamp_formater(self):
-        """Format time.time() into the same format as timestamp
+        """Format time.time() into the same format as timestamp.
         used in ccxt: 13 numbers.
-        return: int, formated timestamp"""
+        return: string, formated timestamp"""
         timestamp = str(time()).split('.')
-        return int(timestamp[0] + timestamp[1][:3])
+        return f'{timestamp[0]}{timestamp[1][:3]}'
 
     def limitation_to_btc_market(self, market):
         """Special limitation to BTC market : only ALT/BTC for now.
@@ -534,7 +535,7 @@ class LazyStarter:
             raise ValueError(msg)
         return True
 
-    def param_checker_benef_alloc(self, nb):
+    def param_checker_profits_alloc(self, nb):
         """Verifie the nb for benefice allocation
         nb: int"""
         if Decimal('0') <= nb >= Decimal('100'):
@@ -931,15 +932,15 @@ class LazyStarter:
         return {'nb_buy_to_display': nb_buy_to_display, 
                 'nb_sell_to_display': nb_sell_to_display}
 
-    def ask_benef_alloc(self):
-        """Ask for benefice allocation.
+    def ask_profits_alloc(self):
+        """Ask for profits allocation.
         return: int."""
         q = (
-            f'How do you want to allocate your benefice in %. It must '
+            f'How do you want to allocate your profits in %. It must '
             f'be between 0 and 100, both included:')
-        benef_alloc = self.ask_question(q, self.str_to_int, 
-            self.param_checker_benef_alloc)
-        return benef_alloc
+        profits_alloc = self.ask_question(q, self.str_to_int,
+            self.param_checker_profits_alloc)
+        return profits_alloc
 
     def ask_for_params(self):
         """Allow user to use previous parameter if they exist and backup it.
@@ -980,7 +981,7 @@ class LazyStarter:
         q = 'Do you want to stop LW if range_top is reach? (y) or (n) only.'
         params.update({'stop_at_top': self.ask_question(q, self.str_to_bool)})
         params.update(self.ask_nb_to_display())
-        params.update({'benef_alloc': self.ask_benef_alloc()})
+        params.update({'profits_alloc': self.ask_profits_alloc()})
         return params
 
     def change_params(self, params):
@@ -1134,8 +1135,7 @@ class LazyStarter:
         try:
             order = self.exchange.create_limit_buy_order(market, amount, price)
             date = self.order_logger_formatter('buy', order['id'], price,
-                amount, self.timestamp_formater(),
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
+                amount)
             return self.format_order(order['id'], price, amount,
                 date[0], date[1])
         except Exception as e:
@@ -1152,18 +1152,16 @@ class LazyStarter:
             else:
                 return rsp
 
-    def set_several_buy(self, start_index, target, benef_alloc=None):
+    def set_several_buy(self, start_index, target, profits_alloc=None):
         """Loop for opening buy orders. It generate amount to split benef
         following benef alloc.
-        market: string, market name.
-        amount: string, amount of ALT to buy.
-        price: string, price of the order.
         start_index: int, from where the loop start in self.intervals.
         target: int, from where the loop start in self.intervals.
+        profits_alloc: boolean, optional.
         return: list, of executed orders.
         """
         buy_orders = []
-        if benef_alloc:
+        if profits_alloc:
             amount = []
             start_index_copy = start_index
             while start_index_copy <= target:
@@ -1172,12 +1170,16 @@ class LazyStarter:
                 btc_to_spend = self.multiplier(self.intervals[start_index_copy],
                     self.params['amount'], self.fees_coef)
                 total = ((btc_won - btc_to_spend) * Decimal(
-                    self.params['benef_alloc']) / Decimal('100') + \
+                    self.params['profits_alloc']) / Decimal('100') + \
                     btc_to_spend) / self.intervals[start_index_copy]
                 amount.append(self.quantizator(total))
                 start_index_copy += 1
         else:
-            amount = [self.params['amount'] for x in range(target - start_index)]
+            if target - start_index > 0:
+                amount = [self.params['amount'] for x in\
+                                                range(target - start_index)]
+            else:
+                amount = [self.params['amount']]
         i = 0
         while start_index <= target:
             order = self.init_limit_buy_order(self.selected_market, amount[i],
@@ -1201,10 +1203,9 @@ class LazyStarter:
         return: list, formatted trade history by ccxt
                 or boolean True when the order is already filled"""
         try:
-            order = self.exchange.create_limit_sell_order(market, str(amount), str(price))
+            order = self.exchange.create_limit_sell_order(market, amount, price)
             date = self.order_logger_formatter('sell', order['id'], price,
-                amount, self.timestamp_formater(),
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
+                amount)
             return self.format_order(order['id'], price, amount,
                 date[0], date[1])
         except Exception as e:
@@ -1223,9 +1224,6 @@ class LazyStarter:
 
     def set_several_sell(self, start_index, target):
         """Loop for opening sell orders.
-        market: string, market name.
-        amount: string, amount of ALT to sell.
-        price: string, price of the order.
         start_index: int, from where the loop start in self.intervals.
         target: int, from where the loop start in self.intervals.
         return: list, of executed orders.
@@ -1303,9 +1301,7 @@ class LazyStarter:
             self.applog.debug(f'Init cancel {side} order {order_id} {price}')
             rsp = self.exchange.cancel_order(order_id)
             if rsp:
-                self.order_logger_formatter(cancel_side, order_id, price,
-                0, self.timestamp_formater(),
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
+                self.order_logger_formatter(cancel_side, order_id, price, 0)
                 return True
             else:
                 msg = (
@@ -1340,9 +1336,7 @@ class LazyStarter:
                 self.stratlog.warning(msg)
                 return False
             else:
-                self.order_logger_formatter(cancel_side, order_id, price,
-                    0, self.timestamp_formater(),
-                    datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
+                self.order_logger_formatter(cancel_side, order_id, price, 0)
                 return True
 
     def cancel_all(self, open_orders):
@@ -1370,7 +1364,7 @@ class LazyStarter:
         user_balance = {}
         for key, value in balance.items():
             if 'total' in value:
-                if value['total'] != 0.0:
+                if float(value['total']) != 0.0:
                     for item in value:
                         value[item] = str(value[item])
                     user_balance.update({key: value})
@@ -1416,28 +1410,31 @@ class LazyStarter:
     def format_order(self, order_id, price, amount, timestamp, date):
         """Sort the information of an order in a list of 6 items.
         id: string, order unique identifier.
-        price: float.
-        amount: float.
-        timestamp: int.
+        price: Decimal or string.
+        amount: Decimal.
+        timestamp: string.
         date: string.
         return: list, containing: id, price, amount, value, timestamp and date.
         """
-        return [order_id, Decimal(str(price)), Decimal(str(amount)),\
-                Decimal(str(price)) * Decimal(str(amount)) * self.fees_coef,\
-                timestamp, date]
+        return [order_id, Decimal(price), amount, self.multiplier(
+            Decimal(price), amount, self.fees_coef), timestamp, date]
 
     def format_log_order(self, side, order_id, price, amount, timestamp, date):
         """Sort the information of an order in a list of 6 items.
         id: string, order unique identifier.
-        price: float.
-        amount: float.
-        timestamp: int.
+        price: Decimal or string.
+        amount: Decimal.
+        timestamp: string.
         date: string.
         return: list, containing: id, price, amount, value, timestamp and date.
         """
+        """
         return [side, order_id, Decimal(str(price)), Decimal(str(amount)),\
-                Decimal(str(price)) * Decimal(str(amount)) * self.fees_coef,\
-                timestamp, date]
+            self.multiplier(Decimal(str(price)), Decimal(str(amount)),
+            self.fees_coef), timestamp, date]"""
+        return [side, order_id, price, amount, str(self.multiplier(
+            Decimal(price), Decimal(amount), self.fees_coef)),\
+            timestamp, date]
 
     def get_orders(self, market):
         """Get actives orders from a marketplace and organize them.
@@ -1448,9 +1445,9 @@ class LazyStarter:
         for order in raw_orders:
             formated_order = self.format_order(
                     order['id'],
-                    order['price'],
-                    order['amount'],
-                    order['timestamp'],
+                    Decimal(str(order['price'])),
+                    Decimal(str(order['amount'])),
+                    str(order['timestamp']),
                     order['datetime'])
             if order['side'] == 'buy':
                 orders['buy'].append(formated_order)
@@ -1478,9 +1475,9 @@ class LazyStarter:
         for order in raw_orders:
             formated_order = self.format_order(
                     order['id'],
-                    order['price'],
-                    order['amount'],
-                    order['timestamp'],
+                    Decimal(str(order['price'])),
+                    Decimal(str(order['amount'])),
+                    str(order['timestamp']),
                     order['datetime'])
             if order['side'] == 'buy':
                 orders['buy'].append(formated_order)
@@ -1509,29 +1506,26 @@ class LazyStarter:
                 f'amount: {order[3]}, value: {order[4]}, timestamp: {order[5]}'
                )
 
-    def order_logger_formatter(self, side, order_id, price, amount, timestamp,\
-        datetime):
+    def order_logger_formatter(self, side, order_id, price, amount):
         """Format into a string an order for the logger
         side : string. buy, cancel_buy, sell or cancel_sell
         order_id: string, order id on the marketplace.
         price: Decimal.
         amount: Decimal.
-        timestamp: int, formated timestamp.
-        datetime: string, formated datetime.
-        return: tuple with timestamp and datetime"""
-        msg = (
-                f'{{"side": "{str(side)}", "order_id": "{str(order_id)}", '
-                f'"price": "{str(price)}", "amount": "{str(amount)}", '
-                f'"timestamp": "{str(timestamp)}", "datetime": "{str(datetime)}" }}'
-            )
-        self.stratlog.warning(msg)
-        return timestamp, datetime
+        return: tuple with strings."""
+        timestamp = self.timestamp_formater()
+        date_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        self.stratlog.warning(
+            f'{{"side": "{str(side)}", "order_id": "{str(order_id)}", '
+            f'"price": "{str(price)}", "amount": "{str(amount)}", '
+            f'"timestamp": "{timestamp}", "datetime": "{date_time}" }}')
+        return timestamp, date_time
 
     """
     ############################## FINALLY, LW ################################
     """
 
-    def strat_init(self):
+    def strat_init(self, open_orders):
         """Prepare open orders on the market by asking to the user if he want
         to remove some outside the strategy or remove those that don't have
         the right amount of alts.
@@ -1542,9 +1536,6 @@ class LazyStarter:
         self.intervals = [self.safety_buy_value] + self.intervals + \
             [self.safety_sell_value]
         self.max_sell_index = len(self.intervals) - 2
-        # In case there is an old safety orders
-        open_orders = self.remove_safety_order(self.orders_price_ordering(
-            self.get_orders(self.selected_market)))
         #self.stratlog.debug(f'strat_init, open_orders: {open_orders}')
         remaining_orders_price = {'sell': [], 'buy': []}
         orders_to_remove = {'sell': [], 'buy': []}
@@ -1556,17 +1547,17 @@ class LazyStarter:
             f'Those orders have the same price that is used by the strategy. '
             f'Which one of the two do you want to cancel : ')
         if self.intervals.index(self.params['spread_bot'])\
-        - self.params['nb_buy_to_display'] > 1\
+        - self.params['nb_buy_to_display'] + 1 > 1\
         and self.params['nb_buy_to_display'] != 0:
             lowest_buy = self.intervals[self.intervals.index(
-                self.params['spread_bot']) - self.params['nb_buy_to_display']]
+                self.params['spread_bot']) - self.params['nb_buy_to_display'] + 1]
         else:
             lowest_buy = self.intervals[1]
         if self.intervals.index(self.params['spread_top'])\
-        + self.params['nb_sell_to_display'] < self.max_sell_index\
+        + self.params['nb_sell_to_display'] - 1 < self.max_sell_index\
         and self.params['nb_sell_to_display'] != 0:
             highest_sell = self.intervals[self.intervals.index(
-                self.params['spread_top']) + self.params['nb_sell_to_display']]
+                self.params['spread_top']) + self.params['nb_sell_to_display'] - 1]
         else:
             highest_sell = self.intervals[self.max_sell_index]
         self.stratlog.debug(
@@ -1671,12 +1662,12 @@ class LazyStarter:
             self.params['nb_sell_to_display'] = self.max_sell_index
         # At which index do we need to stop to add orders
         if buy_target - self.params['nb_buy_to_display'] > 1:
-            lowest_buy_index = buy_target - self.params['nb_buy_to_display']
+            lowest_buy_index = buy_target - self.params['nb_buy_to_display'] + 1
         else:
             lowest_buy_index = 1
         if lowest_sell_index + self.params['nb_sell_to_display']\
         < len(self.intervals) - 2:
-            sell_target = lowest_sell_index + self.params['nb_sell_to_display']
+            sell_target = lowest_sell_index + self.params['nb_sell_to_display'] - 1
         else:
             sell_target = len(self.intervals) - 2
         self.stratlog.debug(
@@ -1725,6 +1716,11 @@ class LazyStarter:
         return: dict.
         """
         self.applog.debug(f'remove_safety_order()')
+        if open_orders['buy'] and open_orders['sell']:
+            if self.open_orders['buy'] and self.open_orders['sell']:
+                if open_orders['buy'][-1][1] == self.open_orders['buy'][-1][1]\
+                and open_orders['sell'][0][1] == self.open_orders['sell'][0][1]:
+                    return
         if open_orders['buy']:
             if open_orders['buy'][0][1] == self.safety_buy_value:
                 # The safety order can be a fake order
@@ -1768,20 +1764,23 @@ class LazyStarter:
             f'highest_sell_index: {highest_sell_index}')
         if lowest_buy_index > 1:
             buy_sum = Decimal('0')
-            while lowest_buy_index > 1:
-                buy_sum += self.params['amount']\
-                * self.intervals[lowest_buy_index]
+            print(f'lowest_buy_index: {lowest_buy_index}')
+            while lowest_buy_index > 0:
+                buy_sum += self.params['amount']
                 lowest_buy_index -= 1
+            print(f'buy_sum: {buy_sum}, lowest_buy_index: {lowest_buy_index}')
             self.open_orders['buy'].insert(0, self.init_limit_buy_order(
-                self.selected_market, buy_sum, self.intervals[0]))
+                self.selected_market, buy_sum, f'{self.intervals[0]:8f}'))
         else:
             if self.open_orders['buy'][0][1] != self.safety_buy_value:
                 self.open_orders['buy'].insert(0, self.create_fake_buy())
         if highest_sell_index < self.max_sell_index:
             sell_sum = Decimal('0')
+            print(f'highest_sell_index: {highest_sell_index}')
             while highest_sell_index < self.max_sell_index:
                 sell_sum += self.params['amount']
                 highest_sell_index += 1
+            print(f'sell_sum: {sell_sum}, highest_sell_index: {highest_sell_index}, self.max_sell_index: {self.max_sell_index}')
             self.open_orders['sell'].append(self.init_limit_sell_order(
                 self.selected_market, sell_sum, self.intervals[-1]))
         else:
@@ -1818,7 +1817,7 @@ class LazyStarter:
         if new_open_orders['sell']:
             for i, order in enumerate(new_open_orders['sell']):
                 if order[1] not in self.intervals:
-                    orders_to_remove['buy'].append(i)
+                    orders_to_remove['sell'].append(i)
         if orders_to_remove['buy']:
             for i, index in enumerate(orders_to_remove['buy']):
                 del new_open_orders['buy'][index - i]
@@ -1856,8 +1855,8 @@ class LazyStarter:
                     new_open_orders['buy'].insert(0, self.create_fake_buy())
             else:
                 # Or create the right number of new orders
-                if target - params['nb_buy_to_display'] >= 1:
-                    start_index = target - self.params['nb_buy_to_display']
+                if target - self.params['nb_buy_to_display'] + 1 >= 1:
+                    start_index = target - self.params['nb_buy_to_display'] + 1
                 else:
                     start_index = 1
                 orders = self.set_several_buy(start_index, target)
@@ -1884,7 +1883,7 @@ class LazyStarter:
                 else:
                     new_open_orders['sell'].append(self.create_fake_sell())
             else:
-                if start_index + self.params['nb_sell_to_display']\
+                if start_index + self.params['nb_sell_to_display'] - 1\
                 <= self.max_sell_index:
                     target = start_index + self.params['nb_sell_to_display'] -1
                 else:
@@ -1911,11 +1910,12 @@ class LazyStarter:
                 for new_order in new_open_orders['buy'])
                 if rsp:
                     missing_orders['buy'].remove(order)
-            start_index = self.intervals.index(new_open_orders['buy'][-1][1])
-            target = self.intervals.index(self.open_orders['buy'][-1][1])
-            if target - start_index > 0:
-                executed_orders['sell'] = self.set_several_sell(start_index,
-                    target)
+            if new_open_orders['buy'][-1][1] != self.safety_buy_value:
+                start_index = self.intervals.index(new_open_orders['buy'][-1][1])
+                target = self.intervals.index(self.open_orders['buy'][-1][1])
+                if target - start_index > 0:
+                    executed_orders['sell'] = self.set_several_sell(start_index,
+                        target)
         else:
             missing_orders['buy'] = []
         # When a sell has occurred
@@ -1926,11 +1926,12 @@ class LazyStarter:
                 for new_order in new_open_orders['sell'])
                 if rsp:
                     missing_orders['sell'].remove(order)
-            start_index = self.intervals.index(self.open_orders['sell'][0][1])
-            target = self.intervals.index(new_open_orders['sell'][0][1]) - 1
-            if target - start_index > 0:
-                executed_orders['buy'] = self.set_several_buy(start_index,
-                    target, True)
+            if new_open_orders['sell'][0][1] != self.safety_sell_value:
+                start_index = self.intervals.index(self.open_orders['sell'][0][1])
+                target = self.intervals.index(new_open_orders['sell'][0][1]) - 1
+                if target - start_index > 0:
+                    executed_orders['buy'] = self.set_several_buy(start_index,
+                        target, True)
         else:
             missing_orders['sell'] = []
         msg = (
@@ -2007,7 +2008,7 @@ class LazyStarter:
                 # Set the range of buy orders to create
                 target = self.intervals.index(self.open_orders['buy'][0][1]) - 1
                 start_index = target - self.params['nb_buy_to_display']\
-                    + len(self.open_orders['buy'])
+                    + len(self.open_orders['buy']) + 1
                 if start_index <= 1:
                     start_index = 1
                 orders = self.set_several_buy(start_index, target)
@@ -2050,7 +2051,7 @@ class LazyStarter:
                 start_index = self.intervals.index(
                     self.open_orders['sell'][-1][1]) + 1
                 target = start_index + self.params['nb_sell_to_display']\
-                - len(self.open_orders['sell'])
+                - len(self.open_orders['sell']) - 1
                 if target > self.max_sell_index:
                     target = self.max_sell_index
                 orders = self.set_several_sell(start_index, target)
@@ -2070,7 +2071,9 @@ class LazyStarter:
         #marketplace_name = self.select_marketplace()
         #self.selected_market = self.select_market()
         self.ask_for_params()
-        self.open_orders = self.strat_init()
+        open_orders = self.remove_safety_order(self.orders_price_ordering(
+            self.get_orders(self.selected_market)))
+        self.open_orders = self.strat_init(open_orders)
         self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
             self.intervals.index(self.open_orders['sell'][-1][1]))
         self.main_loop()
@@ -2081,14 +2084,15 @@ class LazyStarter:
         """
         while True:
             self.applog.debug('CYCLE START')
-            orders = self.check_if_no_orders(
-                self.remove_safety_order(self.remove_orders_off_strat(
-                    self.orders_price_ordering(
-                        self.get_orders(self.selected_market))), True))
-            self.compare_orders(orders[0], orders[1])
-            self.limit_nb_orders()
-            self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
-                self.intervals.index(self.open_orders['sell'][-1][1]))
+            orders = self.remove_safety_order(self.remove_orders_off_strat(
+                self.orders_price_ordering(self.get_orders(
+                    self.selected_market))), True)
+            if orders:
+                orders = self.check_if_no_orders(orders)
+                self.compare_orders(orders[0], orders[1])
+                self.limit_nb_orders()
+                self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
+                    self.intervals.index(self.open_orders['sell'][-1][1]))
             self.applog.debug('CYCLE STOP')
             sleep(5)
 
