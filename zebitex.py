@@ -103,6 +103,10 @@ class Zebitex():
         query = {"side":side, "start_date":start_date, "end_date":end_date, "page":page, "per":per}
         return self.__call__("PRIVATE", "GET", "/api/v1/history/trades", query)
 
+    def order_history(self, side, start_date, end_date, page, per):
+        query = {"side":side, "start_date":start_date, "end_date":end_date, "page":page, "per":per}
+        return self.__call__("PRIVATE", "GET", "/api/v1/history/orders", query)
+
     def cancel_all_orders(self):
         return self.__call__("PRIVATE", "DELETE", "/api/v1/orders/cancel_all")
 

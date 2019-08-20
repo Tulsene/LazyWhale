@@ -1,6 +1,6 @@
 from zebitex import Zebitex, ZebitexError
 from decimal import *
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import time
 
 class ZebitexFormatted():
@@ -150,8 +150,8 @@ class ZebitexFormatted():
                          'low24hr': None}}
 
     def fetch_trades(self, market):
-        history = self.ze.trade_history('buy', '2018-04-01',
-            date.today().isoformat(), 1, 1000)
+        history = self.ze.trade_history('', '2018-04-01',
+            (date.today() + timedelta(days=1)).isoformat(), 1, 1000)
         my_trades = []
         for item in history['items']:
             market_name = f"{item['baseCurrency']}/{item['quoteCurrency']}"
