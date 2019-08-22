@@ -2003,10 +2003,10 @@ class LazyStarter:
         return
 
     def is_order_in_list_by_price(self, order_list, price):
-        if type(price) is Decimal:
-            price = float(price)
+        if type(price) is not Decimal:
+            price = Decimal(str(price))
         for o in order_list:
-            if o['price'] == price:
+            if Decimal(str(o['price'])) == price:
                 return True
         return False
 
