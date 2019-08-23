@@ -1762,7 +1762,7 @@ class LazyStarter:
         if open_orders['buy']:
             if open_orders['buy'][0][1] == self.safety_buy_value:
                 # The safety order can be a fake order
-                if open_orders['buy'][0][0]:
+                if open_orders['buy'][0][2]:
                     self.cancel_order(open_orders['buy'][0][0],
                                       open_orders['buy'][0][1], open_orders['buy'][0][4],
                                       'buy')
@@ -1773,7 +1773,7 @@ class LazyStarter:
 
         if open_orders['sell']:
             if open_orders['sell'][-1][1] == self.safety_sell_value:
-                if open_orders['sell'][-1][0]:
+                if open_orders['sell'][-1][2]:
                     self.cancel_order(open_orders['sell'][-1][0],
                                       open_orders['sell'][-1][1], open_orders['sell'][-1][4],
                                       'sell')
@@ -1843,13 +1843,13 @@ class LazyStarter:
     def create_fake_buy(self):
         """Create a fake buy order.
         return: list"""
-        return [True, self.safety_buy_value, 0, 0, self.timestamp_formater(), \
+        return [True, self.safety_buy_value, None, None, self.timestamp_formater(), \
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')]
 
     def create_fake_sell(self):
         """Create a fake sell order.
         return: list"""
-        return [True, self.safety_sell_value, 0, 0, self.timestamp_formater(), \
+        return [True, self.safety_sell_value, None, None, self.timestamp_formater(), \
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')]
 
     def remove_orders_off_strat(self, new_open_orders):
@@ -2175,13 +2175,13 @@ class LazyStarter:
                 self.orders_price_ordering(self.get_orders(
                     self.selected_market))), True)
             if orders:
-                self.update_id_list(orders) #for comparing by Id
+                self.update_id_list(self.open_orders) #for comparing by Id
                 orders = self.check_if_no_orders(orders)
                 self.compare_orders(orders)
                 self.limit_nb_orders()
                 self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
                                        self.intervals.index(self.open_orders['sell'][-1][1]))
-                self.update_id_list(orders)
+                self.update_id_list(self.open_orders)
             self.applog.debug('CYCLE STOP')
             self.last_loop_datetime = datetime.now().timestamp()
             sleep(5)
