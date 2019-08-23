@@ -41,6 +41,7 @@ class LazyStarter:
         self.history = {'sell': [], 'buy': []}
         self.params = {}
         self.intervals = []
+        self.id_list = []
         self.err_counter = 0
         self.now = 0
         self.safety_buy_value = Decimal('0.00000001')
@@ -368,6 +369,22 @@ class LazyStarter:
             self.applog.warning(f'The LW parameters are not well configured: {e}')
             return False
         return params
+
+    def set_id_list_according_intervals(self):
+        self.id_list = [None for _ in range(len(self.intervals))]
+
+    def update_id_list(self, open_orders: dict):
+        """
+        :param open_orders: dict, required self.open_opder format
+        :return: None
+        """
+        for side in open_orders:
+            for order in open_orders[side]:
+                try:
+                    interval_index = self.intervals.index(order[1])
+                except ValueError as e:
+                    raise ValueError(f'Wrong order price for self.intervals, intervals: {str(self.intervals)}, got: {str(order[1])}, raw error: {e}')
+                self.id_list[interval_index] = order[0]
 
     def create_dir_when_none(self, dir_name):
         """Check if a directory exist or create one.
@@ -1826,13 +1843,13 @@ class LazyStarter:
     def create_fake_buy(self):
         """Create a fake buy order.
         return: list"""
-        return [None, self.safety_buy_value, 0, 0, self.timestamp_formater(), \
+        return [True, self.safety_buy_value, 0, 0, self.timestamp_formater(), \
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')]
 
     def create_fake_sell(self):
         """Create a fake sell order.
         return: list"""
-        return [None, self.safety_sell_value, 0, 0, self.timestamp_formater(), \
+        return [True, self.safety_sell_value, 0, 0, self.timestamp_formater(), \
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')]
 
     def remove_orders_off_strat(self, new_open_orders):
@@ -2128,7 +2145,6 @@ class LazyStarter:
         self.stratlog.debug(f'self.open_orders: {self.open_orders}')
         return
 
-
     def exit(self):
         """Clean program exit"""
         self.applog.critical("End the program")
@@ -2145,6 +2161,8 @@ class LazyStarter:
         self.open_orders = self.strat_init(open_orders)
         self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
                                self.intervals.index(self.open_orders['sell'][-1][1]))
+        self.set_id_list_according_intervals()
+        self.update_id_list(self.open_orders)
         self.main_loop()
 
     def main_loop(self):
@@ -2157,11 +2175,13 @@ class LazyStarter:
                 self.orders_price_ordering(self.get_orders(
                     self.selected_market))), True)
             if orders:
+                self.update_id_list(orders) #for comparing by Id
                 orders = self.check_if_no_orders(orders)
                 self.compare_orders(orders)
                 self.limit_nb_orders()
                 self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
                                        self.intervals.index(self.open_orders['sell'][-1][1]))
+                self.update_id_list(orders)
             self.applog.debug('CYCLE STOP')
             self.last_loop_datetime = datetime.now().timestamp()
             sleep(5)
