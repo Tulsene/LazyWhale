@@ -1746,18 +1746,32 @@ class LazyStarter:
         return new_orders
 
     def remove_safety_order(self, open_orders, local=False):
-        """Remove safety orders if there is any.
+        """Fill empty open_orders[side] when the top/bot of the range have been
+        reached at a previous cycle.
+        Compare orders ID to Cancel a full compare cycle when it's possible.
+        Otherwise it remove safety orders.
         open_orders: dict.
         local: boolean, optional, when you want to also remove safety orders
             from self.open_orders set it as True
         return: dict.
         """
         self.applog.debug(f'remove_safety_order()')
+
+        # To not to a complete cycle when we reach range top or bot at a previous cycle
+        if self.open_orders['buy']:
+            if not open_orders['buy'] and not self.open_orders['buy'][-1][2]:
+                open_orders['buy'].append(self.create_fake_buy())
+
+        if self.open_orders['sell']:
+            if not open_orders['sell'] and not self.open_orders['sell'][0][2]:
+                open_orders['sell'].append(self.create_fake_sell())
+        
         if open_orders['buy'] and open_orders['sell']:
             if self.open_orders['buy'] and self.open_orders['sell']:
                 if open_orders['buy'][-1][0] == self.open_orders['buy'][-1][0] \
                         and open_orders['sell'][0][0] == self.open_orders['sell'][0][0]:
                     return
+        
         if open_orders['buy']:
             if open_orders['buy'][0][1] == self.safety_buy_value:
                 # The safety order can be a fake order
@@ -2016,7 +2030,6 @@ class LazyStarter:
                     if self.is_order_in_list(order_list=trade_history, order=order, validation_key='price'):
                         executed_orders[side].append(order)
         self.update_open_orders(missing_orders, executed_orders)
-
 
     def is_order_in_list(self, order_list, order, validation_key):
         order_map = {
