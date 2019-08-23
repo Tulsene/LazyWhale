@@ -1305,7 +1305,7 @@ class LazyStarter:
                         return True
         return False
 
-    def order_history(self):
+    def trade_history(self):
         try:
             history = self.exchange.fetch_trades(self.selected_market)
             if type(history) == list:
@@ -1755,10 +1755,9 @@ class LazyStarter:
         self.applog.debug(f'remove_safety_order()')
         if open_orders['buy'] and open_orders['sell']:
             if self.open_orders['buy'] and self.open_orders['sell']:
-                if open_orders['buy'][-1][1] == self.open_orders['buy'][-1][1] \
-                        and open_orders['sell'][0][1] == self.open_orders['sell'][0][1]:
+                if open_orders['buy'][-1][0] == self.open_orders['buy'][-1][0] \
+                        and open_orders['sell'][0][0] == self.open_orders['sell'][0][0]:
                     return
-
         if open_orders['buy']:
             if open_orders['buy'][0][1] == self.safety_buy_value:
                 # The safety order can be a fake order
@@ -1862,12 +1861,12 @@ class LazyStarter:
 
         if new_open_orders['buy']:
             for i, order in enumerate(new_open_orders['buy']):
-                if order[1] not in self.intervals:
+                if order[0] not in self.id_list:
                     orders_to_remove['buy'].append(i)
 
         if new_open_orders['sell']:
             for i, order in enumerate(new_open_orders['sell']):
-                if order[1] not in self.intervals:
+                if order[0] not in self.id_list:
                     orders_to_remove['sell'].append(i)
 
         if orders_to_remove['buy']:
@@ -1965,10 +1964,10 @@ class LazyStarter:
         self.applog.debug('compare_orders')
 
         # When a buy has occurred
-        if new_open_orders['buy'][-1][1] != self.open_orders['buy'][-1][1]:
+        if new_open_orders['buy'][-1][0] != self.open_orders['buy'][-1][0]:
             self.stratlog.info('A buy has occurred')
             for order in self.open_orders['buy']:
-                rsp = any(new_order[1] == order[1] \
+                rsp = any(new_order[0] == order[0] \
                           for new_order in new_open_orders['buy'])
                 if rsp:
                     missing_orders['buy'].remove(order)
@@ -1987,10 +1986,10 @@ class LazyStarter:
             missing_orders['buy'] = []
 
         # When a sell has occurred
-        if new_open_orders['sell'][0][1] != self.open_orders['sell'][0][1]:
+        if new_open_orders['sell'][0][0] != self.open_orders['sell'][0][0]:
             self.stratlog.info('A sell has occurred')
             for order in self.open_orders['sell']:
-                rsp = any(new_order[1] == order[1] \
+                rsp = any(new_order[0] == order[0] \
                           for new_order in new_open_orders['sell'])
                 if rsp:
                     missing_orders['sell'].remove(order)
@@ -2011,20 +2010,32 @@ class LazyStarter:
             f'compare_orders, missing_orders: {missing_orders} '
             f'executed_orders: {executed_orders}')
         if self.last_loop_datetime is not None:
-            history = self.order_history()
+            trade_history = self.trade_history()
             for side in ['buy','sell']:
                 for order in missing_orders[side]:
-                    if self.is_order_in_list_by_price(order_list=history, price=order[1]):
+                    if self.is_order_in_list(order_list=trade_history, order=order, validation_key='price'):
                         executed_orders[side].append(order)
         self.update_open_orders(missing_orders, executed_orders)
-        return
 
-    def is_order_in_list_by_price(self, order_list, price):
-        if type(price) is not Decimal:
-            price = Decimal(str(price))
+
+    def is_order_in_list(self, order_list, order, validation_key):
+        order_map = {
+            'id':0,
+            'price':1,
+            'amount':2
+        }
+        validation_value = order[order_map[validation_key]]
+        if validation_key in ['price','amount'] and type(validation_value) is not Decimal:
+            validation_value = Decimal(str(validation_value))
         for o in order_list:
-            if Decimal(str(o['price'])) == price:
-                return True
+            if validation_value in ['price','amount']:
+                if Decimal(str(o[validation_key])) == validation_value:
+                    return True
+            elif validation_value == 'id':
+                if o[validation_key] == validation_value:
+                    return True
+            else:
+                raise ValueError(f"Unexpected validation key: {validation_key}")
         return False
 
     def update_open_orders(self, missing_orders, executed_orders):
