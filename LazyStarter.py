@@ -2174,8 +2174,8 @@ class LazyStarter:
             orders = self.remove_safety_order(self.remove_orders_off_strat(
                 self.orders_price_ordering(self.get_orders(
                     self.selected_market))), True)
+            self.update_id_list(self.open_orders)  # for comparing by Id
             if orders:
-                self.update_id_list(self.open_orders) #for comparing by Id
                 orders = self.check_if_no_orders(orders)
                 self.compare_orders(orders)
                 self.limit_nb_orders()
