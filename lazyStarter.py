@@ -1633,13 +1633,15 @@ class LazyStarter:
                     orders_to_remove['buy'].append(i)
                     continue
                 if order[2] != self.params['amount']:
-                    if self.simple_question(f'{order} {q2}'):
-                        self.cancel_order(order[0], order[1], order[4], 'buy')
-                        orders_to_remove['buy'].append(i)
-                        continue
+                    if not self.is_testing:
+                        if self.simple_question(f'{order} {q2}'):
+                            self.cancel_order(order[0], order[1], order[4], 'buy')
+                            orders_to_remove['buy'].append(i)
+                            continue
             else:
-                if self.simple_question(f'{q} {order}'):
-                    self.cancel_order(order[0], order[1], order[4], 'buy')
+                if not self.is_testing:
+                    if self.simple_question(f'{q} {order}'):
+                        self.cancel_order(order[0], order[1], order[4], 'buy')
                 orders_to_remove['buy'].append(i)
                 continue
 
@@ -1648,7 +1650,10 @@ class LazyStarter:
                 if order[1] == open_orders['buy'][i - 1][1] \
                         and i - 1 not in orders_to_remove['buy']:
                     order_to_select = [order, open_orders['buy'][i - 1]]
-                    rsp = int(self.ask_to_select_in_a_list(q3, order_to_select))
+                    if self.is_testing:
+                        rsp = 1
+                    else:
+                        rsp = int(self.ask_to_select_in_a_list(q3, order_to_select))
                     if rsp == 1:
                         self.cancel_order(order[0], order[1], order[4], 'buy')
                         orders_to_remove['buy'].append(i)
@@ -1666,13 +1671,15 @@ class LazyStarter:
                     orders_to_remove['sell'].append(i)
                     continue
                 if order[2] != self.params['amount']:
-                    if self.simple_question(f'{order} {q2}'):
-                        self.cancel_order(order[0], order[1], order[4], 'sell')
-                        orders_to_remove['sell'].append(i)
-                        continue
+                    if not self.is_testing:
+                        if self.simple_question(f'{order} {q2}'):
+                            self.cancel_order(order[0], order[1], order[4], 'sell')
+                            orders_to_remove['sell'].append(i)
+                            continue
             else:
-                if self.simple_question(f'{q} {order}'):
-                    self.cancel_order(order[0], order[1], order[4], 'sell')
+                if not self.is_testing:
+                    if self.simple_question(f'{q} {order}'):
+                        self.cancel_order(order[0], order[1], order[4], 'sell')
                 orders_to_remove['sell'].append(i)
                 continue
 
@@ -1680,7 +1687,10 @@ class LazyStarter:
                 if order[1] == open_orders['sell'][i - 1][1] \
                         and i - 1 not in orders_to_remove['sell']:
                     order_to_select = [order, open_orders['sell'][i - 1]]
-                    rsp = int(self.ask_to_select_in_a_list(q3, order_to_select))
+                    if self.is_testing:
+                        rsp = 1
+                    else:
+                        rsp = int(self.ask_to_select_in_a_list(q3, order_to_select))
                     if rsp == 1:
                         self.cancel_order(order[0], order[1], order[4], 'sell')
                         orders_to_remove['sell'].append(i)
@@ -2234,8 +2244,8 @@ class LazyStarter:
         self.lw_initialisation()
         self.exit()
 
-"""
-#LazyStarter = LazyStarter()
+
 
 if __name__ == "__main__":
-    #LazyStarter.main()"""
+    LazyStarter = LazyStarter(is_testing=False)
+    LazyStarter.main()
