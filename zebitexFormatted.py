@@ -200,6 +200,13 @@ class ZebitexFormatted():
     def cancel_order(self, order_id):
         return self.ze.cancel_order(int(order_id))
 
+    def cancel_all(self):
+        return self.ze.cancel_all_orders()
+
+    def get_order_book(self, market):
+        market.lower().replace('/', '')
+        return self.ze.orderbook(market)
+
     def str_to_epoch(self, date_string):
         return int(str(time.mktime(datetime.strptime(date_string,
             '%Y-%m-%d %H:%M:%S').timetuple())).split('.')[0] + '000')

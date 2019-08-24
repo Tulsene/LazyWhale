@@ -39,7 +39,6 @@ class LazyStarter:
         self.user_balance = {}
         self.selected_market = None
         self.open_orders = {'sell': [], 'buy': []}
-        self.history = {'sell': [], 'buy': []}
         self.params = {}
         self.intervals = []
         self.id_list = []
@@ -158,9 +157,7 @@ class LazyStarter:
             q = 'Please select a market:'
             choice = self.ask_to_select_in_a_list(q, self.user_market_name_list)
         else:
-            print(marketplace)
             choice = self.user_market_name_list.index(marketplace)
-            print(choice)
         # Because kraken balance has no free and used balance
         self.is_kraken = True if self.user_market_name_list[choice] == 'kraken' \
             else False
@@ -1205,7 +1202,7 @@ class LazyStarter:
         else:
             if target - start_index > 0:
                 amount = [self.params['amount'] for x in \
-                          range(target - start_index)]
+                          range(target - start_index + 1)]
             else:
                 amount = [self.params['amount']]
         i = 0
@@ -1963,7 +1960,7 @@ class LazyStarter:
                 else:
                     order = self.create_fake_buy()
                     new_open_orders['buy'].insert(0, order)
-                    self.id_list[0] = order[0]
+                    self.open_orders['buy'].insert(0, order)
             else:
                 # Or create the right number of new orders
                 if target - self.params['nb_buy_to_display'] + 1 >= 1:
@@ -1977,6 +1974,7 @@ class LazyStarter:
                     self.open_orders['buy'].insert(i, order)
             self.stratlog.debug(
                 f'updated new_buy_orders: {new_open_orders["buy"]}')
+            self.update_id_list()
 
         if not new_open_orders['sell']:
             self.stratlog.debug("no new_open_orders['sell']")
@@ -1998,7 +1996,7 @@ class LazyStarter:
                 else:
                     order = self.create_fake_sell()
                     new_open_orders['sell'].append(order)
-                    self.id_list[-1] = order[0]
+                    self.open_orders['sell'].append(order)
             else:
                 if start_index + self.params['nb_sell_to_display'] - 1 \
                         <= self.max_sell_index:
@@ -2012,6 +2010,7 @@ class LazyStarter:
                     self.open_orders['sell'].append(order)
             self.stratlog.debug(
                 f'updated new_sell_orders: {new_open_orders["sell"]}')
+            self.update_id_list()
         return new_open_orders
 
     def compare_orders(self, new_open_orders):
@@ -2132,8 +2131,7 @@ class LazyStarter:
         # When there is not enough buy order in the order book
         elif nb_orders < self.params['nb_buy_to_display']:
             # Ignore if the bottom of the range is reached. It's value is None
-            if self.open_orders['buy'][0][2] \
-                    and self.open_orders['buy'][0][1] > self.intervals[1]:
+            if self.open_orders['buy'][0][2]:
                 self.stratlog.debug(
                     f"{self.open_orders['buy'][0][1]} > {self.intervals[1]}")
                 # Set the range of buy orders to create
@@ -2174,7 +2172,7 @@ class LazyStarter:
         # When there is not enough sell order in the order book
         elif nb_orders < self.params['nb_sell_to_display']:
             # Ignore if the top of the range is reached
-            if self.open_orders['sell'][-1][1] < self.intervals[-2]:
+            if self.open_orders['sell'][-1][0]:
                 # Set the range of sell orders to create
                 start_index = self.intervals.index(
                     self.open_orders['sell'][-1][1]) + 1
