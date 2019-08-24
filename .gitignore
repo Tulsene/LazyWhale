@@ -6,7 +6,6 @@
 *.pyc
 
 logfiles/*
-test.py
 tests/*
 
 venv/*

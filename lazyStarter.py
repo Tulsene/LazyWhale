@@ -20,7 +20,8 @@ import pdb
 class LazyStarter:
     getcontext().prec = 15
 
-    def __init__(self):
+    def __init__(self, is_testing=False):
+        self.is_testing = is_testing
         # Without assigning it first, it always return true
         self.script_position = os.path.dirname(sys.argv[0])
         self.root_path = f'{self.script_position}/' if self.script_position else ''
@@ -2115,6 +2116,7 @@ class LazyStarter:
                 self.cancel_order(new_open_orders['buy'][0][0],
                                   new_open_orders['buy'][0][1], new_open_orders['buy'][0][4],
                                   'buy')
+                del new_open_orders['buy'][0]
                 del self.open_orders['buy'][0]
                 nb_orders -= 1
         # When there is not enough buy order in the order book
@@ -2156,6 +2158,7 @@ class LazyStarter:
                                   new_open_orders['sell'][-1][1],
                                   new_open_orders['sell'][-1][4],
                                   'sell')
+                del new_open_orders['sell'][-1]
                 del self.open_orders['sell'][-1]
                 nb_orders -= 1
         # When there is not enough sell order in the order book
@@ -2188,7 +2191,11 @@ class LazyStarter:
         """
         # marketplace_name = self.select_marketplace()
         # self.selected_market = self.select_market()
-        self.ask_for_params()
+        if self.is_testing:
+            params = self.params_reader(f'{self.root_path}params.txt')
+            self.params = self.check_for_enough_funds(params)
+        else:
+            self.ask_for_params()
         open_orders = self.remove_safety_before_init(self.orders_price_ordering(
                                                      self.get_orders(
                                                         self.selected_market)))
@@ -2227,8 +2234,8 @@ class LazyStarter:
         self.lw_initialisation()
         self.exit()
 
-
-LazyStarter = LazyStarter()
+"""
+#LazyStarter = LazyStarter()
 
 if __name__ == "__main__":
-    LazyStarter.main()
+    #LazyStarter.main()"""
