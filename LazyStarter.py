@@ -372,19 +372,27 @@ class LazyStarter:
 
     def set_id_list_according_intervals(self):
         self.id_list = [None for _ in range(len(self.intervals))]
+        return
 
-    def update_id_list(self, open_orders: dict):
+    def update_id_list(self):
         """
-        :param open_orders: dict, required self.open_opder format
         :return: None
         """
-        for side in open_orders:
-            for order in open_orders[side]:
+        id_list = []
+        for side in self.open_orders:
+            for order in self.open_orders[side]:
                 try:
                     interval_index = self.intervals.index(order[1])
                 except ValueError as e:
-                    raise ValueError(f'Wrong order price for self.intervals, intervals: {str(self.intervals)}, got: {str(order[1])}, raw error: {e}')
+                    raise ValueError(f'Wrong order price for self.intervals, '
+                        f'intervals: {str(self.intervals)}, got: '
+                        f'{str(order[1])}, raw error: {e}')
                 self.id_list[interval_index] = order[0]
+                id_list.append(order[0])
+        # Remove id or orders no longer in open_order.
+        self.id_list[:] = [None if x not in id_list else x for x in self.id_list]
+        self.stratlog.debug(f'self.id_list: {self.id_list}')
+        return
 
     def create_dir_when_none(self, dir_name):
         """Check if a directory exist or create one.
@@ -1222,7 +1230,9 @@ class LazyStarter:
         return: list, formatted trade history by ccxt
                 or boolean True when the order is already filled"""
         try:
-            order = self.exchange.create_limit_sell_order(market, amount, price)
+            order = self.exchange.create_limit_sell_order(market,
+                                                          amount,
+                                                          price)
             date = self.order_logger_formatter('sell', order['id'], price,
                                                amount)
             return self.format_order(order['id'], price, amount,
@@ -1250,7 +1260,8 @@ class LazyStarter:
         sell_orders = []
         while start_index <= target:
             order = self.init_limit_sell_order(self.selected_market,
-                                               self.params['amount'], self.intervals[start_index])
+                                               self.params['amount'],
+                                               self.intervals[start_index])
             sell_orders.append(order)
             start_index += 1
         return sell_orders
@@ -1314,7 +1325,6 @@ class LazyStarter:
                 logging.warning(f'WARNING: Unexpected order history: {history}')
         except Exception as e:
             logging.warning(f'WARNING: {e}')
-
 
     def cancel_order(self, order_id, price, timestamp, side):
         """Cancel an order with it's id.
@@ -1550,6 +1560,26 @@ class LazyStarter:
     ############################## FINALLY, LW ################################
     """
 
+    def remove_safety_before_init(self, open_orders):
+        """Remove safety orders before strat init if there is some.
+        open_orders: dict.
+        return: dict."""
+        if open_orders['buy']:
+            if open_orders['buy'][0][1] == self.safety_buy_value:
+                self.cancel_order(open_orders['buy'][0][0],
+                                  open_orders['buy'][0][1],
+                                  open_orders['buy'][0][4],
+                                  'buy')
+                del open_orders['buy'][0]
+        if open_orders['sell']:
+            if open_orders['sell'][-1][1] == self.safety_sell_value:
+                self.cancel_order(open_orders['sell'][-1][0],
+                                      open_orders['sell'][-1][1],
+                                      open_orders['sell'][-1][4],
+                                      'sell')
+                del open_orders['sell'][-1]
+        return open_orders
+
     def strat_init(self, open_orders):
         """Prepare open orders on the market by asking to the user if he want
         to remove some outside the strategy or remove those that don't have
@@ -1716,7 +1746,8 @@ class LazyStarter:
             if self.intervals[lowest_buy_index] \
                     not in remaining_orders_price['buy']:
                 order = self.init_limit_buy_order(self.selected_market,
-                                                  self.params['amount'], self.intervals[lowest_buy_index])
+                                                  self.params['amount'],
+                                                  self.intervals[lowest_buy_index])
                 new_orders['buy'].append(order)
                 sleep(0.2)
             else:
@@ -1745,7 +1776,7 @@ class LazyStarter:
         self.stratlog.debug(f'new_orders: {new_orders}')
         return new_orders
 
-    def remove_safety_order(self, open_orders, local=False):
+    def remove_safety_order(self, open_orders):
         """Fill empty open_orders[side] when the top/bot of the range have been
         reached at a previous cycle.
         Compare orders ID to Cancel a full compare cycle when it's possible.
@@ -1761,53 +1792,54 @@ class LazyStarter:
         if self.open_orders['buy']:
             if not open_orders['buy'] and not self.open_orders['buy'][-1][2]:
                 open_orders['buy'].append(self.create_fake_buy())
-
         if self.open_orders['sell']:
             if not open_orders['sell'] and not self.open_orders['sell'][0][2]:
                 open_orders['sell'].append(self.create_fake_sell())
-        
         if open_orders['buy'] and open_orders['sell']:
             if self.open_orders['buy'] and self.open_orders['sell']:
                 if open_orders['buy'][-1][0] == self.open_orders['buy'][-1][0] \
-                        and open_orders['sell'][0][0] == self.open_orders['sell'][0][0]:
+                    and open_orders['sell'][0][0] == self.open_orders['sell'][0][0]:
                     return
         
         if open_orders['buy']:
-            if open_orders['buy'][0][1] == self.safety_buy_value:
+            if open_orders['buy'][0][0] == self.id_list[0]:
                 # The safety order can be a fake order
                 if open_orders['buy'][0][2]:
                     self.cancel_order(open_orders['buy'][0][0],
-                                      open_orders['buy'][0][1], open_orders['buy'][0][4],
+                                      open_orders['buy'][0][1],
+                                      open_orders['buy'][0][4],
                                       'buy')
                 self.stratlog.debug(
-                    f"delete open_orders['buy'][0][1]: "
-                    f"{open_orders['buy'][0][1]}")
+                    f"delete open_orders['buy'][0]: "
+                    f"{open_orders['buy'][0]}")
                 del open_orders['buy'][0]
 
         if open_orders['sell']:
-            if open_orders['sell'][-1][1] == self.safety_sell_value:
+            if open_orders['sell'][-1][0] == self.id_list[-1]:
                 if open_orders['sell'][-1][2]:
                     self.cancel_order(open_orders['sell'][-1][0],
-                                      open_orders['sell'][-1][1], open_orders['sell'][-1][4],
+                                      open_orders['sell'][-1][1],
+                                      open_orders['sell'][-1][4],
                                       'sell')
                 self.stratlog.debug(
-                    f"delete open_orders['sell'][-1][1]: "
-                    f"{open_orders['sell'][-1][1]}")
+                    f"delete open_orders['sell'][-1]: "
+                    f"{open_orders['sell'][-1]}")
                 del open_orders['sell'][-1]
 
-        if local:
-            if self.open_orders['buy'][0][1] == self.safety_buy_value:
-                del self.open_orders['buy'][0]
-            if self.open_orders['sell'][-1][1] == self.safety_sell_value:
-                del self.open_orders['sell'][-1]
-            if self.open_orders['buy']:
-                self.stratlog.debug(
-                    f"self.open_orders['buy'][0][1]: "
-                    f"{self.open_orders['buy'][0][1]}")
-            if self.open_orders['sell']:
-                self.stratlog.debug(
-                    f"self.open_orders['sell'][-1][1]: "
-                    f"{self.open_orders['sell'][-1][1]}")
+        if self.open_orders['buy'][0][0] == self.id_list[0]:
+            del self.open_orders['buy'][0]
+            self.id_list[0] = None
+        if self.open_orders['sell'][-1][0] == self.id_list[-1]:
+            del self.open_orders['sell'][-1]
+            self.id_list[-1] = None
+        if self.open_orders['buy']:
+            self.stratlog.debug(
+                f"self.open_orders['buy'][0]: "
+                f"{self.open_orders['buy'][0]}")
+        if self.open_orders['sell']:
+            self.stratlog.debug(
+                f"self.open_orders['sell'][-1]: "
+                f"{self.open_orders['sell'][-1]}")
         return open_orders
 
     def set_safety_orders(self, lowest_buy_index, highest_sell_index):
@@ -1856,13 +1888,13 @@ class LazyStarter:
     def create_fake_buy(self):
         """Create a fake buy order.
         return: list"""
-        return [True, self.safety_buy_value, None, None, self.timestamp_formater(), \
+        return ['FB', self.safety_buy_value, None, None, self.timestamp_formater(), \
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')]
 
     def create_fake_sell(self):
         """Create a fake sell order.
         return: list"""
-        return [True, self.safety_sell_value, None, None, self.timestamp_formater(), \
+        return ['FS', self.safety_sell_value, None, None, self.timestamp_formater(), \
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')]
 
     def remove_orders_off_strat(self, new_open_orders):
@@ -1891,9 +1923,7 @@ class LazyStarter:
             for i, index in enumerate(orders_to_remove['sell']):
                 del new_open_orders['sell'][index - i]
 
-        self.stratlog.debug(
-            f'orders_to_remove: {orders_to_remove}, new_open_orders: '
-            f'{new_open_orders}')
+        self.stratlog.debug(f'orders_to_remove: {orders_to_remove}')
         return new_open_orders
 
     def check_if_no_orders(self, new_open_orders):
@@ -1920,7 +1950,9 @@ class LazyStarter:
                             self.get_orders(self.selected_market))))
                     self.exit()
                 else:
-                    new_open_orders['buy'].insert(0, self.create_fake_buy())
+                    order = self.create_fake_buy()
+                    new_open_orders['buy'].insert(0, order)
+                    self.id_list[0] = order[0]
             else:
                 # Or create the right number of new orders
                 if target - self.params['nb_buy_to_display'] + 1 >= 1:
@@ -1953,7 +1985,9 @@ class LazyStarter:
                             self.selected_market))))
                     self.exit()
                 else:
-                    new_open_orders['sell'].append(self.create_fake_sell())
+                    order = self.create_fake_sell()
+                    new_open_orders['sell'].append(order)
+                    self.id_list[-1] = order[0]
             else:
                 if start_index + self.params['nb_sell_to_display'] - 1 \
                         <= self.max_sell_index:
@@ -1975,60 +2009,40 @@ class LazyStarter:
         """
         missing_orders = deepcopy(self.open_orders)
         executed_orders = {'sell': [], 'buy': []}
-        self.applog.debug('compare_orders')
+        self.applog.debug('compare_orders()')
+        for order in self.open_orders['buy']:
+            rsp = any(new_order[0] == order[0] for new_order in new_open_orders['buy'])
+            if rsp:
+                missing_orders['buy'].remove(order)
+        for order in self.open_orders['sell']:
+            rsp = any(new_order[0] == order[0] for new_order in new_open_orders['sell'])
+            if rsp:
+                missing_orders['sell'].remove(order)
 
-        # When a buy has occurred
-        if new_open_orders['buy'][-1][0] != self.open_orders['buy'][-1][0]:
+        if missing_orders['buy']:
             self.stratlog.info('A buy has occurred')
-            for order in self.open_orders['buy']:
-                rsp = any(new_order[0] == order[0] \
-                          for new_order in new_open_orders['buy'])
-                if rsp:
-                    missing_orders['buy'].remove(order)
-            if new_open_orders['buy'][-1][1] != self.safety_buy_value:
-                start_index = self.intervals.index(
-                    new_open_orders['buy'][-1][1]) + 1
-                target = self.intervals.index(
-                    self.open_orders['buy'][-1][1])
-                self.stratlog.debug(
-                    f"self.open_orders['buy']: {self.open_orders['buy']}"
-                    f'start_index: {start_index}, target: {target}')
-                if target - start_index > 0:
-                    executed_orders['sell'] = self.set_several_sell(start_index,
-                                                                    target)
-        else:
-            missing_orders['buy'] = []
+            start_index = self.id_list.index(new_open_orders['buy'][-1][0]) + 1
+            target = start_index + len(missing_orders['buy']) - 1
+            self.stratlog.debug(f'start_index: {start_index}, target: {target}')
+            executed_orders['sell'] = self.set_several_sell(start_index, target)
 
-        # When a sell has occurred
-        if new_open_orders['sell'][0][0] != self.open_orders['sell'][0][0]:
+        if missing_orders['sell']:
             self.stratlog.info('A sell has occurred')
-            for order in self.open_orders['sell']:
-                rsp = any(new_order[0] == order[0] \
-                          for new_order in new_open_orders['sell'])
-                if rsp:
-                    missing_orders['sell'].remove(order)
-            if new_open_orders['sell'][0][1] != self.safety_sell_value:
-                start_index = self.intervals.index(
-                    self.open_orders['sell'][0][1])
-                target = self.intervals.index(
-                    new_open_orders['sell'][0][1]) - 1
-                self.stratlog.debug(
-                    f"self.open_orders['sell']: {self.open_orders['sell']}"
-                    f'start_index: {start_index}, target: {target}')
-                if target - start_index > 0:
-                    executed_orders['buy'] = self.set_several_buy(start_index,
-                                                                  target, True)
-        else:
-            missing_orders['sell'] = []
+            target = self.id_list.index(new_open_orders['sell'][0][0]) - 1
+            start_index = target - len(missing_orders['sell']) + 1
+            self.stratlog.debug(f'start_index: {start_index}, target: {target}')
+            executed_orders['buy'] = self.set_several_buy(start_index, target, True)
+
         self.stratlog.debug(
             f'compare_orders, missing_orders: {missing_orders} '
             f'executed_orders: {executed_orders}')
+        """
         if self.last_loop_datetime is not None:
             trade_history = self.trade_history()
             for side in ['buy','sell']:
                 for order in missing_orders[side]:
                     if self.is_order_in_list(order_list=trade_history, order=order, validation_key='price'):
-                        executed_orders[side].append(order)
+                        executed_orders[side].append(order)"""
         self.update_open_orders(missing_orders, executed_orders)
 
     def is_order_in_list(self, order_list, order, validation_key):
@@ -2061,15 +2075,15 @@ class LazyStarter:
                 self.open_orders['sell'].remove(order)
             for order in executed_orders['buy']:
                 self.open_orders['buy'].append(order)
-            self.stratlog.debug(
-                f'self.open_orders buy: {self.open_orders["buy"]}')
+            #self.stratlog.debug(
+            #    f'self.open_orders buy: {self.open_orders["buy"]}')
         if executed_orders['sell']:
             for order in missing_orders['buy']:
                 self.open_orders['buy'].remove(order)
             for i, order in enumerate(executed_orders['sell']):
                 self.open_orders['sell'].insert(i, order)
-            self.stratlog.debug(
-                f'self.open_orders sell: {self.open_orders["sell"]}')
+            #self.stratlog.debug(
+            #    f'self.open_orders sell: {self.open_orders["sell"]}')
         return
 
     def limit_nb_orders(self):
@@ -2078,8 +2092,8 @@ class LazyStarter:
         new_open_orders = self.remove_orders_off_strat(
             self.orders_price_ordering(self.get_orders(
                 self.selected_market)))
-        self.stratlog.debug(
-            f'Limit nb orders(), new_open_orders: {new_open_orders}')
+        #self.stratlog.debug(
+        #    f'Limit nb orders(), new_open_orders: {new_open_orders}')
         # Don't mess up if all buy orders have been filled during the cycle
         if new_open_orders['buy']:
             nb_orders = len(new_open_orders['buy'])
@@ -2094,23 +2108,19 @@ class LazyStarter:
         if nb_orders > self.params['nb_buy_to_display']:
             self.stratlog.debug(f'nb_orders > params["nb_buy_to_display"]')
             # Care of the fake order
-            if self.open_orders['buy']:
-                if not self.open_orders['buy'][0][0]:
-                    del self.open_orders['buy'][0]
+            if not self.open_orders['buy'][0][0]:
+                del self.open_orders['buy'][0]
             nb_orders -= self.params['nb_buy_to_display']
             while nb_orders > 0:
                 self.cancel_order(new_open_orders['buy'][0][0],
                                   new_open_orders['buy'][0][1], new_open_orders['buy'][0][4],
                                   'buy')
-                if self.open_orders['buy'][-1][1] <= \
-                        new_open_orders['buy'][0][1] < self.open_orders['buy'][-1][1]:
-                    del self.open_orders['buy'][0]
-                del new_open_orders['buy'][0]
+                del self.open_orders['buy'][0]
                 nb_orders -= 1
         # When there is not enough buy order in the order book
         elif nb_orders < self.params['nb_buy_to_display']:
             # Ignore if the bottom of the range is reached. It's value is None
-            if self.open_orders['buy'][0][0] \
+            if self.open_orders['buy'][0][2] \
                     and self.open_orders['buy'][0][1] > self.intervals[1]:
                 self.stratlog.debug(
                     f"{self.open_orders['buy'][0][1]} > {self.intervals[1]}")
@@ -2120,6 +2130,7 @@ class LazyStarter:
                               + len(self.open_orders['buy']) + 1
                 if start_index <= 1:
                     start_index = 1
+                self.stratlog.debug(f'start_index: {start_index}, target: {target}')
                 orders = self.set_several_buy(start_index, target)
                 for i, order in enumerate(orders):
                     self.open_orders['buy'].insert(i, order)
@@ -2136,9 +2147,8 @@ class LazyStarter:
         # When there is too much sell orders on the order book
         if nb_orders > self.params['nb_sell_to_display']:
             # Care of fake order
-            if self.open_orders['sell']:
-                if not self.open_orders['sell'][-1][0]:
-                    del self.open_orders['sell'][-1]
+            if not self.open_orders['sell'][-1][0]:
+                del self.open_orders['sell'][-1]
             nb_orders -= self.params['nb_sell_to_display']
             self.stratlog.debug(f'nb_orders to delete: {nb_orders}')
             while nb_orders > 0:
@@ -2146,21 +2156,20 @@ class LazyStarter:
                                   new_open_orders['sell'][-1][1],
                                   new_open_orders['sell'][-1][4],
                                   'sell')
-                if self.open_orders['sell'][-1][1] <= \
-                        new_open_orders['sell'][-1][1] <= self.open_orders['sell'][-1][1]:
-                    del self.open_orders['sell'][-1]
-                del new_open_orders['sell'][-1]
+                del self.open_orders['sell'][-1]
                 nb_orders -= 1
         # When there is not enough sell order in the order book
         elif nb_orders < self.params['nb_sell_to_display']:
             # Ignore if the top of the range is reached
-            if self.open_orders['sell'][-1][0] \
-                    and self.open_orders['sell'][-1][1] < self.intervals[-2]:
+            if self.open_orders['sell'][-1][1] < self.intervals[-2]:
                 # Set the range of sell orders to create
                 start_index = self.intervals.index(
                     self.open_orders['sell'][-1][1]) + 1
                 target = start_index + self.params['nb_sell_to_display'] \
                          - len(self.open_orders['sell']) - 1
+                if target > len(self.intervals) - 2:
+                    target = len(self.intervals) - 2
+                self.stratlog.debug(f'start_index: {start_index}, target: {target}')
                 if target > self.max_sell_index:
                     target = self.max_sell_index
                 orders = self.set_several_sell(start_index, target)
@@ -2180,13 +2189,14 @@ class LazyStarter:
         # marketplace_name = self.select_marketplace()
         # self.selected_market = self.select_market()
         self.ask_for_params()
-        open_orders = self.remove_safety_order(self.orders_price_ordering(
-            self.get_orders(self.selected_market)))
+        open_orders = self.remove_safety_before_init(self.orders_price_ordering(
+                                                     self.get_orders(
+                                                        self.selected_market)))
         self.open_orders = self.strat_init(open_orders)
         self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
                                self.intervals.index(self.open_orders['sell'][-1][1]))
         self.set_id_list_according_intervals()
-        self.update_id_list(self.open_orders)
+        self.update_id_list()
         self.main_loop()
 
     def main_loop(self):
@@ -2197,15 +2207,17 @@ class LazyStarter:
             self.applog.debug('CYCLE START')
             orders = self.remove_safety_order(self.remove_orders_off_strat(
                 self.orders_price_ordering(self.get_orders(
-                    self.selected_market))), True)
-            self.update_id_list(self.open_orders)  # for comparing by Id
+                    self.selected_market))))  # for comparing by Id
             if orders:
                 orders = self.check_if_no_orders(orders)
                 self.compare_orders(orders)
+                self.update_id_list()
                 self.limit_nb_orders()
-                self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
-                                       self.intervals.index(self.open_orders['sell'][-1][1]))
-                self.update_id_list(self.open_orders)
+                self.set_safety_orders(self.intervals.index(
+                                            self.open_orders['buy'][0][1]),
+                                       self.intervals.index(
+                                            self.open_orders['sell'][-1][1]))
+                self.update_id_list()
             self.applog.debug('CYCLE STOP')
             self.last_loop_datetime = datetime.now().timestamp()
             sleep(5)
