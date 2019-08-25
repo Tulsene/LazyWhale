@@ -20,8 +20,10 @@ import pdb
 class LazyStarter:
     getcontext().prec = 15
 
-    def __init__(self, is_testing=False):
+    def __init__(self, is_testing=False, params={}, keys=()):
         self.is_testing = is_testing
+        self.testing_params = params
+        self.testing_keys = keys
         # Without assigning it first, it always return true
         self.script_position = os.path.dirname(sys.argv[0])
         self.root_path = f'{self.script_position}/' if self.script_position else ''
@@ -153,31 +155,37 @@ class LazyStarter:
         Connect to the selected marketplace.
         return: String, name of the selected marketplace.
         """
-        if not marketplace:
-            q = 'Please select a market:'
-            choice = self.ask_to_select_in_a_list(q, self.user_market_name_list)
+        if self.is_testing:
+            self.exchange = zebitexFormatted.ZebitexFormatted(
+                self.testing_keys[0], self.testing_keys[1], True)
+            self.load_markets()
+            return
         else:
-            choice = self.user_market_name_list.index(marketplace)
-        # Because kraken balance has no free and used balance
-        self.is_kraken = True if self.user_market_name_list[choice] == 'kraken' \
-            else False
+            if not marketplace:
+                q = 'Please select a market:'
+                choice = self.ask_to_select_in_a_list(q, self.user_market_name_list)
+            else:
+                choice = self.user_market_name_list.index(marketplace)
+            # Because kraken balance has no free and used balance
+            self.is_kraken = True if self.user_market_name_list[choice] == 'kraken' \
+                else False
 
-        if self.user_market_name_list[choice] == 'zebitex':
-            self.exchange = zebitexFormatted.ZebitexFormatted(
-                self.keys[self.user_market_name_list[choice]]['apiKey'],
-                self.keys[self.user_market_name_list[choice]]['secret'],
-                False)
-        elif self.user_market_name_list[choice] == 'zebitex_testnet':
-            self.exchange = zebitexFormatted.ZebitexFormatted(
-                self.keys[self.user_market_name_list[choice]]['apiKey'],
-                self.keys[self.user_market_name_list[choice]]['secret'],
-                True)
-        else:
-            msg = (
-                f'ccxt.{self.user_market_name_list[choice]}'
-                f'({str(self.keys[self.user_market_name_list[choice]])})'
-            )
-            self.exchange = eval(msg)
+            if self.user_market_name_list[choice] == 'zebitex':
+                self.exchange = zebitexFormatted.ZebitexFormatted(
+                    self.keys[self.user_market_name_list[choice]]['apiKey'],
+                    self.keys[self.user_market_name_list[choice]]['secret'],
+                    False)
+            elif self.user_market_name_list[choice] == 'zebitex_testnet':
+                self.exchange = zebitexFormatted.ZebitexFormatted(
+                    self.keys[self.user_market_name_list[choice]]['apiKey'],
+                    self.keys[self.user_market_name_list[choice]]['secret'],
+                    True)
+            else:
+                msg = (
+                    f'ccxt.{self.user_market_name_list[choice]}'
+                    f'({str(self.keys[self.user_market_name_list[choice]])})'
+                )
+                self.exchange = eval(msg)
         self.load_markets()
         return self.user_market_name_list[choice]
 
@@ -258,7 +266,7 @@ class LazyStarter:
         return logs_data
 
     def params_reader(self, file_path):
-        """Check the integrity of all parameters and return False if it's not.
+        """Load parameters from params.txt.
         file_path: string, params.txt relative path.
         return: dict with valid parameters, or False.
         """
@@ -271,6 +279,14 @@ class LazyStarter:
             msg = f'Something went wrong when loading params: {e}'
             self.applog.warning(msg)
             return
+        params = self.check_params(params)
+        return params
+
+    def check_params(self, params):
+        """Check the integrity of all parameters and return False if it's not.
+        params: dict, params in string format.
+        return: dict with formatted parameters, or False.
+        """
         try:
             # Check if values exist
             if not params['datetime']:
@@ -2201,7 +2217,7 @@ class LazyStarter:
         # marketplace_name = self.select_marketplace()
         # self.selected_market = self.select_market()
         if self.is_testing:
-            params = self.params_reader(f'{self.root_path}params.txt')
+            params = self.check_params(self.testing_params)
             self.params = self.check_for_enough_funds(params)
         else:
             self.ask_for_params()

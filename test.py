@@ -17,6 +17,7 @@ class LazyTest():
         self.script_position = os.path.dirname(sys.argv[0])
         self.root_path = f'{self.script_position}/' if self.script_position else ''
         self.keys_file2 = f'{self.root_path}keys2.txt'
+        self.lazy_keys = None
         self.lazy_account = "lazy_account"
         self.a_user_account = "a_user_account"
         self.selected_market = 'DASH/BTC'
@@ -106,6 +107,8 @@ class LazyTest():
         except Exception as e:
             self.test_logs.critical(f'Something went wrong : {e}')
             self.exit()
+        self.lazy_keys = (keys[self.lazy_account]['apiKey'],
+                          keys[self.lazy_account]['secret'])
         self.lazy_account = zebitexFormatted.ZebitexFormatted(
                 keys[self.lazy_account]['apiKey'],
                 keys[self.lazy_account]['secret'],
@@ -183,12 +186,10 @@ class LazyTest():
         sys.exit(0)
 
     def main(self):
-        file_path = f'{self.root_path}params.txt'
-        self.simple_file_writer(file_path, self.dict_to_str(self.lazy_params))
         self.keys_launcher()
         self.lazy_account.cancel_all()
         self.a_user_account.cancel_all()
-        l = lazyStarter.LazyStarter(True)
+        l = lazyStarter.LazyStarter(True, self.lazy_params, self.lazy_keys)
         t = threading.Thread(target=l.main(),name=lazyMain)
         t.daemon = True
         t.start()
