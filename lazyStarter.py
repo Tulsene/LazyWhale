@@ -15,6 +15,7 @@ from pathlib import Path
 from datetime import datetime
 from operator import itemgetter
 import pdb
+import slack
 
 
 class LazyStarter:
@@ -33,6 +34,8 @@ class LazyStarter:
         self.applog = self.logger_setup('debugs', 'app.log',
                                         '%(asctime)s - %(levelname)s - %(message)s', logging.DEBUG,
                                         logging.DEBUG)
+        self.slack = None
+        self.slack_channel = None
         self.user_market_name_list = []
         self.exchanges_list = self.exchanges_list_init()
         self.keys = self.keys_initialisation()
@@ -104,20 +107,16 @@ class LazyStarter:
         """
         if not os.path.isfile(self.keys_file):
             Path(self.keys_file).touch()
-            msg = (
+            self.applog.critical(
                 f'No file was found, an empty one has been created, '
-                f'please fill it as indicated in the documentation'
-            )
-            self.applog.critical(msg)
+                f'please fill it as indicated in the documentation')
             self.exit()
         else:
             keys = self.keys_file_reader()
             if not keys:
-                msg = (
+                self.applog.critical(
                     f'Your key.txt file is empty, please '
-                    f'fill it as indicated to the documentation'
-                )
-                self.applog.critical(msg)
+                    f'fill it as indicated to the documentation')
                 self.exit()
             else:
                 return keys
@@ -126,6 +125,8 @@ class LazyStarter:
         """Check the consistence of datas in key.txt.
         return: dict, api keys
         """
+        name_list = deepcopy(self.exchanges_list)
+        name_list.append("slack")
         keys = {}
         with open(self.keys_file, mode='r', encoding='utf-8') as keys_file:
             for line in keys_file:
@@ -135,20 +136,23 @@ class LazyStarter:
                     key = json.loads(line)
                     for k in key.keys():
                         if k in self.user_market_name_list:
-                            msg = (
+                            raise KeyError(
                                 f'You already have a key for this '
-                                f'marketplace, please RTFM'
-                            )
-                            raise KeyError(msg)
+                                f'marketplace, please RTFM')
                         else:
                             self.user_market_name_list.append(k)
-                        if k not in self.exchanges_list:
+                        if k not in name_list:
                             raise NameError('The marketplace name is invalid!')
                 except Exception as e:
                     self.applog.critical(f'Something went wrong : {e}')
                     self.exit()
                 keys.update(key)
-            return keys
+        if "slack" in keys:
+            self.slack = slack.WebClient(keys['slack']['token'])
+            self.slack_channel = keys['slack']['channel']
+            del keys['slack']
+            slack_test = self.send_slack_message('Start routine.')
+        return keys
 
     def select_marketplace(self, marketplace=None):
         """Select a marketplace among the loaded keys.
@@ -181,11 +185,9 @@ class LazyStarter:
                     self.keys[self.user_market_name_list[choice]]['secret'],
                     True)
             else:
-                msg = (
+                self.exchange = eval(
                     f'ccxt.{self.user_market_name_list[choice]}'
-                    f'({str(self.keys[self.user_market_name_list[choice]])})'
-                )
-                self.exchange = eval(msg)
+                    f'({str(self.keys[self.user_market_name_list[choice]])})')
         self.load_markets()
         return self.user_market_name_list[choice]
 
@@ -1074,6 +1076,24 @@ class LazyStarter:
         if not self.simple_question(q):
             self.exit()
 
+    def send_slack_message(self, message):
+        """Send a message to slack channel.
+        message: string.
+        return: slack object"""
+        try:
+            message = str(message)
+            self.stratlog.warning(message)
+            rsp = self.slack.chat_postMessage(
+                channel=self.slack_channel,
+                text=message)
+            if rsp['ok'] is False:
+                for item in rsp:
+                    raise ValueError(item)
+            return rsp
+        except Exception as e:
+            self.applog.critical(f'Something went wrong with slack: {e}')
+            return
+
     """
     ########################## API REQUESTS ###################################
     """
@@ -1450,7 +1470,6 @@ class LazyStarter:
                     user_balance[coin]['free'] = user_balance[coin]['total']
                 if user_balance[coin]['free'] == 'None':
                     user_balance[coin]['free'] = '0.0'
-        print(user_balance)
         self.user_balance = user_balance
         return user_balance
 
@@ -1564,10 +1583,14 @@ class LazyStarter:
         return: tuple with strings."""
         timestamp = self.timestamp_formater()
         date_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
-        self.stratlog.warning(
+        msg = (
             f'{{"side": "{str(side)}", "order_id": "{str(order_id)}", '
             f'"price": "{str(price)}", "amount": "{str(amount)}", '
             f'"timestamp": "{timestamp}", "datetime": "{date_time}" }}')
+        if self.slack_channel:
+            self.send_slack_message(msg)
+        else:
+            self.stratlog.warning(msg)
         return timestamp, date_time
 
     """
@@ -1968,18 +1991,29 @@ class LazyStarter:
             # When the bottom of the range is reached
             if target < 1:
                 if self.params['stop_at_bot']:
-                    self.stratlog.critical(
-                        f'Bottom target reached! target: {target}')
+                    msg = (f'Bottom target reached! target: {target}')
+                    if self.slack_channel:
+                        self.send_slack_message(msg)
+                    else:
+                        self.stratlog.critical(msg)
+
                     self.cancel_all(self.remove_safety_order(
                         self.remove_orders_off_strat(
                             self.get_orders(self.selected_market))))
                     self.exit()
+
                 else:
                     order = self.create_fake_buy()
                     new_open_orders['buy'].insert(0, order)
                     self.open_orders['buy'].insert(0, order)
+
             else:
                 # Or create the right number of new orders
+                msg = 'Buys side is empty'
+                if self.slack_channel:
+                    self.send_slack_message(msg)
+                else:
+                    self.stratlog.warning(msg)
                 if target - self.params['nb_buy_to_display'] + 1 >= 1:
                     start_index = target - self.params['nb_buy_to_display'] + 1
                 else:
@@ -2003,18 +2037,31 @@ class LazyStarter:
 
             if start_index > self.max_sell_index:
                 if self.params['stop_at_top']:
-                    self.stratlog.critical(
+                    msg = (
                         f'Top target reached! start_index: {start_index}, '
                         f'self.max_sell_index: {self.max_sell_index}')
+                    if self.slack_channel:
+                        self.send_slack_message(msg)
+                    else:
+                        self.stratlog.critical(msg)
+
                     self.cancel_all(self.remove_safety_order(
                         self.remove_orders_off_strat(self.get_orders(
                             self.selected_market))))
                     self.exit()
+
                 else:
                     order = self.create_fake_sell()
                     new_open_orders['sell'].append(order)
                     self.open_orders['sell'].append(order)
+
             else:
+                msg = 'Buys side is empty'
+                if self.slack_channel:
+                    self.send_slack_message(msg)
+                else:
+                    self.stratlog.warning(msg)
+
                 if start_index + self.params['nb_sell_to_display'] - 1 \
                         <= self.max_sell_index:
                     target = start_index + self.params['nb_sell_to_display'] - 1
@@ -2047,14 +2094,22 @@ class LazyStarter:
                 missing_orders['sell'].remove(order)
 
         if missing_orders['buy']:
-            self.stratlog.info('A buy has occurred')
+            msg = 'A buy has occurred'
+            if self.slack_channel:
+                self.send_slack_message(msg)
+            else:
+                self.stratlog.warning(msg)
             start_index = self.id_list.index(new_open_orders['buy'][-1][0]) + 1
             target = start_index + len(missing_orders['buy']) - 1
             self.stratlog.debug(f'start_index: {start_index}, target: {target}')
             executed_orders['sell'] = self.set_several_sell(start_index, target)
 
         if missing_orders['sell']:
-            self.stratlog.info('A sell has occurred')
+            msg = 'A sell has occurred'
+            if self.slack_channel:
+                self.send_slack_message(msg)
+            else:
+                self.stratlog.warning(msg)
             target = self.id_list.index(new_open_orders['sell'][0][0]) - 1
             start_index = target - len(missing_orders['sell']) + 1
             self.stratlog.debug(f'start_index: {start_index}, target: {target}')
@@ -2262,5 +2317,6 @@ class LazyStarter:
 
 
 if __name__ == "__main__":
-    LazyStarter = LazyStarter(is_testing=False)
-    LazyStarter.main()
+    #LazyStarter = LazyStarter(is_testing=False)
+    #LazyStarter.main()
+    LazyStarter(is_testing=False).main()    
