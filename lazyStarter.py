@@ -1862,7 +1862,8 @@ class LazyStarter:
             buy_sum = Decimal('0')
             self.stratlog.debug(f'lowest_buy_index: {lowest_buy_index}')
             while lowest_buy_index > 0:
-                buy_sum += self.params['amount']
+                buy_sum += self.multiplier(self.params['amount'],
+                                           self.intervals[lowest_buy_index]) / self.safety_buy_value
                 lowest_buy_index -= 1
             self.stratlog.debug(
                 f'buy_sum: {buy_sum}, lowest_buy_index: {lowest_buy_index}')
@@ -1872,7 +1873,7 @@ class LazyStarter:
             if self.open_orders['buy'][0][1] != self.safety_buy_value:
                 self.open_orders['buy'].insert(0, self.create_fake_buy())
 
-        if highest_sell_index < self.max_sell_index:
+        if highest_sell_index < self.max_sell_index + 1:
             sell_sum = Decimal('0')
             self.stratlog.debug(f'highest_sell_index: {highest_sell_index}')
             while highest_sell_index < self.max_sell_index:
