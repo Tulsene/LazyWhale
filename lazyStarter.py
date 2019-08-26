@@ -1094,6 +1094,7 @@ class LazyStarter:
             self.applog.critical(f'Something went wrong with slack: {e}')
             return
 
+
     """
     ########################## API REQUESTS ###################################
     """
@@ -1107,11 +1108,7 @@ class LazyStarter:
         except Exception as e:
             logging.warning(f'WARNING: {e}')
             sleep(0.5)
-            self.err_counter += 1
-            if self.err_counter >= 10:
-                # send mail
-                self.applog.warning('api error >= 10')
-                self.err_counter = 0
+            self.api_fail_message_handler()
             return self.fetch_balance()
 
     def load_markets(self):
@@ -1123,11 +1120,7 @@ class LazyStarter:
         except Exception as e:
             logging.warning(f'WARNING: {e}')
             sleep(0.5)
-            self.err_counter += 1
-            if self.err_counter >= 10:
-                # send mail
-                self.applog.warning('api error >= 10')
-                self.err_counter = 0
+            self.api_fail_message_handler()
             self.load_markets()
 
     def fetch_open_orders(self, market=None):
@@ -1140,11 +1133,7 @@ class LazyStarter:
         except Exception as e:
             logging.warning(f'WARNING: {e}')
             sleep(0.5)
-            self.err_counter += 1
-            if self.err_counter >= 10:
-                # send mail
-                self.applog.warning('api error >= 10')
-                self.err_counter = 0
+            self.api_fail_message_handler()
             return self.fetch_open_orders(market)
 
     def fetch_trades(self, market):
@@ -1157,11 +1146,7 @@ class LazyStarter:
         except Exception as e:
             logging.warning(f'WARNING: {e}')
             sleep(0.5)
-            self.err_counter += 1
-            if self.err_counter >= 10:
-                # send mail
-                self.applog.warning('api error >= 10')
-                self.err_counter = 0
+            self.api_fail_message_handler()
             return self.fetch_trades(market)
 
     def fetch_ticker(self, market):
@@ -1174,11 +1159,7 @@ class LazyStarter:
         except Exception as e:
             logging.warning(f'WARNING: {e}')
             sleep(0.5)
-            self.err_counter += 1
-            if self.err_counter >= 10:
-                # send mail
-                self.applog.warning('api error >= 10')
-                self.err_counter = 0
+            self.api_fail_message_handler()
             return self.fetch_ticker(market)
 
     def init_limit_buy_order(self, market, amount, price):
@@ -1202,11 +1183,7 @@ class LazyStarter:
         except Exception as e:
             logging.warning(f'WARNING: {e}')
             sleep(0.5)
-            self.err_counter += 1
-            if self.err_counter >= 10:
-                # send mail
-                self.applog.warning('api error >= 10')
-                self.err_counter = 0
+            self.api_fail_message_handler()
             rsp = self.check_limit_order(market, price, 'buy')
             if not rsp:
                 return self.create_limit_buy_order(market, amount, price)
@@ -1274,11 +1251,7 @@ class LazyStarter:
         except Exception as e:
             logging.warning(f'WARNING: {e}')
             sleep(0.5)
-            self.err_counter += 1
-            if self.err_counter >= 10:
-                # send mail
-                self.applog.warning('api error >= 10')
-                self.err_counter = 0
+            self.api_fail_message_handler()
             rsp = self.check_limit_order(market, price, 'sell')
             if not rsp:
                 return self.create_limit_sell_order(market, amount, price)
@@ -1356,9 +1329,9 @@ class LazyStarter:
             if type(history) == list:
                 return history
             else:
-                logging.warning(f'WARNING: Unexpected order history: {history}')
+                self.applog.warning(f'WARNING: Unexpected order history: {history}')
         except Exception as e:
-            logging.warning(f'WARNING: {e}')
+            self.applog.warning(f'WARNING: {e}')
 
     def cancel_order(self, order_id, price, timestamp, side):
         """Cancel an order with it's id.
@@ -1385,13 +1358,9 @@ class LazyStarter:
                 self.stratlog.warning(msg)
                 return rsp
         except Exception as e:
-            logging.warning(f'WARNING: {e}')
+            self.applog.warning(f'WARNING: {e}')
             sleep(0.5)
-            self.err_counter += 1
-            if self.err_counter >= 10:
-                # send mail
-                self.stratlog.warning('api error >= 10')
-                self.err_counter = 0
+            self.api_fail_message_handler()
             orders = self.get_orders(self.selected_market)[side]
             is_open = self.does_an_order_is_open(price, orders)
             if is_open:
@@ -1419,6 +1388,17 @@ class LazyStarter:
         if open_orders['sell']:
             for item in open_orders['sell']:
                 self.cancel_order(item[0], item[1], item[4], 'sell')
+
+    def api_fail_message_handler(self):
+        """Send an alert where ther eis too much fail with the exchange API"""
+        self.err_counter += 1
+        if self.err_counter >= 10:
+            msg = 'api error >= 10'
+            if self.slack_channel:
+                self.send_slack_message(msg)
+            else:
+                self.strat.warning(msg)
+            self.err_counter = 0
 
     """
     ###################### API REQUESTS FORMATTERS ############################
