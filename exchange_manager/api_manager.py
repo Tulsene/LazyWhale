@@ -1,0 +1,489 @@
+import logging
+from time import sleep
+from datetime import datetime
+from decimal import Decimal
+from operator import itemgetter
+from main import BotConfiguration
+
+
+
+
+
+class APIManager(BotConfiguration):
+    # def __init__(self, params={}, keys=(), test_mode=False):
+    #     super().get_config()
+
+    def fetch_balance(self):
+        """Get account balance from the marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        return: dict, formated balance by ccxt."""
+        try:
+            return self.exchange.fetch_balance()
+        except Exception as e:
+            logging.warning(f'WARNING: {e}')
+            sleep(0.5)
+            self.api_fail_message_handler()
+            return self.fetch_balance()
+
+    def load_markets(self):
+        """Load the market list from a marketplace to self.exchange.
+        Retry 1000 times when error and send a mail each 10 tries.
+        """
+        try:
+            self.exchange.load_markets()
+        except Exception as e:
+            logging.warning(f'WARNING: {e}')
+            sleep(0.5)
+            self.api_fail_message_handler()
+            self.load_markets()
+
+    def fetch_open_orders(self, market=None):
+        """Get open orders of a market from a marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        market: string, market name.
+        return: list, formatted open orders by ccxt."""
+        try:
+            return self.exchange.fetch_open_orders(market)
+        except Exception as e:
+            logging.warning(f'WARNING: {e}')
+            sleep(0.5)
+            self.api_fail_message_handler()
+            return self.fetch_open_orders(market)
+
+    def fetch_trades(self, market):
+        """Get trading history of a market from a marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        market: string, market name.
+        return: list, formatted trade history by ccxt."""
+        try:
+            return self.exchange.fetch_trades(market)
+        except Exception as e:
+            logging.warning(f'WARNING: {e}')
+            sleep(0.5)
+            self.api_fail_message_handler()
+            return self.fetch_trades(market)
+
+    def fetch_ticker(self, market):
+        """Get ticker info of a market from a marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        market: string, market name.
+        return: list, formatted trade history by ccxt."""
+        try:
+            return self.exchange.fetch_ticker(market)
+        except Exception as e:
+            logging.warning(f'WARNING: {e}')
+            sleep(0.5)
+            self.api_fail_message_handler()
+            return self.fetch_ticker(market)
+
+    def init_limit_buy_order(self, market, amount, price):
+        """Generate a timestamp before creating a buy order."""
+        self.now = self.timestamp_formater()
+        return self.create_limit_buy_order(market, amount, price)
+
+    def create_limit_buy_order(self, market, amount, price):
+        """Create a limit buy order on a market of a marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        market: string, market name.
+        amount: string, amount of ALT to buy.
+        price: string, price of the order.
+        return: list, formatted trade history by ccxt."""
+        try:
+            order = self.exchange.create_limit_buy_order(market, amount, price)
+            date = self.order_logger_formatter('buy', order['id'], price,
+                                               amount)
+            return self.format_order(order['id'], price, amount,
+                                     date[0], date[1])
+        except Exception as e:
+            logging.warning(f'WARNING: {e}')
+            sleep(0.5)
+            self.api_fail_message_handler()
+            rsp = self.check_limit_order(market, price, 'buy')
+            if not rsp:
+                return self.create_limit_buy_order(market, amount, price)
+            else:
+                return rsp
+
+    def set_several_buy(self, start_index, target, profits_alloc=None):
+        """Loop for opening buy orders. It generate amount to split benef
+        following benef alloc.
+        start_index: int, from where the loop start in self.intervals.
+        target: int, from where the loop start in self.intervals.
+        profits_alloc: boolean, optional.
+        return: list, of executed orders.
+        """
+        buy_orders = []
+        if profits_alloc:
+            amount = []
+            start_index_copy = start_index
+            while start_index_copy <= target:
+                btc_won = self.multiplier(self.intervals[start_index_copy + 1],
+                                          self.params['amount'], self.fees_coef)
+                btc_to_spend = self.multiplier(self.intervals[start_index_copy],
+                                               self.params['amount'], self.fees_coef)
+                total = ((btc_won - btc_to_spend) * Decimal(
+                    self.params['profits_alloc']) / Decimal('100') + \
+                         btc_to_spend) / self.intervals[start_index_copy]
+                amount.append(self.quantizator(total))
+                start_index_copy += 1
+        else:
+            if target - start_index > 0:
+                amount = [self.params['amount'] for x in \
+                          range(target - start_index + 1)]
+            else:
+                amount = [self.params['amount']]
+        i = 0
+        while start_index <= target:
+            order = self.init_limit_buy_order(self.selected_market, amount[i],
+                                              self.intervals[start_index])
+            buy_orders.append(order)
+            start_index += 1
+            i += 1
+        return buy_orders
+
+    def init_limit_sell_order(self, market, amount, price):
+        """Generate a global timestamp before calling """
+        self.now = self.timestamp_formater()
+        return self.create_limit_sell_order(market, amount, price)
+
+    def create_limit_sell_order(self, market, amount, price):
+        """Create a limit sell order on a market of a marketplace.
+        Retry 1000 times when error and send a mail each 10 tries.
+        market: string, market name.
+        amount: string, amount of ALT to sell.
+        price: string, price of the order.
+        return: list, formatted trade history by ccxt
+                or boolean True when the order is already filled"""
+        try:
+            order = self.exchange.create_limit_sell_order(market,
+                                                          amount,
+                                                          price)
+            date = self.order_logger_formatter('sell', order['id'], price,
+                                               amount)
+            return self.format_order(order['id'], price, amount,
+                                     date[0], date[1])
+        except Exception as e:
+            logging.warning(f'WARNING: {e}')
+            sleep(0.5)
+            self.api_fail_message_handler()
+            rsp = self.check_limit_order(market, price, 'sell')
+            if not rsp:
+                return self.create_limit_sell_order(market, amount, price)
+            else:
+                return rsp
+
+    def set_several_sell(self, start_index, target):
+        """Loop for opening sell orders.
+        start_index: int, from where the loop start in self.intervals.
+        target: int, from where the loop start in self.intervals.
+        return: list, of executed orders.
+        """
+        sell_orders = []
+        while start_index <= target:
+            order = self.init_limit_sell_order(self.selected_market,
+                                               self.params['amount'],
+                                               self.intervals[start_index])
+            sell_orders.append(order)
+            start_index += 1
+        return sell_orders
+
+    def check_limit_order(self, market, price, side):
+        """Verify if an order have been correctly created despite API error
+        market: string, market name.
+        price: string, price of the order.
+        side: string, buy or sell
+        return: list, in a formatted order"""
+        sleep(0.5)
+        orders = self.get_orders(market)[side]
+        is_open = self.does_an_order_is_open(price, orders)
+        if is_open:
+            return is_open
+        else:
+            trades = self.get_user_history(market)[side]
+            is_traded = self.order_in_history(price, trades, side, self.now)
+            if is_traded:
+                return is_traded
+        return False
+
+    def does_an_order_is_open(self, target, a_list):
+        """Verify if an order is contained in a list
+        target: decimal, price of an order.
+        a_list: list, user trade history.
+        return: boolean."""
+        for item in a_list:
+            if item[1] == target:
+                return item
+        return False
+
+    def order_in_history(self, target, a_list, side, timestamp):
+        """Verify that an order is in user history.
+        target: decimal, price of an order.
+        a_list: list, user trade history.
+        side: string, buy or sell.
+        timestamp: int, timestamp of the order.
+        return: boolean."""
+        if side == 'buy':
+            coef = Decimal('2') - Decimal(self.params['increment_coef']) + \
+                   Decimal('0.001')
+            for item in a_list:
+                if item[4] >= timestamp:
+                    if target * coef <= item[1] <= target:
+                        return True
+        if side == 'sell':
+            coef = self.params['increment_coef'] - Decimal('0.001')
+            for item in a_list:
+                if item[4] >= timestamp:
+                    if target * coef >= item[1] >= target:
+                        return True
+        return False
+
+    def trade_history(self):
+        try:
+            history = self.exchange.fetch_trades(self.selected_market)
+            if type(history) == list:
+                return history
+            else:
+                self.applog.warning(f'WARNING: Unexpected order history: {history}')
+        except Exception as e:
+            self.applog.warning(f'WARNING: {e}')
+
+    def cancel_order(self, order_id, price, timestamp, side):
+        """Cancel an order with it's id.
+        Retry 1000 times, send an email each 10 tries.
+        Warning : Not connard proofed!
+        order_id: string, marketplace order id.
+        price: string, price of the order.
+        timestamp: int, timestamp of the order.
+        side: string, buy or sell.
+        return: boolean, True if the order is canceled correctly, False when the
+        order have been filled before it's cancellation"""
+        cancel_side = 'cancel_buy' if side == 'buy' else 'cancel_sell'
+        try:
+            self.applog.debug(f'Init cancel {side} order {order_id} {price}')
+            rsp = self.exchange.cancel_order(order_id)
+            if rsp:
+                self.order_logger_formatter(cancel_side, order_id, price, 0)
+                return True
+            else:
+                msg = (
+                    f'The {side} {order_id} have been filled '
+                    f'before being canceled'
+                )
+                self.stratlog.warning(msg)
+                return rsp
+        except Exception as e:
+            self.applog.warning(f'WARNING: {e}')
+            sleep(0.5)
+            self.api_fail_message_handler()
+            orders = self.get_orders(self.selected_market)[side]
+            is_open = self.does_an_order_is_open(price, orders)
+            if is_open:
+                rsp = self.exchange.cancel_order(order_id)
+                if rsp:
+                    self.err_counter = 0
+                    return rsp
+            trades = self.get_user_history(self.selected_market)[side]
+            is_traded = self.order_in_history(price, trades, side, timestamp)
+            if is_traded:
+                msg = (
+                    f'The {side} {order_id} have been filled '
+                    f'before being canceled'
+                )
+                self.stratlog.warning(msg)
+                return False
+            else:
+                self.order_logger_formatter(cancel_side, order_id, price, 0)
+                return True
+
+    def cancel_all(self, open_orders):
+        if open_orders['buy']:
+            for item in open_orders['buy']:
+                self.cancel_order(item[0], item[1], item[4], 'buy')
+        if open_orders['sell']:
+            for item in open_orders['sell']:
+                self.cancel_order(item[0], item[1], item[4], 'sell')
+
+    def api_fail_message_handler(self):
+        """Send an alert where ther eis too much fail with the exchange API"""
+        self.err_counter += 1
+        if self.err_counter >= 10:
+            msg = 'api error >= 10'
+            if self.slack_channel:
+                self.send_slack_message(msg)
+            else:
+                self.strat.warning(msg)
+            self.err_counter = 0
+
+
+    """
+    ###################### API REQUESTS FORMATTERS ############################
+    """
+
+    def get_market_last_price(self, market):
+        """Get the last price of a specific market
+        market: str, need to have XXX/YYY ticker format
+        return: decimal"""
+        return Decimal(f"{self.fetch_ticker(market)['last']:.8f}")
+
+    def get_balances(self):  # Need to be refactored
+        """Get the non empty balance of a user on a marketplace and make
+        it global."""
+        balance = self.fetch_balance()
+        user_balance = {}
+        for key, value in balance.items():
+            if 'total' in value:
+                if float(value['total']) != 0.0:
+                    for item in value:
+                        value[item] = str(value[item])
+                    user_balance.update({key: value})
+        if self.is_kraken:
+            orders = self.fetch_open_orders()
+            for order in orders:
+                if order['side'] == 'buy':
+                    coin = order['symbol'].split('/')[1]
+                    if user_balance[coin]['used'] == 'None':
+                        user_balance[coin]['used'] = Decimal(order['price']) \
+                                                     * Decimal(order['amount'])
+                    else:
+                        user_balance[coin]['used'] = user_balance[coin]['used'] \
+                                                     + Decimal(order['price']) * Decimal(order['amount'])
+                else:
+                    coin = order['symbol'].split('/')[0]
+                    if user_balance[coin]['used'] == 'None':
+                        user_balance[coin]['used'] = Decimal(order['amount'])
+                    else:
+                        user_balance[coin]['used'] = user_balance[coin]['used'] \
+                                                     + Decimal(order['amount'])
+            for coin in user_balance:
+                if user_balance[coin]['used'] != 'None':
+                    user_balance[coin]['free'] = str(
+                        Decimal(user_balance[coin]['total']) \
+                        - user_balance[coin]['used'])
+                    user_balance[coin]['used'] = str(user_balance[coin]['used'])
+                else:
+                    user_balance[coin]['used'] = '0.0'
+                    user_balance[coin]['free'] = user_balance[coin]['total']
+                if user_balance[coin]['free'] == 'None':
+                    user_balance[coin]['free'] = '0.0'
+        self.user_balance = user_balance
+        return user_balance
+
+    def display_user_balance(self):
+        """Display the user balance"""
+        for key, value in self.user_balance.items():
+            self.stratlog.info(f'{key}: {value}')
+        return
+
+    def format_order(self, order_id, price, amount, timestamp, date):
+        """Sort the information of an order in a list of 6 items.
+        id: string, order unique identifier.
+        price: Decimal or string.
+        amount: Decimal.
+        timestamp: string.
+        date: string.
+        return: list, containing: id, price, amount, value, timestamp and date.
+        """
+        return [order_id, Decimal(price), amount, self.multiplier(
+            Decimal(price), amount, self.fees_coef), timestamp, date]
+
+    def format_log_order(self, side, order_id, price, amount, timestamp, date):
+        """Sort the information of an order in a list of 6 items.
+        id: string, order unique identifier.
+        price: Decimal or string.
+        amount: Decimal.
+        timestamp: string.
+        date: string.
+        return: list, containing: id, price, amount, value, timestamp and date.
+        """
+        return [side, order_id, price, amount, str(self.multiplier(
+            Decimal(price), Decimal(amount), self.fees_coef)), \
+                timestamp, date]
+
+    def get_orders(self, market):
+        """Get actives orders from a marketplace and organize them.
+        return: dict, containing list of buys & sells.
+        """
+        orders = {'sell': [], 'buy': []}
+        raw_orders = self.fetch_open_orders(market)
+        for order in raw_orders:
+            formated_order = self.format_order(
+                order['id'],
+                Decimal(str(order['price'])),
+                Decimal(str(order['amount'])),
+                str(order['timestamp']),
+                order['datetime'])
+            if order['side'] == 'buy':
+                orders['buy'].append(formated_order)
+            if order['side'] == 'sell':
+                orders['sell'].append(formated_order)
+        return orders
+
+    def orders_price_ordering(self, orders):
+        """Ordering open orders in their respective lists.
+        list[0][1] is the lowest value.
+        orders: dict, containing list of buys & sells.
+        return: dict, ordered lists of buys & sells."""
+        if orders['buy']:
+            orders['buy'] = sorted(orders['buy'], key=itemgetter(1))
+        if orders['sell']:
+            orders['sell'] = sorted(orders['sell'], key=itemgetter(1))
+        return orders
+
+    def get_user_history(self, market):
+        """Get orders history from a marketplace and organize them.
+        return: dict, containing list of buy & list of sell.
+        """
+        orders = {'sell': [], 'buy': []}
+        raw_orders = self.fetch_trades(market)
+        for order in raw_orders:
+            formated_order = self.format_order(
+                order['id'],
+                Decimal(str(order['price'])),
+                Decimal(str(order['amount'])),
+                str(order['timestamp']),
+                order['datetime'])
+            if order['side'] == 'buy':
+                orders['buy'].append(formated_order)
+            if order['side'] == 'sell':
+                orders['sell'].append(formated_order)
+        return orders
+
+    def display_user_trades(self, orders):
+        """Pretify and display orders list.
+        orders: dict, contain all orders.
+        """
+        if orders['buy']:
+            for order in orders['buy']:
+                self.stratlog.info(self.format_order_to_display(order))
+        if orders['sell']:
+            for order in orders['sell']:
+                self.stratlog.info(self.format_order_to_display(order))
+        return
+
+    def format_order_to_display(self, order):
+        """To format an order as a string.
+        order: dict.
+        return: string."""
+        return (
+            f'{order[0]} on: {order[6]}, id: {order[1]}, price: {order[2]}, '
+            f'amount: {order[3]}, value: {order[4]}, timestamp: {order[5]}'
+        )
+
+    def order_logger_formatter(self, side, order_id, price, amount):
+        """Format into a string an order for the logger
+        side : string. buy, cancel_buy, sell or cancel_sell
+        order_id: string, order id on the marketplace.
+        price: Decimal.
+        amount: Decimal.
+        return: tuple with strings."""
+        timestamp = self.timestamp_formater()
+        date_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        msg = (
+            f'{{"side": "{str(side)}", "order_id": "{str(order_id)}", '
+            f'"price": "{str(price)}", "amount": "{str(amount)}", '
+            f'"timestamp": "{timestamp}", "datetime": "{date_time}" }}')
+        if self.slack_channel:
+            self.send_slack_message(msg)
+        else:
+            self.stratlog.warning(msg)
+        return timestamp, date_time
