@@ -10,6 +10,8 @@ from time import sleep
 import ccxt
 import static_config
 from utils.singleton import singleton
+from utils.helper import UtilsMixin
+from exchange_manager.api_manager import APIManager
 
 
 
@@ -20,9 +22,9 @@ class BotConfiguration:
         from logger.logger import Logger
         from logger.slack import Slack
         self.bot_obj = bot_obj
-        self.test_mode = test_mode
-        self.test_params = params
-        self.test_keys = keys
+        self.test_mode = test_mode  #TODO: test_mode: True doesn't work
+        self.test_params = params   #TODO: only for test_mode?
+        self.test_keys = keys       #TODO: only for test_mode?
         # Without assigning it first, it always return true
         self.script_position = os.path.dirname(sys.argv[0])
         self.root_path = f'{self.script_position}/' if self.script_position else ''
@@ -32,7 +34,7 @@ class BotConfiguration:
                                log_formatter='%(message)s',
                                console_level=logging.DEBUG,
                                file_level=logging.INFO,
-                               root_path=self.root_path).create()
+                               root_path=self.root_path+"/logger/").create()
         self.applog = Logger(name='debugs',
                              log_file='app.log',
                              log_formatter='%(asctime)s - %(levelname)s - %(message)s',
@@ -116,14 +118,17 @@ class BotConfiguration:
         return keys
 
 
-class Bot():
+
+@singleton
+class Bot(UtilsMixin):
     def __init__(self, params={}, keys=(), test_mode=False):
         self.config = BotConfiguration()
-        from strategy import Strategy
-        from user_iteraction import UserIteraction
         self.config.create_config(params, keys, test_mode)
-        self.user_iteraction = UserIteraction()
+        from strategy import Strategy
+        from user_interface import UserInterface
+        self.user_interface = UserInterface(self, self.config)
         self.strategy = Strategy()
+        self.api = APIManager(self.config)
 
     def launch(self):
         self.set_params()
@@ -132,10 +137,10 @@ class Bot():
 
     def set_params(self):
         if self.config.test_mode:
-            params = self.config.check_params(self.config.test_params)
-            self.params = self.check_for_enough_funds(params)
+            params = self.user_interface.check_params(self.config.test_params)
+            self.config.params = self.check_for_enough_funds(params)
         else:
-            self.user_iteraction.ask_for_params()   #check_for_enough_funds called inside
+            self.user_interface.ask_for_params()   #check_for_enough_funds called inside
 
     def plase_init_orders(self):
         """
@@ -152,6 +157,108 @@ class Bot():
                                self.intervals.index(self.open_orders['sell'][-1][1]))
         self.set_id_list_according_intervals()
         self.update_id_list()
+
+    def check_for_enough_funds(self, params):
+        """Check if the user have enough funds to run LW with he's actual
+        parameters.
+        Printed value can be negative!
+        Ask for params change if there's not.
+        params: dict, parameters for LW.
+        return: dict, params"""
+        is_valid = False
+        # Force user to set strategy parameters in order to have enough funds
+        # to run the whole strategy
+        while is_valid is False:
+            price = self.api.get_market_last_price(self.config.selected_market)
+            self.api.get_balances()
+            pair = self.selected_market.split('/')
+            sell_balance = self.str_to_decimal(self.user_balance[pair[0]]['free'])
+            buy_balance = self.str_to_decimal(self.user_balance[pair[1]]['free'])
+            spread_bot_index = self.intervals.index(params['spread_bot'])
+            spread_top_index = spread_bot_index + 1
+            try:
+                total_buy_funds_needed = self.calculate_buy_funds(
+                    spread_bot_index, params['amount'])
+                total_sell_funds_needed = self.calculate_sell_funds(
+                    spread_top_index, params['amount'])
+                msg = (
+                    f'check_for_enough_funds total_buy_funds_needed: '
+                    f'{total_buy_funds_needed}, buy_balance: {buy_balance}, '
+                    f'total_sell_funds_needed: {total_sell_funds_needed}, '
+                    f'sell_balance: {sell_balance}, price: {price}'
+                )
+                self.applog.debug(msg)
+                # When the strategy will start with spread bot inferior or
+                # equal to the actual market price
+                if params['spread_bot'] <= price:
+                    incoming_buy_funds = Decimal('0')
+                    i = spread_top_index
+                    # When the whole strategy is lower than actual price
+                    if params['range_top'] < price:
+                        while i < len(self.intervals):
+                            incoming_buy_funds += self.multiplier(
+                                self.intervals[i], params['amount'],
+                                self.fees_coef)
+                            i += 1
+                    # When only few sell orders are planned to be under the
+                    # actual price
+                    else:
+                        while self.intervals[i] <= price:
+                            incoming_buy_funds += self.multiplier(
+                                self.intervals[i], params['amount'],
+                                self.fees_coef)
+                            i += 1
+                            # It crash when price >= range_top
+                            if i == len(self.intervals):
+                                break
+                    total_buy_funds_needed = total_buy_funds_needed - \
+                                             incoming_buy_funds
+                # When the strategy will start with spread bot superior to the
+                # actual price on the market
+                else:
+                    incoming_sell_funds = Decimal('0')
+                    i = spread_bot_index
+                    # When the whole strategy is upper than actual price
+                    if params['spread_bot'] > price:
+                        while i >= 0:
+                            incoming_sell_funds += self.multiplier(
+                                params['amount'], self.fees_coef)
+                            i -= 1
+                    # When only few buy orders are planned to be upper the
+                    # actual price
+                    else:
+                        while self.intervals[i] >= price:
+                            incoming_sell_funds += self.multiplier(
+                                params['amount'], self.fees_coef)
+                            i -= 1
+                            if i < 0:
+                                break
+                    total_sell_funds_needed = total_sell_funds_needed \
+                                              - incoming_sell_funds
+                msg = (
+                    f'Your actual strategy require: {pair[1]} needed: '
+                    f'{total_buy_funds_needed} and you have {buy_balance} '
+                    f'{pair[1]}; {pair[0]} needed: {total_sell_funds_needed}'
+                    f' and you have {sell_balance} {pair[0]}.'
+                )
+                self.applog.debug(msg)
+                # In case there is not enough funds, check if there is none stuck
+                # before asking to change params
+                if total_buy_funds_needed > buy_balance:
+                    buy_balance = self.look_for_moar_funds(total_buy_funds_needed,
+                                                           buy_balance, 'buy')
+                if total_sell_funds_needed > sell_balance:
+                    sell_balance = self.look_for_moar_funds(
+                        total_sell_funds_needed, sell_balance, 'sell')
+                if total_buy_funds_needed > buy_balance or \
+                        total_sell_funds_needed > sell_balance:
+                    raise ValueError('You don\'t own enough funds!')
+                is_valid = True
+            except ValueError as e:
+                self.stratlog.warning('%s\nYou need to change some parameters:', e)
+                params = self.change_params(params)
+        return params
+
 
     """
     ############################## FINALLY, LW ################################
@@ -820,6 +927,30 @@ class Bot():
                     self.open_orders['sell'].append(order)
         self.stratlog.debug(f'self.open_orders: {self.open_orders}')
         return
+
+
+    def interval_generator(self, range_bottom, range_top, increment):
+        """Generate a list of interval inside a range by incrementing values
+        range_bottom: Decimal, bottom of the range
+        range_top: Decimal, top of the range
+        increment: Decimal, value used to increment from the bottom
+        return: list, value from [range_bottom, range_top[
+        """
+        intervals = [range_bottom]
+        intervals.append(self.multiplier(intervals[-1], increment))
+        if range_top <= intervals[1]:
+            raise ValueError('Range top value is too low')
+        while intervals[-1] <= range_top:
+            intervals.append(self.multiplier(intervals[-1], increment))
+        del intervals[-1]
+        if len(intervals) < 6:
+            msg = (
+                f'Range top value is too low, or increment too '
+                f'high: need to generate at lease 6 intervals. Try again!'
+            )
+            raise ValueError(msg)
+        return intervals
+
 
     def exit(self):
         """Clean program exit"""

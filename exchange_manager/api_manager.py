@@ -3,15 +3,28 @@ from time import sleep
 from datetime import datetime
 from decimal import Decimal
 from operator import itemgetter
-from main import BotConfiguration
+from utils.singleton import singleton
+from utils.helper import UtilsMixin
+import zebitexFormatted
 
 
 
+class APIManager(UtilsMixin):
+    def __init__(self, config):
+        self.config = config
+        self.exchange = None
+        self.err_counter = 0
 
-
-class APIManager(BotConfiguration):
-    # def __init__(self, params={}, keys=(), test_mode=False):
-    #     super().get_config()
+    def set_exchange(self, exchange):
+        if exchange == 'zebitex_testnet':
+            self.exchange = zebitexFormatted.ZebitexFormatted(
+                self.config.keys[exchange]['apiKey'], self.config.keys[exchange]['apiKey'], True)
+        elif exchange == 'zebitex':
+            self.exchange = zebitexFormatted.ZebitexFormatted(
+                # self.config.keys[exchange]['apiKey'], self.config.keys[exchange]['secret'], True) #TODO: replace for real accounts
+                self.config.keys['zebitex_testnet']['apiKey'], self.config.keys['zebitex_testnet']['secret'], True)
+        else:
+            raise Exception(f'{exchange} unsupported')
 
     def fetch_balance(self):
         """Get account balance from the marketplace.
@@ -117,25 +130,25 @@ class APIManager(BotConfiguration):
             amount = []
             start_index_copy = start_index
             while start_index_copy <= target:
-                btc_won = self.multiplier(self.intervals[start_index_copy + 1],
-                                          self.params['amount'], self.fees_coef)
-                btc_to_spend = self.multiplier(self.intervals[start_index_copy],
-                                               self.params['amount'], self.fees_coef)
+                btc_won = self.multiplier(self.config.intervals[start_index_copy + 1],
+                                          self.config.params['amount'], self.config.fees_coef)
+                btc_to_spend = self.multiplier(self.config.intervals[start_index_copy],
+                                               self.config.params['amount'], self.config.fees_coef)
                 total = ((btc_won - btc_to_spend) * Decimal(
-                    self.params['profits_alloc']) / Decimal('100') + \
-                         btc_to_spend) / self.intervals[start_index_copy]
+                    self.config.params['profits_alloc']) / Decimal('100') + \
+                         btc_to_spend) / self.config.intervals[start_index_copy]
                 amount.append(self.quantizator(total))
                 start_index_copy += 1
         else:
             if target - start_index > 0:
-                amount = [self.params['amount'] for x in \
+                amount = [self.config.params['amount'] for x in \
                           range(target - start_index + 1)]
             else:
-                amount = [self.params['amount']]
+                amount = [self.config.params['amount']]
         i = 0
         while start_index <= target:
             order = self.init_limit_buy_order(self.selected_market, amount[i],
-                                              self.intervals[start_index])
+                                              self.config.intervals[start_index])
             buy_orders.append(order)
             start_index += 1
             i += 1
@@ -181,8 +194,8 @@ class APIManager(BotConfiguration):
         sell_orders = []
         while start_index <= target:
             order = self.init_limit_sell_order(self.selected_market,
-                                               self.params['amount'],
-                                               self.intervals[start_index])
+                                               self.config.params['amount'],
+                                               self.config.intervals[start_index])
             sell_orders.append(order)
             start_index += 1
         return sell_orders
@@ -223,14 +236,14 @@ class APIManager(BotConfiguration):
         timestamp: int, timestamp of the order.
         return: boolean."""
         if side == 'buy':
-            coef = Decimal('2') - Decimal(self.params['increment_coef']) + \
+            coef = Decimal('2') - Decimal(self.config.params['increment_coef']) + \
                    Decimal('0.001')
             for item in a_list:
                 if item[4] >= timestamp:
                     if target * coef <= item[1] <= target:
                         return True
         if side == 'sell':
-            coef = self.params['increment_coef'] - Decimal('0.001')
+            coef = self.config.params['increment_coef'] - Decimal('0.001')
             for item in a_list:
                 if item[4] >= timestamp:
                     if target * coef >= item[1] >= target:
@@ -308,10 +321,10 @@ class APIManager(BotConfiguration):
         self.err_counter += 1
         if self.err_counter >= 10:
             msg = 'api error >= 10'
-            if self.slack_channel:
-                self.send_slack_message(msg)
+            if self.config.slack_channel:
+                self.config.send_slack_message(msg)
             else:
-                self.strat.warning(msg)
+                self.config.strat.warning(msg)
             self.err_counter = 0
 
 
@@ -384,7 +397,7 @@ class APIManager(BotConfiguration):
         return: list, containing: id, price, amount, value, timestamp and date.
         """
         return [order_id, Decimal(price), amount, self.multiplier(
-            Decimal(price), amount, self.fees_coef), timestamp, date]
+            Decimal(price), amount, self.config.fees_coef), timestamp, date]
 
     def format_log_order(self, side, order_id, price, amount, timestamp, date):
         """Sort the information of an order in a list of 6 items.
@@ -396,7 +409,7 @@ class APIManager(BotConfiguration):
         return: list, containing: id, price, amount, value, timestamp and date.
         """
         return [side, order_id, price, amount, str(self.multiplier(
-            Decimal(price), Decimal(amount), self.fees_coef)), \
+            Decimal(price), Decimal(amount), self.config.fees_coef)), \
                 timestamp, date]
 
     def get_orders(self, market):
@@ -454,7 +467,7 @@ class APIManager(BotConfiguration):
         """
         if orders['buy']:
             for order in orders['buy']:
-                self.stratlog.info(self.format_order_to_display(order))
+                self.config.stratlog.info(self.format_order_to_display(order))
         if orders['sell']:
             for order in orders['sell']:
                 self.stratlog.info(self.format_order_to_display(order))
@@ -482,8 +495,9 @@ class APIManager(BotConfiguration):
             f'{{"side": "{str(side)}", "order_id": "{str(order_id)}", '
             f'"price": "{str(price)}", "amount": "{str(amount)}", '
             f'"timestamp": "{timestamp}", "datetime": "{date_time}" }}')
-        if self.slack_channel:
-            self.send_slack_message(msg)
+        if self.config.slack_channel:
+            self.config.send_slack_message(msg)
         else:
             self.stratlog.warning(msg)
         return timestamp, date_time
+

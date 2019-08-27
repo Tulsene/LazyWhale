@@ -1,5 +1,6 @@
 import os
 import logging, logging.handlers
+from decimal import Decimal
 
 
 
@@ -57,3 +58,5 @@ class Logger:
             return False
         else:
             return True
+
+

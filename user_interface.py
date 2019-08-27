@@ -2,13 +2,16 @@ import json
 from datetime import datetime
 from decimal import Decimal
 from copy import deepcopy
-from main import BotConfiguration
+from utils.helper import UtilsMixin
+from exchange_manager import zebitexFormatted
 
 
 
-class UserIteraction():
-    def __init__(self):
-        self.config = BotConfiguration()
+
+class UserInterface(UtilsMixin):
+    def __init__(self, bot, config):
+        self.bot = bot
+        self.config = config
 
     def simple_question(self, q):  # Fancy things can be added
         """Simple question prompted and response handling.
@@ -91,7 +94,7 @@ class UserIteraction():
         return: decimal."""
         minimum_amount = Decimal('0.001') / range_bot
         q = (
-            f'How much {self.selected_market[:4]} do you want to sell '
+            f'How much {self.config.selected_market[:4]} do you want to sell '
             f'per order? It must be between {minimum_amount} and 10000000:')
         while True:
             try:
@@ -132,8 +135,8 @@ class UserIteraction():
         spread top automatically
         return: dict, of decimal values
         """
-        price = self.get_market_last_price(self.selected_market)
-        msg = f'The actual price of {self.selected_market} is {price}'
+        price = self.get_market_last_price(self.config.selected_market)
+        msg = f'The actual price of {self.config.selected_market} is {price}'
         self.config.applog.info(msg)
         q = (
             f'Please select the price of your highest buy order '
@@ -185,13 +188,13 @@ class UserIteraction():
                     self.log_file_reader()
                 q = 'Do you want to use those params?'
                 if self.simple_question(q):
-                    self.params = self.check_for_enough_funds(params)
+                    self.config.params = self.check_for_enough_funds(params)
             else:
                 msg = 'Your parameters are corrupted, please enter new one!'
                 self.config.applog.warning(msg)
-        if not self.params:
-            self.params = self.enter_params()
-        self.simple_file_writer(file_path, self.dict_to_str(self.params))
+        if not self.config.params:
+            self.config.params = self.enter_params()
+        self.simple_file_writer(file_path, self.dict_to_str(self.config.params))
         return True
 
     def enter_params(self):
@@ -203,7 +206,7 @@ class UserIteraction():
         params.update(self.ask_range_setup())
         params.update({'amount': self.ask_param_amount(params['range_bot'])})
         params.update(self.ask_params_spread())
-        params = self.check_for_enough_funds(params)
+        params = self.bot.check_for_enough_funds(params)
         q = 'Do you want to stop LW if range_bot is reach? (y) or (n) only.'
         params.update({'stop_at_bot': self.ask_question(q, self.str_to_bool)})
         q = 'Do you want to stop LW if range_top is reach? (y) or (n) only.'
@@ -233,7 +236,7 @@ class UserIteraction():
                 if choice < 3:
                     params[editable_params[choice][0]] = \
                         editable_params[choice][1]()
-                    self.intervals = self.interval_generator(
+                    self.bot.intervals = self.bot.interval_generator(
                         params['range_bot'], params['range_top'],
                         params['increment_coef'])
                     params = self.change_spread(params)
@@ -248,6 +251,71 @@ class UserIteraction():
             except Exception as e:
                 self.config.applog.warning(e)
         return params
+
+    def select_marketplace(self, marketplace=None):
+        """Select a marketplace among the loaded keys.
+        Connect to the selected marketplace.
+        return: String, name of the selected marketplace.
+        """
+        if self.config.test_mode:
+            self.config.exchange = self.bot.api.set_exchange('zebitex_testnet') #TODO: or zebitex_testnet
+            # zebitexFormatted.ZebitexFormatted(
+            #     self.config.testing_keys[0], self.config.testing_keys[1], True)
+            self.bot.api.load_markets()
+            return
+        else:
+            if not marketplace:
+                q = 'Please select a market:'
+                choice = self.ask_to_select_in_a_list(q, self.config.user_market_name_list)
+            else:
+                choice = self.config.user_market_name_list.index(marketplace)
+            # Because kraken balance has no free and used balance
+            self.is_kraken = True if self.config.user_market_name_list[choice] == 'kraken' \
+                else False
+
+            if self.config.user_market_name_list[choice] == 'zebitex':
+                self.exchange = self.bot.api.set_exchange('zebitex') #TODO: or zebitex_testnet
+                    # zebitexFormatted.ZebitexFormatted(
+                    # self.config.keys[self.config.user_market_name_list[choice]]['apiKey'],
+                    # self.config.keys[self.config.user_market_name_list[choice]]['secret'],
+                    # False)
+            elif self.config.user_market_name_list[choice] == 'zebitex_testnet':
+                self.exchange = self.bot.api.set_exchange('zebitex') #TODO: or zebitex_testnet
+                    # zebitexFormatted.ZebitexFormatted(
+                    # self.config.keys[self.config.user_market_name_list[choice]]['apiKey'],
+                    # self.config.keys[self.config.user_market_name_list[choice]]['secret'],
+                    # True)
+            else:
+                self.exchange = eval(
+                    f'ccxt.{self.config.user_market_name_list[choice]}'
+                    f'({str(self.config.keys[self.config.user_market_name_list[choice]])})')
+        self.bot.api.load_markets()
+        return self.config.user_market_name_list[choice]
+
+    def select_market(self, market=None):
+        """Market selection menu.
+        return: string, selected market.
+        """
+        if market:
+            if market not in self.bot.api.exchange.symbols:
+                raise ValueError(f'{market} not in self.exchange.symbols')
+            limitation = self.limitation_to_btc_market(market)
+            if limitation != True:
+                raise ValueError(limitation)
+        else:
+            valid_choice = False
+            while valid_choice is False:
+                self.applog.info(
+                    f'Please enter the name of a market: {self.exchange.symbols}')
+                market = input(' >> ').upper()
+                limitation = self.limitation_to_btc_market(market)
+                if limitation is True:
+                    if market in self.exchange.symbols:
+                        valid_choice = True
+                else:
+                    self.applog.info(limitation)
+        self.config.selected_market = market
+        return market
 
     def change_spread(self, params):
         spread = self.ask_params_spread()
@@ -285,7 +353,7 @@ class UserIteraction():
                                           list of executed sell,
                                           dict of parameters
         """
-        strat_log_file = f'{self.root_path}logfiles/strat.log'
+        strat_log_file = f'{self.config.root_path}logger/logfiles/strat.log'
         raw_data = []
         logs_data = {'buy': [], 'sell': []}
         # In case there is no log file
@@ -301,7 +369,7 @@ class UserIteraction():
         target = nb_of_lines - 20 if nb_of_lines > 20 else 0
         # Get the last 20 orders saved in log file
         while target < nb_of_lines:
-            line = self.config.read_one_line(strat_log_file, nb_of_lines)
+            line = self.read_one_line(strat_log_file, nb_of_lines)
             try:
                 line = json.loads(line)
                 raw_data.append(line)
@@ -310,7 +378,7 @@ class UserIteraction():
             nb_of_lines -= 1
         # It's better when it's pretty to display
         for order in raw_data:
-            formated_order = self.format_log_order(
+            formated_order = self.bot.api.format_log_order(
                 order['side'],
                 order['order_id'],
                 order['price'],
@@ -323,7 +391,7 @@ class UserIteraction():
             if order['side'] == 'sell' or \
                     order['side'] == 'canceled_sell':
                 logs_data['sell'].append(formated_order)
-        self.display_user_trades(logs_data)
+        self.bot.api.display_user_trades(logs_data)
         return logs_data
 
     def params_reader(self, file_path):
@@ -418,7 +486,7 @@ class UserIteraction():
             if params['marketplace'] not in self.config.exchanges_list:
                 raise ValueError(f"You can't choose {params['marketplace']}"
                                  f" as marketplace")
-            if params['marketplace'] not in self.keys:
+            if params['marketplace'] not in self.config.keys:
                 raise ValueError(f"You don't own api key for"
                                  f" {params['marketplace']}")
             self.select_marketplace(params['marketplace'])
@@ -426,17 +494,17 @@ class UserIteraction():
             self.param_checker_range_bot(params['range_bot'])
             self.param_checker_range_top(params['range_top'])
             self.param_checker_interval(params['increment_coef'])
-            self.intervals = self.interval_generator(params['range_bot'],
+            self.config.intervals = self.bot.interval_generator(params['range_bot'],
                                                      params['range_top'],
                                                      params['increment_coef'])
-            if self.intervals is False:
+            if self.config.intervals is False:
                 raise ValueError(
                     f'Range top value is too low, or increment too '
                     f'high: need to generate at lease 6 intervals.')
-            if params['spread_bot'] not in self.intervals:
+            if params['spread_bot'] not in self.config.intervals:
                 raise ValueError('Spread_bot isn\'t properly configured')
-            spread_bot_index = self.intervals.index(params['spread_bot'])
-            if params['spread_top'] != self.intervals[spread_bot_index + 1]:
+            spread_bot_index = self.config.intervals.index(params['spread_bot'])
+            if params['spread_top'] != self.config.intervals[spread_bot_index + 1]:
                 raise ValueError('Spread_top isn\'t properly configured')
             self.param_checker_amount(params['amount'], params['spread_bot'])
             self.param_checker_profits_alloc(params['profits_alloc'])
@@ -444,6 +512,9 @@ class UserIteraction():
             self.config.applog.warning(f'The LW parameters are not well configured: {e}')
             return False
         return params
+
+
+
 
     def str_to_decimal(self, s, error_message=None):
         """Convert a string to Decimal or raise an error.
