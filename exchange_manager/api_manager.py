@@ -14,6 +14,7 @@ class APIManager(UtilsMixin):
         self.config = config
         self.exchange = None
         self.err_counter = 0
+        self.is_kraken = False
 
     def set_exchange(self, exchange):
         if exchange == 'zebitex_testnet':
@@ -378,12 +379,12 @@ class APIManager(UtilsMixin):
                     user_balance[coin]['free'] = user_balance[coin]['total']
                 if user_balance[coin]['free'] == 'None':
                     user_balance[coin]['free'] = '0.0'
-        self.user_balance = user_balance
+        self.config.user_balance = user_balance
         return user_balance
 
     def display_user_balance(self):
         """Display the user balance"""
-        for key, value in self.user_balance.items():
+        for key, value in self.config.user_balance.items():
             self.stratlog.info(f'{key}: {value}')
         return
 

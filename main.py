@@ -3,6 +3,7 @@ import logging
 import json
 from decimal import Decimal
 from datetime import datetime
+from operator import itemgetter
 from copy import deepcopy
 from pathlib import Path
 from copy import deepcopy
@@ -151,10 +152,10 @@ class Bot(UtilsMixin):
         """
         open_orders = self.remove_safety_before_init(self.orders_price_ordering(
             self.get_orders(
-                self.selected_market)))
+                self.config.selected_market)))
         self.open_orders = self.strat_init(open_orders)
-        self.set_safety_orders(self.intervals.index(self.open_orders['buy'][0][1]),
-                               self.intervals.index(self.open_orders['sell'][-1][1]))
+        self.set_safety_orders(self.config.intervals.index(self.open_orders['buy'][0][1]),
+                               self.config.intervals.index(self.open_orders['sell'][-1][1]))
         self.set_id_list_according_intervals()
         self.update_id_list()
 
@@ -171,10 +172,10 @@ class Bot(UtilsMixin):
         while is_valid is False:
             price = self.api.get_market_last_price(self.config.selected_market)
             self.api.get_balances()
-            pair = self.selected_market.split('/')
-            sell_balance = self.str_to_decimal(self.user_balance[pair[0]]['free'])
-            buy_balance = self.str_to_decimal(self.user_balance[pair[1]]['free'])
-            spread_bot_index = self.intervals.index(params['spread_bot'])
+            pair = self.config.selected_market.split('/')
+            sell_balance = self.str_to_decimal(self.config.user_balance[pair[0]]['free'])
+            buy_balance = self.str_to_decimal(self.config.user_balance[pair[1]]['free'])
+            spread_bot_index = self.config.intervals.index(params['spread_bot'])
             spread_top_index = spread_bot_index + 1
             try:
                 total_buy_funds_needed = self.calculate_buy_funds(
@@ -187,7 +188,7 @@ class Bot(UtilsMixin):
                     f'total_sell_funds_needed: {total_sell_funds_needed}, '
                     f'sell_balance: {sell_balance}, price: {price}'
                 )
-                self.applog.debug(msg)
+                self.config.applog.debug(msg)
                 # When the strategy will start with spread bot inferior or
                 # equal to the actual market price
                 if params['spread_bot'] <= price:
@@ -197,19 +198,19 @@ class Bot(UtilsMixin):
                     if params['range_top'] < price:
                         while i < len(self.intervals):
                             incoming_buy_funds += self.multiplier(
-                                self.intervals[i], params['amount'],
-                                self.fees_coef)
+                                self.config.intervals[i], params['amount'],
+                                self.config.fees_coef)
                             i += 1
                     # When only few sell orders are planned to be under the
                     # actual price
                     else:
-                        while self.intervals[i] <= price:
+                        while self.config.intervals[i] <= price:
                             incoming_buy_funds += self.multiplier(
-                                self.intervals[i], params['amount'],
-                                self.fees_coef)
+                                self.config.intervals[i], params['amount'],
+                                self.config.fees_coef)
                             i += 1
                             # It crash when price >= range_top
-                            if i == len(self.intervals):
+                            if i == len(self.config.intervals):
                                 break
                     total_buy_funds_needed = total_buy_funds_needed - \
                                              incoming_buy_funds
@@ -222,14 +223,14 @@ class Bot(UtilsMixin):
                     if params['spread_bot'] > price:
                         while i >= 0:
                             incoming_sell_funds += self.multiplier(
-                                params['amount'], self.fees_coef)
+                                params['amount'], self.config.fees_coef)
                             i -= 1
                     # When only few buy orders are planned to be upper the
                     # actual price
                     else:
                         while self.intervals[i] >= price:
                             incoming_sell_funds += self.multiplier(
-                                params['amount'], self.fees_coef)
+                                params['amount'], self.config.fees_coef)
                             i -= 1
                             if i < 0:
                                 break
@@ -241,7 +242,7 @@ class Bot(UtilsMixin):
                     f'{pair[1]}; {pair[0]} needed: {total_sell_funds_needed}'
                     f' and you have {sell_balance} {pair[0]}.'
                 )
-                self.applog.debug(msg)
+                self.config.applog.debug(msg)
                 # In case there is not enough funds, check if there is none stuck
                 # before asking to change params
                 if total_buy_funds_needed > buy_balance:
@@ -951,11 +952,127 @@ class Bot(UtilsMixin):
             raise ValueError(msg)
         return intervals
 
+    def set_id_list_according_intervals(self):
+        self.config.id_list = [None for _ in range(len(self.config.intervals))]
+        return
 
-    def exit(self):
-        """Clean program exit"""
-        self.applog.critical("End the program")
-        sys.exit(0)
+    def calculate_buy_funds(self, index, amount):
+        """Calculate the buy funds required to execute the strategy
+        amount: Decimal, allocated ALT per order
+        return: Decimal, funds needed
+        """
+        buy_funds_needed = Decimal('0')
+        i = 0
+        while i <= index:
+            buy_funds_needed += self.config.intervals[i] * amount
+            i += 1
+        return buy_funds_needed
+
+    def calculate_sell_funds(self, index, amount):
+        """Calculate the sell funds required to execute the strategy
+        amount: Decimal, allocated ALT per order
+        return: Decimal, funds needed
+        """
+        sell_funds_needed = Decimal('0')
+        i = len(self.config.intervals) - 1
+        while i >= index:
+            sell_funds_needed += amount
+            i -= 1
+        return sell_funds_needed
+
+    def look_for_moar_funds(self, funds_needed, funds, side):
+        """Look into open orders how much funds there is, offer to cancel orders not
+        in the strategy.
+        funds_needed: Decimal, how much funds are needed for the strategy.
+        funds: Decimal, sum of available funds for the strategy.
+        side: string, buy or sell.
+        return: Decimal, sum of available funds for the strategy."""
+        orders = self.orders_price_ordering(
+            self.get_orders(self.selected_market))
+        orders_outside_strat = []
+        # simple addition of funds stuck in open order and will be used for the
+        # strategy
+        if side == 'buy':
+            for order in orders['buy']:
+                if order[1] in self.intervals \
+                        or order[1] == self.safety_buy_value:
+                    funds += order[1] * order[2]
+                else:
+                    orders_outside_strat.append(order)
+        else:
+            for order in orders['sell']:
+                if order[1] in self.intervals \
+                        or order[1] == self.safety_sell_value:
+                    funds += order[2]
+                else:
+                    orders_outside_strat.append(order)
+        # If there is still not enough funds but there is open orders outside the
+        # strategy
+        if funds > Decimal('0'):
+            if orders_outside_strat:
+                is_valid = False
+                while is_valid is False:
+                    if not orders_outside_strat:
+                        is_valid = True
+                    q = (
+                        f'Do you want to remove some orders outside of the '
+                        f'strategy to get enough funds to run it? (y or n)'
+                    )
+                    if self.simple_question(q):
+                        q = 'Which order do you want to remove:'
+                        rsp = self.ask_to_select_in_a_list(q,
+                                                           orders_outside_strat)
+                        del orders_outside_strat[rsp]
+                        rsp = self.cancel_order(orders_outside_strat[rsp][0],
+                                                orders_outside_strat[rsp][1],
+                                                orders_outside_strat[rsp][4], side)
+                        if rsp:
+                            if side == 'buy':
+                                funds += order[1] * order[2]
+                            else:
+                                funds += order[2]
+                            self.stratlog.debug(
+                                f'You have now {funds} {side} '
+                                f'funds and you need {funds_needed}.')
+                    else:
+                        is_valid = True
+        return funds
+
+    def orders_price_ordering(self, orders):
+        """Ordering open orders in their respective lists.
+        list[0][1] is the lowest value.
+        orders: dict, containing list of buys & sells.
+        return: dict, ordered lists of buys & sells."""
+        if orders['buy']:
+            orders['buy'] = sorted(orders['buy'], key=itemgetter(1))
+        if orders['sell']:
+            orders['sell'] = sorted(orders['sell'], key=itemgetter(1))
+        return orders
+
+    def get_orders(self, market):
+        """Get actives orders from a marketplace and organize them.
+        return: dict, containing list of buys & sells.
+        """
+        orders = {'sell': [], 'buy': []}
+        raw_orders = self.api.fetch_open_orders(market)
+        for order in raw_orders:
+            formated_order = self.api.format_order(
+                order['id'],
+                Decimal(str(order['price'])),
+                Decimal(str(order['amount'])),
+                str(order['timestamp']),
+                order['datetime'])
+            if order['side'] == 'buy':
+                orders['buy'].append(formated_order)
+            if order['side'] == 'sell':
+                orders['sell'].append(formated_order)
+        return orders
+
+
+    # def exit(self):
+    #     """Clean program exit"""
+    #     self.applog.critical("End the program")
+    #     sys.exit(0)
 
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.

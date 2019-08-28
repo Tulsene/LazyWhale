@@ -207,6 +207,10 @@ class UtilsMixin:
         """Format a Decimal object to 8 decimals
         return: Decimal"""
         try:
-            return nb.quantize(Decimal('.00000001'), rounding=ROUND_HALF_EVEN)
+            if nb < Decimal('1'):
+                return nb.quantize(Decimal('0.00000001'), rounding=ROUND_HALF_EVEN)
+            else:
+                whole_part, fractional_part = str(nb).split('.')
+                return Decimal(whole_part)+Decimal('0.'+fractional_part).quantize(Decimal('0.00000001'), rounding=ROUND_HALF_EVEN)
         except Exception as e:
             return

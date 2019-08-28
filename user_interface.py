@@ -188,7 +188,7 @@ class UserInterface(UtilsMixin):
                     self.log_file_reader()
                 q = 'Do you want to use those params?'
                 if self.simple_question(q):
-                    self.config.params = self.check_for_enough_funds(params)
+                    self.config.params = self.bot.check_for_enough_funds(params)
             else:
                 msg = 'Your parameters are corrupted, please enter new one!'
                 self.config.applog.warning(msg)
@@ -305,7 +305,7 @@ class UserInterface(UtilsMixin):
         else:
             valid_choice = False
             while valid_choice is False:
-                self.applog.info(
+                self.config.applog.info(
                     f'Please enter the name of a market: {self.exchange.symbols}')
                 market = input(' >> ').upper()
                 limitation = self.limitation_to_btc_market(market)
@@ -313,7 +313,7 @@ class UserInterface(UtilsMixin):
                     if market in self.exchange.symbols:
                         valid_choice = True
                 else:
-                    self.applog.info(limitation)
+                    self.config.applog.info(limitation)
         self.config.selected_market = market
         return market
 
