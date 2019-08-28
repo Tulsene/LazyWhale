@@ -29,8 +29,8 @@ class Logger:
         self.root_path = root_path
 
     def create(self):
-        dir_name = f'{self.root_path}logfiles'
-        self._create_dir_when_none('logfiles')
+        dir_name = f'{self.root_path}/logfiles'
+        self._create_dir_when_none('logfiles')    #TODO; in logger
         log_file = f'{dir_name}/{self.log_file}'
         logger = logging.getLogger(self.name)
         logger.setLevel(self.logging_level)

@@ -118,42 +118,6 @@ class APIManager(UtilsMixin):
             else:
                 return rsp
 
-    def set_several_buy(self, start_index, target, profits_alloc=None):
-        """Loop for opening buy orders. It generate amount to split benef
-        following benef alloc.
-        start_index: int, from where the loop start in self.intervals.
-        target: int, from where the loop start in self.intervals.
-        profits_alloc: boolean, optional.
-        return: list, of executed orders.
-        """
-        buy_orders = []
-        if profits_alloc:
-            amount = []
-            start_index_copy = start_index
-            while start_index_copy <= target:
-                btc_won = self.multiplier(self.config.intervals[start_index_copy + 1],
-                                          self.config.params['amount'], self.config.fees_coef)
-                btc_to_spend = self.multiplier(self.config.intervals[start_index_copy],
-                                               self.config.params['amount'], self.config.fees_coef)
-                total = ((btc_won - btc_to_spend) * Decimal(
-                    self.config.params['profits_alloc']) / Decimal('100') + \
-                         btc_to_spend) / self.config.intervals[start_index_copy]
-                amount.append(self.quantizator(total))
-                start_index_copy += 1
-        else:
-            if target - start_index > 0:
-                amount = [self.config.params['amount'] for x in \
-                          range(target - start_index + 1)]
-            else:
-                amount = [self.config.params['amount']]
-        i = 0
-        while start_index <= target:
-            order = self.init_limit_buy_order(self.selected_market, amount[i],
-                                              self.config.intervals[start_index])
-            buy_orders.append(order)
-            start_index += 1
-            i += 1
-        return buy_orders
 
     def init_limit_sell_order(self, market, amount, price):
         """Generate a global timestamp before calling """
@@ -194,7 +158,7 @@ class APIManager(UtilsMixin):
         """
         sell_orders = []
         while start_index <= target:
-            order = self.init_limit_sell_order(self.selected_market,
+            order = self.init_limit_sell_order(self.config.selected_market,
                                                self.config.params['amount'],
                                                self.config.intervals[start_index])
             sell_orders.append(order)
@@ -253,13 +217,13 @@ class APIManager(UtilsMixin):
 
     def trade_history(self):
         try:
-            history = self.exchange.fetch_trades(self.selected_market)
+            history = self.exchange.fetch_trades(self.config.selected_market)
             if type(history) == list:
                 return history
             else:
-                self.applog.warning(f'WARNING: Unexpected order history: {history}')
+                self.config.applog.warning(f'WARNING: Unexpected order history: {history}')
         except Exception as e:
-            self.applog.warning(f'WARNING: {e}')
+            self.config.applog.warning(f'WARNING: {e}')
 
     def cancel_order(self, order_id, price, timestamp, side):
         """Cancel an order with it's id.
@@ -273,7 +237,7 @@ class APIManager(UtilsMixin):
         order have been filled before it's cancellation"""
         cancel_side = 'cancel_buy' if side == 'buy' else 'cancel_sell'
         try:
-            self.applog.debug(f'Init cancel {side} order {order_id} {price}')
+            self.config.applog.debug(f'Init cancel {side} order {order_id} {price}')
             rsp = self.exchange.cancel_order(order_id)
             if rsp:
                 self.order_logger_formatter(cancel_side, order_id, price, 0)
@@ -283,27 +247,27 @@ class APIManager(UtilsMixin):
                     f'The {side} {order_id} have been filled '
                     f'before being canceled'
                 )
-                self.stratlog.warning(msg)
+                self.config.stratlog.warning(msg)
                 return rsp
         except Exception as e:
-            self.applog.warning(f'WARNING: {e}')
+            self.config.applog.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
-            orders = self.get_orders(self.selected_market)[side]
+            orders = self.get_orders(self.config.selected_market)[side]
             is_open = self.does_an_order_is_open(price, orders)
             if is_open:
                 rsp = self.exchange.cancel_order(order_id)
                 if rsp:
                     self.err_counter = 0
                     return rsp
-            trades = self.get_user_history(self.selected_market)[side]
+            trades = self.get_user_history(self.config.selected_market)[side]
             is_traded = self.order_in_history(price, trades, side, timestamp)
             if is_traded:
                 msg = (
                     f'The {side} {order_id} have been filled '
                     f'before being canceled'
                 )
-                self.stratlog.warning(msg)
+                self.config.stratlog.warning(msg)
                 return False
             else:
                 self.order_logger_formatter(cancel_side, order_id, price, 0)
@@ -322,8 +286,8 @@ class APIManager(UtilsMixin):
         self.err_counter += 1
         if self.err_counter >= 10:
             msg = 'api error >= 10'
-            if self.config.slack_channel:
-                self.config.send_slack_message(msg)
+            if self.config.slack:
+                self.config.slack.send_slack_message(msg)
             else:
                 self.config.strat.warning(msg)
             self.err_counter = 0
@@ -385,7 +349,7 @@ class APIManager(UtilsMixin):
     def display_user_balance(self):
         """Display the user balance"""
         for key, value in self.config.user_balance.items():
-            self.stratlog.info(f'{key}: {value}')
+            self.config.stratlog.info(f'{key}: {value}')
         return
 
     def format_order(self, order_id, price, amount, timestamp, date):
@@ -471,7 +435,7 @@ class APIManager(UtilsMixin):
                 self.config.stratlog.info(self.format_order_to_display(order))
         if orders['sell']:
             for order in orders['sell']:
-                self.stratlog.info(self.format_order_to_display(order))
+                self.config.stratlog.info(self.format_order_to_display(order))
         return
 
     def format_order_to_display(self, order):
@@ -496,9 +460,9 @@ class APIManager(UtilsMixin):
             f'{{"side": "{str(side)}", "order_id": "{str(order_id)}", '
             f'"price": "{str(price)}", "amount": "{str(amount)}", '
             f'"timestamp": "{timestamp}", "datetime": "{date_time}" }}')
-        if self.config.slack_channel:
-            self.config.send_slack_message(msg)
+        if self.config.slack:
+            self.config.slack.send_slack_message(msg)
         else:
-            self.stratlog.warning(msg)
+            self.config.stratlog.warning(msg)
         return timestamp, date_time
 
