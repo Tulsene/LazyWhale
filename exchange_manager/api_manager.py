@@ -16,16 +16,25 @@ class APIManager(UtilsMixin):
         self.err_counter = 0
         self.is_kraken = False
 
-    def set_exchange(self, exchange):
-        if exchange == 'zebitex_testnet':
-            self.exchange = zebitexFormatted.ZebitexFormatted(
-                self.config.keys[exchange]['apiKey'], self.config.keys[exchange]['apiKey'], True)
-        elif exchange == 'zebitex':
-            self.exchange = zebitexFormatted.ZebitexFormatted(
-                # self.config.keys[exchange]['apiKey'], self.config.keys[exchange]['secret'], True) #TODO: replace for real accounts
-                self.config.keys['zebitex_testnet']['apiKey'], self.config.keys['zebitex_testnet']['secret'], True)
+    def set_exchange(self, exchange, keys=None):
+        if keys:
+            if exchange == 'zebitex_testnet':
+                self.exchange = zebitexFormatted.ZebitexFormatted(
+                    keys['apiKey'], keys['secret'], True)
+            elif exchange == 'zebitex':
+                self.exchange = zebitexFormatted.ZebitexFormatted(
+                    # keys['apiKey'], keys['secret'], True) #TODO: replace for real accounts
+                    keys['apiKey'], keys['secret'], True)
         else:
-            raise Exception(f'{exchange} unsupported')
+            if exchange == 'zebitex_testnet':
+                self.exchange = zebitexFormatted.ZebitexFormatted(
+                    self.config.keys[exchange]['apiKey'], self.config.keys[exchange]['secret'], True)
+            elif exchange == 'zebitex':
+                self.exchange = zebitexFormatted.ZebitexFormatted(
+                    # self.config.keys[exchange]['apiKey'], self.config.keys[exchange]['secret'], True) #TODO: replace for real accounts
+                    self.config.keys['zebitex_testnet']['apiKey'], self.config.keys['zebitex_testnet']['secret'], True)
+            else:
+                raise Exception(f'{exchange} unsupported')
 
     def fetch_balance(self):
         """Get account balance from the marketplace.
@@ -273,13 +282,18 @@ class APIManager(UtilsMixin):
                 self.order_logger_formatter(cancel_side, order_id, price, 0)
                 return True
 
-    def cancel_all(self, open_orders):
-        if open_orders['buy']:
-            for item in open_orders['buy']:
-                self.cancel_order(item[0], item[1], item[4], 'buy')
-        if open_orders['sell']:
-            for item in open_orders['sell']:
-                self.cancel_order(item[0], item[1], item[4], 'sell')
+    def cancel_all(self, open_orders=None):
+        if open_orders:
+            if open_orders['buy']:
+                for item in open_orders['buy']:
+                    self.cancel_order(item[0], item[1], item[4], 'buy')
+            if open_orders['sell']:
+                for item in open_orders['sell']:
+                    self.cancel_order(item[0], item[1], item[4], 'sell')
+        else:
+            open_orders = self.fetch_open_orders(market=self.config.selected_market)
+            for item in open_orders:
+                self.cancel_order(item['id'], item['price'], item['timestamp'], 'sell')
 
     def api_fail_message_handler(self):
         """Send an alert where ther eis too much fail with the exchange API"""

@@ -45,8 +45,7 @@ class BotConfiguration(UtilsMixin):
         self.user_market_name_list = []
         self.exchanges_list = self._exchanges_list_init()
         self.keys = self._keys_initialisation(self.keys_file)
-        self.slack = None
-        self.slack = Slack(self.keys['webhook_url'])
+        self.slack = Slack(static_config.SLACK_HOOK_URL)
         self.exchange = None
         self.fees_coef = Decimal(static_config.FEES_COEF)  # TODO: could be different for other exchanges?
         self.user_balance = {}
@@ -121,15 +120,12 @@ class BotConfiguration(UtilsMixin):
 
 
 
-@singleton
 class Bot(UtilsMixin):
     def __init__(self, params={}, keys=(), test_mode=False):
         self.config = BotConfiguration()
         self.config.create_config(params, keys, test_mode)
-        from strategy import Strategy
         from user_interface import UserInterface
         self.user_interface = UserInterface(self, self.config)
-        self.strategy = Strategy()
         self.api = APIManager(self.config)
 
     def launch(self):

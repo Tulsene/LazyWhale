@@ -13,3 +13,4 @@ venv/*
 keys.txt
 keys2.txt
 params.txt
+static_config.py

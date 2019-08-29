@@ -23,6 +23,7 @@ class Zebitex():
         self.secret_key = str(secret_key) if secret_key else None
         self.url = "https://staging.zebitex.com" if is_staging else "https://zebitex.com"
 
+
     #
     # Private methods
     #
