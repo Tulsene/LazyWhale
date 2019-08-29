@@ -23,9 +23,9 @@ class BotConfiguration(UtilsMixin):
         from logger.logger import Logger
         from logger.slack import Slack
         self.bot_obj = bot_obj
-        self.test_mode = test_mode  #TODO: test_mode: True doesn't work
-        self.test_params = params   #TODO: only for test_mode?
-        self.test_keys = keys       #TODO: only for test_mode?
+        self.test_mode = test_mode
+        self.test_params = params
+        self.test_keys = keys
         # Without assigning it first, it always return true
         self.script_position = os.path.dirname(sys.argv[0])
         self.root_path = f'{self.script_position}/' if self.script_position else ''
@@ -35,18 +35,18 @@ class BotConfiguration(UtilsMixin):
                                log_formatter='%(message)s',
                                console_level=logging.DEBUG,
                                file_level=logging.INFO,
-                               root_path=self.root_path+"/logger/").create()
+                               root_path=self.root_path+"logger/").create()
         self.applog = Logger(name='debugs',
                              log_file='app.log',
                              log_formatter='%(asctime)s - %(levelname)s - %(message)s',
                              console_level=logging.DEBUG,
                              file_level=logging.DEBUG,
-                             root_path=self.root_path+"/logger/").create()
+                             root_path=self.root_path+"logger/").create()
         self.user_market_name_list = []
         self.exchanges_list = self._exchanges_list_init()
         self.keys = self._keys_initialisation(self.keys_file)
         self.slack = None
-        self.slack = Slack(static_config.SLACK_HOOCKS_URL)
+        self.slack = Slack(self.keys['webhook_url'])
         self.exchange = None
         self.fees_coef = Decimal(static_config.FEES_COEF)  # TODO: could be different for other exchanges?
         self.user_balance = {}
@@ -134,7 +134,7 @@ class Bot(UtilsMixin):
 
     def launch(self):
         self.set_params()
-        self.plase_init_orders()
+        self.place_init_orders()
         self.main_loop()
 
     def set_params(self):
@@ -144,7 +144,7 @@ class Bot(UtilsMixin):
         else:
             self.user_interface.ask_for_params()   #check_for_enough_funds called inside
 
-    def plase_init_orders(self):
+    def place_init_orders(self):
         """
         - delete priv orders
         - create new orders according config
@@ -1125,17 +1125,9 @@ class Bot(UtilsMixin):
                 orders['sell'].append(formated_order)
         return orders
 
-
-    # def exit(self):
-    #     """Clean program exit"""
-    #     self.applog.critical("End the program")
-    #     sys.exit(0)
-
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.
         """
-        # marketplace_name = self.select_marketplace()
-        # self.selected_market = self.select_market()
         if self.config.test_mode:
             params = self.check_params(self.config.testing_params)
             self.config.params = self.check_for_enough_funds(params)

@@ -2,8 +2,9 @@ from zebitex import Zebitex, ZebitexError
 from decimal import *
 from datetime import datetime, date, timedelta
 import time
+from utils.helper import UtilsMixin
 
-class ZebitexFormatted():
+class ZebitexFormatted(UtilsMixin):
     """"Zebittex api formatter to get almost same output as ccxt"""
     getcontext().prec = 8
 
@@ -214,3 +215,67 @@ class ZebitexFormatted():
     def calcultate_paid_fees(self, amt_filled):
         return (Decimal(amt_filled) * self.fees).quantize(Decimal('.00000001'),
                                                       rounding=ROUND_HALF_EVEN)
+
+
+    """ START - IT'S SHITTY BUT IT REQUIRED ONLY FOR CURRENT TEST FROM test.py - START """
+
+    def cancel_order_smart(self, order_id, price, timestamp, side):
+        """Cancel an order with it's id.
+        Retry 1000 times, send an email each 10 tries.
+        Warning : Not connard proofed!
+        order_id: string, marketplace order id.
+        price: string, price of the order.
+        timestamp: int, timestamp of the order.
+        side: string, buy or sell.
+        return: boolean, True if the order is canceled correctly, False when the
+        order have been filled before it's cancellation"""
+        cancel_side = 'cancel_buy' if side == 'buy' else 'cancel_sell'
+        try:
+            rsp = self.cancel_order(order_id)
+            if rsp:
+                self.order_logger_formatter(cancel_side, order_id, price, 0)
+                return True
+            else:
+                return rsp
+        except Exception as e:
+            time.sleep(0.5)
+            orders = self.get_orders(self.config.selected_market)[side]
+            is_open = self.does_an_order_is_open(price, orders)
+            if is_open:
+                rsp = self.exchange.cancel_order(order_id)
+                if rsp:
+                    self.err_counter = 0
+                    return rsp
+            trades = self.get_user_history(self.config.selected_market)[side]
+            is_traded = self.order_in_history(price, trades, side, timestamp)
+            if is_traded:
+                msg = (
+                    f'The {side} {order_id} have been filled '
+                    f'before being canceled'
+                )
+                self.config.stratlog.warning(msg)
+                return False
+            else:
+                self.order_logger_formatter(cancel_side, order_id, price, 0)
+                return True
+
+    def cancel_all(self, open_orders):
+        if open_orders['buy']:
+            for item in open_orders['buy']:
+                self.cancel_order_smart(item[0], item[1], item[4], 'buy')
+        if open_orders['sell']:
+            for item in open_orders['sell']:
+                self.cancel_order_smart(item[0], item[1], item[4], 'sell')
+
+    def order_logger_formatter(self, side, order_id, price, amount):
+        """Format into a string an order for the logger
+        side : string. buy, cancel_buy, sell or cancel_sell
+        order_id: string, order id on the marketplace.
+        price: Decimal.
+        amount: Decimal.
+        return: tuple with strings."""
+        timestamp = self.timestamp_formater()
+        date_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        return timestamp, date_time
+
+    """END IT'S SHITTY BUT IT REQUIRED FOR CURRENT TEST FROM test.py END"""

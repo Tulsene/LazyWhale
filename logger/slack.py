@@ -3,32 +3,6 @@ import requests
 from utils.singleton import singleton
 
 class Slack():
-    # def auth(self, token, channel, logger):
-    #     self.token = token
-    #     self.channel = channel
-    #     self.logger = logger
-    #     self.client = None
-    #     # import slack
-    #     # self.client = slack.WebClient(self.token)
-    #     # self.send_slack_message('Start routine.')
-    #
-    # def send_slack_message(self, message):
-    #     """Send a message to slack channel.
-    #     message: string.
-    #     return: slack object"""
-    #     try:
-    #         message = str(message)
-    #         self.logger.warning(message)
-    #         rsp = self.client.chat_postMessage(
-    #             channel=self.channel,
-    #             text=message)
-    #         if rsp['ok'] is False:
-    #             for item in rsp:
-    #                 raise ValueError(item)
-    #         return rsp
-    #     except Exception as e:
-    #         self.logger.critical(f'Something went wrong with slack: {e}')
-    #         return
     def __init__(self, webhook_url):
         self.webhook_url = self.webhook_check(webhook_url)
 

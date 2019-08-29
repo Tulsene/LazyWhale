@@ -15,7 +15,6 @@ from pathlib import Path
 from datetime import datetime
 from operator import itemgetter
 import pdb
-import slack
 
 
 class LazyStarter:
