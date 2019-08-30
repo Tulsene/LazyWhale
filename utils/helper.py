@@ -214,3 +214,16 @@ class UtilsMixin:
                 return Decimal(whole_part)+Decimal('0.'+fractional_part).quantize(Decimal('0.00000001'), rounding=ROUND_HALF_EVEN)
         except Exception as e:
             return
+
+    def increment_coef_buider(self, nb):
+        """Formating increment_coef.
+        nb: int, the value to increment in percentage.
+        return: Decimal, formated value.
+        """
+        try:
+            nb = Decimal(str(nb))
+            nb = Decimal('1') + nb / Decimal('100')
+            self.param_checker_interval(nb)
+            return nb
+        except Exception as e:
+            raise ValueError(e)

@@ -29,7 +29,7 @@ class BotConfiguration(UtilsMixin):
         # Without assigning it first, it always return true
         self.script_position = os.path.dirname(sys.argv[0])
         self.root_path = f'{self.script_position}/' if self.script_position else ''
-        self.keys_file = f'{self.root_path}/{static_config.KEYS_FILE}'
+        self.keys_file = f'{self.root_path}{static_config.KEYS_FILE}'
         self.stratlog = Logger(name='stratlogs',
                                log_file='strat.log',
                                log_formatter='%(message)s',
@@ -225,7 +225,7 @@ class Bot(UtilsMixin):
                     # When only few buy orders are planned to be upper the
                     # actual price
                     else:
-                        while self.intervals[i] >= price:
+                        while self.config.intervals[i] >= price:
                             incoming_sell_funds += self.multiplier(
                                 params['amount'], self.config.fees_coef)
                             i -= 1
@@ -372,13 +372,13 @@ class Bot(UtilsMixin):
                     orders_to_remove['sell'].append(i)
                     continue
                 if order[2] != self.config.params['amount']:
-                    if not self.test_mode:
+                    if not self.config.test_mode:
                         if self.user_interface.simple_question(f'{order} {q2}'):
                             self.api.cancel_order(order[0], order[1], order[4], 'sell')
                             orders_to_remove['sell'].append(i)
                             continue
             else:
-                if not self.test_mode:
+                if not self.config.test_mode:
                     if self.user_interface.simple_question(f'{q} {order}'):
                         self.api.cancel_order(order[0], order[1], order[4], 'sell')
                 orders_to_remove['sell'].append(i)
@@ -388,7 +388,7 @@ class Bot(UtilsMixin):
                 if order[1] == open_orders['sell'][i - 1][1] \
                         and i - 1 not in orders_to_remove['sell']:
                     order_to_select = [order, open_orders['sell'][i - 1]]
-                    if self.test_mode:
+                    if self.config.test_mode:
                         rsp = 1
                     else:
                         rsp = int(self.user_interface.ask_to_select_in_a_list(q3, order_to_select))
@@ -562,12 +562,13 @@ class Bot(UtilsMixin):
             f'set_safety_orders(), lowest_buy_index: {lowest_buy_index}, '
             f'highest_sell_index: {highest_sell_index}')
 
-        if lowest_buy_index > 1:
+        lowest_buy_index = lowest_buy_index-1
+        highest_sell_index = highest_sell_index+1
+        if lowest_buy_index > 0:
             buy_sum = Decimal('0')
             self.config.stratlog.debug(f'lowest_buy_index: {lowest_buy_index}')
             while lowest_buy_index > 0:
-                buy_sum += self.multiplier(self.config.params['amount'],
-                                           self.config.intervals[lowest_buy_index]) / self.config.safety_buy_value
+                buy_sum += self.multiplier(self.config.params['amount'], self.config.intervals[lowest_buy_index], Decimal('10E8'))
                 lowest_buy_index -= 1
             self.config.stratlog.debug(
                 f'buy_sum: {buy_sum}, lowest_buy_index: {lowest_buy_index}')
@@ -577,10 +578,10 @@ class Bot(UtilsMixin):
             if self.config.open_orders['buy'][0][1] != self.config.safety_buy_value:
                 self.config.open_orders['buy'].insert(0, self.create_fake_buy())
 
-        if highest_sell_index < self.config.max_sell_index + 1:
+        if highest_sell_index <= self.config.max_sell_index:
             sell_sum = Decimal('0')
             self.config.stratlog.debug(f'highest_sell_index: {highest_sell_index}')
-            while highest_sell_index < self.config.max_sell_index:
+            while highest_sell_index <= self.config.max_sell_index:
                 sell_sum += self.config.params['amount']
                 highest_sell_index += 1
             self.config.stratlog.debug(
@@ -913,7 +914,7 @@ class Bot(UtilsMixin):
                 # Set the range of sell orders to create
                 start_index = self.config.intervals.index(
                     self.config.open_orders['sell'][-1][1]) + 1
-                target = start_index + self.params['nb_sell_to_display'] \
+                target = start_index + self.config.params['nb_sell_to_display'] \
                          - len(self.config.open_orders['sell']) - 1
                 if target > len(self.config.intervals) - 2:
                     target = len(self.config.intervals) - 2
@@ -1041,7 +1042,7 @@ class Bot(UtilsMixin):
         side: string, buy or sell.
         return: Decimal, sum of available funds for the strategy."""
         orders = self.orders_price_ordering(
-            self.get_orders(self.selected_market))
+            self.get_orders(self.config.selected_market))
         orders_outside_strat = []
         # simple addition of funds stuck in open order and will be used for the
         # strategy
@@ -1121,23 +1122,6 @@ class Bot(UtilsMixin):
                 orders['sell'].append(formated_order)
         return orders
 
-    def lw_initialisation(self):
-        """Initializing parameters, check parameters then initialize LW.
-        """
-        if self.config.test_mode:
-            params = self.check_params(self.config.testing_params)
-            self.config.params = self.check_for_enough_funds(params)
-        else:
-            self.ask_for_params()
-        open_orders = self.remove_safety_before_init(self.orders_price_ordering(
-            self.get_orders(
-                self.config.selected_market)))
-        self.config.open_orders = self.strat_init(open_orders)
-        self.set_safety_orders(self.config.intervals.index(self.config.open_orders['buy'][0][1]),
-                               self.config.intervals.index(self.config.open_orders['sell'][-1][1]))
-        self.set_id_list_according_intervals()
-        self.update_id_list()
-        self.main_loop()
 
     def main_loop(self):
         """Do the lazy whale strategy.

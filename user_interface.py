@@ -102,7 +102,7 @@ class UserInterface(UtilsMixin):
                 self.param_checker_amount(amount, minimum_amount)
                 return amount
             except Exception as e:
-                self.applog.warning(e)
+                self.config.applog.warning(e)
 
     def ask_param_increment(self):
         """Ask the user to enter a value for the spread between each order.
@@ -121,12 +121,12 @@ class UserInterface(UtilsMixin):
                 range_bot = self.ask_param_range_bot()
                 range_top = self.ask_param_range_top()
                 increment = self.ask_param_increment()
-                intervals = self.interval_generator(range_bot, range_top,
+                intervals = self.bot.interval_generator(range_bot, range_top,
                                                     increment)
                 is_valid = True
             except Exception as e:
                 self.config.applog.warning(e)
-        self.intervals = intervals
+        self.config.intervals = intervals
         return {'range_bot': range_bot, 'range_top': range_top,
                 'increment_coef': increment}
 
@@ -135,29 +135,29 @@ class UserInterface(UtilsMixin):
         spread top automatically
         return: dict, of decimal values
         """
-        price = self.get_market_last_price(self.config.selected_market)
+        price = self.bot.api.get_market_last_price(self.config.selected_market)
         msg = f'The actual price of {self.config.selected_market} is {price}'
         self.config.applog.info(msg)
         q = (
             f'Please select the price of your highest buy order '
             f'(spread_bot) in the list')
-        position = self.ask_to_select_in_a_list(q, self.intervals)
-        return {'spread_bot': self.intervals[position],
-                'spread_top': self.intervals[position + 1]}  # Can be improved by suggesting a value
+        position = self.ask_to_select_in_a_list(q, self.config.intervals)
+        return {'spread_bot': self.config.intervals[position],
+                'spread_top': self.config.intervals[position + 1]}  # Can be improved by suggesting a value
 
     def ask_nb_to_display(self):
         """Ask how much buy and sell orders are going to be in the book.
         return: dict, nb_buy_to_display + nb_sell."""
         q = (
             f'How many buy orders do you want to display? It must be '
-            f'less than {len(self.intervals)}. 0 value = '
-            f'{len(self.intervals)} :')
+            f'less than {len(self.config.intervals)}. 0 value = '
+            f'{len(self.config.intervals)} :')
         nb_buy_to_display = self.ask_question(q, self.str_to_int,
                                               self.param_checker_nb_to_display)
         q = (
             f'How many sell orders do you want to display? It must be '
-            f'less than {len(self.intervals)}. 0 value = '
-            f'{len(self.intervals)} :')
+            f'less than {len(self.config.intervals)}. 0 value = '
+            f'{len(self.config.intervals)} :')
         nb_sell_to_display = self.ask_question(q, self.str_to_int,
                                                self.param_checker_nb_to_display)
         return {'nb_buy_to_display': nb_buy_to_display,
@@ -195,6 +195,17 @@ class UserInterface(UtilsMixin):
         if not self.config.params:
             self.config.params = self.enter_params()
         self.simple_file_writer(file_path, self.dict_to_str(self.config.params))
+        return True
+
+    def param_checker_nb_to_display(self, nb):
+        """Verifie the nb of order to display
+        nb: int"""
+        if nb > len(self.config.intervals) and nb < 0:
+            msg = (
+                f'The number of order to display is too low (<0) '
+                f'or high {len(self.config.intervals)}'
+            )
+            raise ValueError(msg)
         return True
 
     def enter_params(self):
@@ -236,7 +247,7 @@ class UserInterface(UtilsMixin):
                 if choice < 3:
                     params[editable_params[choice][0]] = \
                         editable_params[choice][1]()
-                    self.bot.intervals = self.bot.interval_generator(
+                    self.config.intervals = self.bot.interval_generator(
                         params['range_bot'], params['range_top'],
                         params['increment_coef'])
                     params = self.change_spread(params)
@@ -274,19 +285,19 @@ class UserInterface(UtilsMixin):
                 else False
 
             if self.config.user_market_name_list[choice] == 'zebitex':
-                self.exchange = self.bot.api.set_exchange('zebitex') #TODO: or zebitex_testnet
+                self.config.exchange = self.bot.api.set_exchange('zebitex') #TODO: or zebitex_testnet
                     # zebitexFormatted.ZebitexFormatted(
                     # self.config.keys[self.config.user_market_name_list[choice]]['apiKey'],
                     # self.config.keys[self.config.user_market_name_list[choice]]['secret'],
                     # False)
             elif self.config.user_market_name_list[choice] == 'zebitex_testnet':
-                self.exchange = self.bot.api.set_exchange('zebitex') #TODO: or zebitex_testnet
+                self.config.exchange = self.bot.api.set_exchange('zebitex') #TODO: or zebitex_testnet
                     # zebitexFormatted.ZebitexFormatted(
                     # self.config.keys[self.config.user_market_name_list[choice]]['apiKey'],
                     # self.config.keys[self.config.user_market_name_list[choice]]['secret'],
                     # True)
             else:
-                self.exchange = eval(
+                self.config.exchange = eval(
                     f'ccxt.{self.config.user_market_name_list[choice]}'
                     f'({str(self.config.keys[self.config.user_market_name_list[choice]])})')
         self.bot.api.load_markets()
@@ -298,7 +309,7 @@ class UserInterface(UtilsMixin):
         """
         if market:
             if market not in self.bot.api.exchange.symbols:
-                raise ValueError(f'{market} not in self.exchange.symbols')
+                raise ValueError(f'{market} not in self.config.exchange.symbols')
             limitation = self.limitation_to_btc_market(market)
             if limitation != True:
                 raise ValueError(limitation)
@@ -306,11 +317,11 @@ class UserInterface(UtilsMixin):
             valid_choice = False
             while valid_choice is False:
                 self.config.applog.info(
-                    f'Please enter the name of a market: {self.exchange.symbols}')
+                    f'Please enter the name of a market: {self.bot.api.exchange.symbols}')
                 market = input(' >> ').upper()
                 limitation = self.limitation_to_btc_market(market)
                 if limitation is True:
-                    if market in self.exchange.symbols:
+                    if market in self.bot.api.exchange.symbols:
                         valid_choice = True
                 else:
                     self.config.applog.info(limitation)
