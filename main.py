@@ -122,6 +122,7 @@ class BotConfiguration(UtilsMixin):
 
 class Bot(UtilsMixin):
     def __init__(self, params={}, keys=(), test_mode=False):
+        self.is_init_order_plased = False
         self.config = BotConfiguration()
         self.config.create_config(params, keys, test_mode)
         from user_interface import UserInterface
@@ -155,6 +156,7 @@ class Bot(UtilsMixin):
                                self.config.intervals.index(self.config.open_orders['sell'][-1][1]))
         self.set_id_list_according_intervals()
         self.update_id_list()
+        self.is_init_order_plased = True
 
     def check_for_enough_funds(self, params):
         """Check if the user have enough funds to run LW with he's actual

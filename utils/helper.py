@@ -227,3 +227,9 @@ class UtilsMixin:
             return nb
         except Exception as e:
             raise ValueError(e)
+
+    def flip_side(self, side):
+        if side == 'buy':
+            return 'sell'
+        elif side == 'sell':
+            return 'buy'
