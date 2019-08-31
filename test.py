@@ -28,7 +28,7 @@ test_case_by_open_orders_number_config = [
             },
             'sell':{}
         },
-        'output':{
+        'output_nb':{
             'buy_nb':4,
             'sell_nb':4
         }
@@ -171,17 +171,26 @@ class TestCases(UtilsMixin):
 
     def execute(self):
         for test_case, test_case_data in self.test_case_data.items():
-            eval('self.'+test_case)(test_case_data)
+            if self.is_valid_test(test_case, test_case_data):
+                eval('self.'+test_case)(test_case_data=test_case_data)
+
+    def is_valid_test(self, test_case, test_case_data):
+        if hasattr(self, test_case):
+            return True
+        #TODO: check test_case_data data format
 
     def testing_by_open_orders_number(self, test_case_data):
         if not test_case_data:
             self.logger.error(f"ERROR: test_case_data required")
             self.exit()
         open_orders = deepcopy(self.bot_obj.config.open_orders)
-        open_orders['buy'] = reversed(open_orders['buy'])
+        open_orders['buy'] = list(reversed(open_orders['buy']))
+        input_nb = self.get_input_nb()
         for test_case in test_case_data:
             for side in ['buy','sell']:
-                #take order according test case data
+                if not input_nb[side] == len(open_orders[side]):
+                    self.logger.error(f"Unexpected strategy behaviour: expected {str(test_case['output'][side+'_nb'])} open orders, but got {str(len(updated_open_orders[side]))}")
+                    self.exit()
                 for index, order in enumerate(open_orders[side]):
                     if index in test_case['input'][side]:
                         amount_coef = test_case['input'][side][index]['amount_percent']
@@ -194,8 +203,12 @@ class TestCases(UtilsMixin):
             updated_open_orders = self.test_obj.lazy_account.get_orders(self.test_obj.selected_market)
             for side in ['buy','sell']:
                 if not test_case['output'][side+'_nb'] == len(updated_open_orders[side]):
-                    self.logger(f"Unexpected strategy behaviour: expected {str(test_case['output'][side+'_nb'])} open orders, but got {str(len(updated_open_orders[side]))}")
+                    self.logger.error(f"Unexpected strategy behaviour: expected {str(test_case['output'][side+'_nb'])} open orders, but got {str(len(updated_open_orders[side]))}")
                     self.exit()
+
+    def get_input_nb(self):
+        return {'buy': self.bot_obj.config.params['nb_buy_to_display'], 'sell':self.bot_obj.config.params['nb_sell_to_display']}
+
 
 if __name__ == "__main__":
     l = LazyTest()
