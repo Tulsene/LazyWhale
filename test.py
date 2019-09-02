@@ -15,24 +15,9 @@ from logger.logger import Logger
 from logger.slack import Slack
 from static_config import SLEEP_FOR_TEST
 from utils.helper import UtilsMixin
+from test_case_config import *
 
 
-
-
-test_case_by_open_orders_number_config = [
-    {
-        'input':{
-            'buy':{
-                #order book index: {detailed data}
-                0:{'order_book_index':0, 'amount_percent':1}  #amount_percent 1 == 100%
-            },
-            'sell':{}
-        },
-        'output_nb':{
-            'buy_nb':4,
-            'sell_nb':4
-        }
-}]
 
 
 
@@ -117,6 +102,7 @@ class LazyTest():
         a_user_account = APIManager(config=self)
         a_user_account.set_exchange('zebitex_testnet', keys=keys[self.a_user_account])
         a_user_account.load_markets()
+        a_user_account.cancel_all()
         self.a_user_account = a_user_account
         return
 
@@ -131,7 +117,6 @@ class LazyTest():
         self.a_user_account.cancel_all()
         l = main.Bot(params=self.lazy_params, keys=self.lazy_keys, test_mode=True)
         t = threading.Thread(target=l.launch, name='lazyWhaleBot')
-        # t.daemon = True
         t.start()
         #TODO: test cases, check strategy behaviour
         while not l.is_init_order_plased:
@@ -140,18 +125,18 @@ class LazyTest():
         open_orders['buy'] = reversed(open_orders['buy'])
         TestCases(
             test_obj=self,
-            bot_obj=l,
-            testing_by_open_orders_number=test_case_by_open_orders_number_config
+            bot=l,
         ).execute()
         sleep(15)
 
 
 
 
+
 class TestCases(UtilsMixin):
-    def __init__(self, test_obj, bot_obj, logger=None, testing_by_open_orders_number=None):
+    def __init__(self, test_obj, bot, logger=None):
         self.test_obj = test_obj
-        self.bot_obj = bot_obj
+        self.bot = bot
         if not logger:
             script_position = os.path.dirname(sys.argv[0])
             root_path = f'{script_position}/' if script_position else ''
@@ -165,50 +150,109 @@ class TestCases(UtilsMixin):
         else:
             self.logger = logger
         self.test_case_data = {
-            'testing_by_open_orders_number':testing_by_open_orders_number
-            #TODO: add new test case here as new dict element. Test case must have a key that equal to the name of the method..
+            # 'testing_by_open_orders_number':test_case_by_open_orders_number,
+            'testing_by_open_orders_ids':test_case_by_open_orders_ids,
+            #add new test case here as new dict element. Test case must have a key that equal to the name of the method..
         }
 
     def execute(self):
-        for test_case, test_case_data in self.test_case_data.items():
-            if self.is_valid_test(test_case, test_case_data):
-                eval('self.'+test_case)(test_case_data=test_case_data)
+        while True:
+            for test_case, test_case_data in self.test_case_data.items():
+                if self.is_valid_test(test_case, test_case_data):
+                    #TODO: sync and async ways
+                    eval('self.'+test_case)(test_case_data=test_case_data)
+                    sleep(2)
 
     def is_valid_test(self, test_case, test_case_data):
         if hasattr(self, test_case):
             return True
-        #TODO: check test_case_data data format
+        #TODO: add others validation methods
+
 
     def testing_by_open_orders_number(self, test_case_data):
         if not test_case_data:
             self.logger.error(f"ERROR: test_case_data required")
             self.exit()
-        open_orders = deepcopy(self.bot_obj.config.open_orders)
+        open_orders = deepcopy(self.bot.config.open_orders)
         open_orders['buy'] = list(reversed(open_orders['buy']))
         input_nb = self.get_input_nb()
         for test_case in test_case_data:
             for side in ['buy','sell']:
                 if not input_nb[side] == len(open_orders[side]):
-                    self.logger.error(f"Unexpected strategy behaviour: expected {str(test_case['output'][side+'_nb'])} open orders, but got {str(len(updated_open_orders[side]))}")
+                    self.logger.error(f"Unexpected strategy behaviour: expected {str(test_case['output_nb'][side+'_nb'])} open orders, but got {str(len(open_orders[side]))}")
                     self.exit()
                 for index, order in enumerate(open_orders[side]):
                     if index in test_case['input'][side]:
                         amount_coef = test_case['input'][side][index]['amount_percent']
                         amount = order[3] * Decimal(amount_coef)
-                        eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
+                        result = eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
                     else:
                         #TODO handle this case
                         pass
             sleep(SLEEP_FOR_TEST)
             updated_open_orders = self.test_obj.lazy_account.get_orders(self.test_obj.selected_market)
             for side in ['buy','sell']:
-                if not test_case['output'][side+'_nb'] == len(updated_open_orders[side]):
-                    self.logger.error(f"Unexpected strategy behaviour: expected {str(test_case['output'][side+'_nb'])} open orders, but got {str(len(updated_open_orders[side]))}")
+                if not test_case['output_nb'][side+'_nb'] == len(updated_open_orders[side]):
+                    #check again if in this moment safety orders will be cancelled
+                    msg = f"Unexpected strategy behaviour: expected {str(test_case['output_nb'][side+'_nb'])} open orders, but got {str(len(updated_open_orders[side]))}"
+                    self.logger.error(msg)
+                    self.test_obj.slack.send_slack_message(msg)
+                    self.exit()
+
+
+
+
+
+    def testing_by_open_orders_ids(self, test_case_data):
+        if not test_case_data:
+            self.logger.error(f"ERROR: test_case_data required")
+            self.exit()
+        raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(self.test_obj.selected_market)
+        real_id_list = sorted([order['id'] for order in raw_open_orders])
+        bot_config_id_list = sorted(self.get_input_ids())
+        filled_order_ids = []
+        if not real_id_list == bot_config_id_list:
+            msg = f"Unexpected strategy behaviour: expected {str(real_id_list)} open orders, but got {str(bot_config_id_list)}"
+            self.logger.error(msg)
+            self.test_obj.slack.send_slack_message(msg)
+            self.exit()
+
+
+        open_orders = deepcopy(self.bot.config.open_orders)
+        open_orders['buy'] = list(reversed(open_orders['buy']))
+        for test_case in test_case_data:
+            for side in ['buy','sell']:
+                for index, order in enumerate(open_orders[side]):
+                    if index in test_case['input'][side]:
+                        amount_coef = test_case['input'][side][index]['amount_percent']
+                        amount = order[3] * Decimal(amount_coef)
+                        eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
+                        filled_order_ids.append(order[0])
+                    else:
+                        #TODO handle this case
+                        pass
+            sleep(SLEEP_FOR_TEST)
+            updated_raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(self.test_obj.selected_market)
+            updated_real_id_list = sorted([order['id'] for order in updated_raw_open_orders])
+            for filled_order_id in filled_order_ids:
+                if filled_order_id in updated_real_id_list:
+                    msg = f"Unexpected strategy behaviour: expected that order {filled_order_id} already filled, but it's in order book now"
+                    self.logger.error(msg)
+                    self.test_obj.slack.send_slack_message(msg)
                     self.exit()
 
     def get_input_nb(self):
-        return {'buy': self.bot_obj.config.params['nb_buy_to_display'], 'sell':self.bot_obj.config.params['nb_sell_to_display']}
+        return {
+            'buy': self.bot.config.params['nb_buy_to_display'] + 1,   # +1 to nb_{side}_to_display because of safety orders
+            'sell':self.bot.config.params['nb_sell_to_display'] + 1
+        }
 
+    def get_input_ids(self):
+        return [id for id in self.bot.config.id_list if id]
+
+    def check_if_missed_order_is_safety(self):
+
+        return
 
 if __name__ == "__main__":
     l = LazyTest()

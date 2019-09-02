@@ -19,9 +19,9 @@ class UserInterface(UtilsMixin):
         return: boolean True or None, yes of no
         """
         while True:
-            self.config.applog.info(q)
+            self.bot.applog.info(q)
             choice = input(' >> ')
-            self.config.applog.debug(choice)
+            self.bot.applog.debug(choice)
             if choice == 'y':
                 return True
             if choice == 'n':
@@ -35,40 +35,40 @@ class UserInterface(UtilsMixin):
                        within the requested parameters
         return: formated (int, decimal, ...) choice of the user
         """
-        self.config.applog.info(q)
+        self.bot.applog.info(q)
         while True:
             try:
                 choice = input(' >> ')
-                self.config.applog.debug(choice)
+                self.bot.applog.debug(choice)
                 choice = formater_func(choice)
                 if control_func:
                     control_func(choice)
                 return choice
             except Exception as e:
-                self.config.applog.info(f'{q} invalid choice: {choice} -> {e}')
+                self.bot.applog.info(f'{q} invalid choice: {choice} -> {e}')
 
     def ask_to_select_in_a_list(self, q, a_list):
         """Ask to the user to choose between items in a list
         a_list: list.
         q: string.
         return: int, the position of this item """
-        self.config.applog.info(q)
+        self.bot.applog.info(q)
         q = ''
         for i, item in enumerate(a_list, start=1):
             q += f'{i}: {item}, '
-        self.config.applog.info(q)
+        self.bot.applog.info(q)
         while True:
             try:
                 choice = input(' >> ')
-                self.config.applog.debug(choice)
+                self.bot.applog.debug(choice)
                 choice = self.str_to_int(choice)
                 if 0 < choice <= i:
                     return choice - 1
                 else:
                     msg = f'You need to enter a number between 1 and {i}'
-                    self.config.applog.info(msg)
+                    self.bot.applog.info(msg)
             except Exception as e:
-                self.config.applog.info(f'{q} invalid choice: {choice} -> {e}')
+                self.bot.applog.info(f'{q} invalid choice: {choice} -> {e}')
         return choice
 
     def ask_param_range_bot(self):
@@ -102,7 +102,7 @@ class UserInterface(UtilsMixin):
                 self.param_checker_amount(amount, minimum_amount)
                 return amount
             except Exception as e:
-                self.config.applog.warning(e)
+                self.bot.applog.warning(e)
 
     def ask_param_increment(self):
         """Ask the user to enter a value for the spread between each order.
@@ -125,7 +125,7 @@ class UserInterface(UtilsMixin):
                                                     increment)
                 is_valid = True
             except Exception as e:
-                self.config.applog.warning(e)
+                self.bot.applog.warning(e)
         self.config.intervals = intervals
         return {'range_bot': range_bot, 'range_top': range_top,
                 'increment_coef': increment}
@@ -137,7 +137,7 @@ class UserInterface(UtilsMixin):
         """
         price = self.bot.api.get_market_last_price(self.config.selected_market)
         msg = f'The actual price of {self.config.selected_market} is {price}'
-        self.config.applog.info(msg)
+        self.bot.applog.info(msg)
         q = (
             f'Please select the price of your highest buy order '
             f'(spread_bot) in the list')
@@ -182,7 +182,7 @@ class UserInterface(UtilsMixin):
         if self.simple_question(q):
             params = self.params_reader(file_path)
             if params:
-                self.config.applog.info(f'Your previous parameters are: {params}')
+                self.bot.applog.info(f'Your previous parameters are: {params}')
                 q = 'Do you want to display history from logs?'
                 if self.simple_question(q):
                     self.log_file_reader()
@@ -191,7 +191,7 @@ class UserInterface(UtilsMixin):
                     self.config.params = self.bot.check_for_enough_funds(params)
             else:
                 msg = 'Your parameters are corrupted, please enter new one!'
-                self.config.applog.warning(msg)
+                self.bot.applog.warning(msg)
         if not self.config.params:
             self.config.params = self.enter_params()
         self.simple_file_writer(file_path, self.dict_to_str(self.config.params))
@@ -260,7 +260,7 @@ class UserInterface(UtilsMixin):
                     self.wait_for_funds()
                 is_valid = True
             except Exception as e:
-                self.config.applog.warning(e)
+                self.bot.applog.warning(e)
         return params
 
     def select_marketplace(self, marketplace=None):
@@ -316,7 +316,7 @@ class UserInterface(UtilsMixin):
         else:
             valid_choice = False
             while valid_choice is False:
-                self.config.applog.info(
+                self.bot.applog.info(
                     f'Please enter the name of a market: {self.bot.api.exchange.symbols}')
                 market = input(' >> ').upper()
                 limitation = self.limitation_to_btc_market(market)
@@ -324,7 +324,7 @@ class UserInterface(UtilsMixin):
                     if market in self.bot.api.exchange.symbols:
                         valid_choice = True
                 else:
-                    self.config.applog.info(limitation)
+                    self.bot.applog.info(limitation)
         self.config.selected_market = market
         return market
 
@@ -346,7 +346,7 @@ class UserInterface(UtilsMixin):
         return: slack object"""
         try:
             message = str(message)
-            self.config.stratlog.warning(message)
+            self.bot.stratlog.warning(message)
             rsp = self.config.slack.send_slack_message(
                 text=message)
             if rsp['ok'] is False:
@@ -354,7 +354,7 @@ class UserInterface(UtilsMixin):
                     raise ValueError(item)
             return rsp
         except Exception as e:
-            self.config.applog.critical(f'Something went wrong with slack: {e}')
+            self.bot.applog.critical(f'Something went wrong with slack: {e}')
             return
 
     def log_file_reader(self):
@@ -368,13 +368,13 @@ class UserInterface(UtilsMixin):
         logs_data = {'buy': [], 'sell': []}
         # In case there is no log file
         if not self.create_file_when_none(strat_log_file):
-            self.config.applog.warning("params.txt file have been created")
+            self.bot.applog.warning("params.txt file have been created")
             return
-        self.config.applog.debug("Reading the strat.log file")
+        self.bot.applog.debug("Reading the strat.log file")
         nb_of_lines = self.file_line_counter(strat_log_file)
         # In case the log file is empty
         if not nb_of_lines:
-            self.config.applog.warning('Your strat.log file was empty')
+            self.bot.applog.warning('Your strat.log file was empty')
             return
         target = nb_of_lines - 20 if nb_of_lines > 20 else 0
         # Get the last 20 orders saved in log file
@@ -410,13 +410,13 @@ class UserInterface(UtilsMixin):
         return: dict with valid parameters, or False.
         """
         if not self.create_file_when_none(file_path):
-            self.config.applog.warning('There was no params.txt. One have been created')
+            self.bot.applog.warning('There was no params.txt. One have been created')
             return
         try:
             params = json.loads(self.read_one_line(file_path, 0))
         except Exception as e:
             msg = f'Something went wrong when loading params: {e}'
-            self.config.applog.warning(msg)
+            self.bot.applog.warning(msg)
             return
         params = self.check_params(params)
         return params
@@ -490,7 +490,7 @@ class UserInterface(UtilsMixin):
             error_message = f"params['profits_alloc'] is not an int:"
             params['profits_alloc'] = self.str_to_decimal(params['profits_alloc'],
                                                           error_message)
-            self.config.applog.debug(f'param_checker, params: {params}')
+            self.bot.applog.debug(f'param_checker, params: {params}')
             # Test if values are correct
             self.is_date(params['datetime'])
             if params['marketplace'] not in self.config.exchanges_list:
@@ -519,7 +519,7 @@ class UserInterface(UtilsMixin):
             self.param_checker_amount(params['amount'], params['spread_bot'])
             self.param_checker_profits_alloc(params['profits_alloc'])
         except Exception as e:
-            self.config.applog.warning(f'The LW parameters are not well configured: {e}')
+            self.bot.applog.warning(f'The LW parameters are not well configured: {e}')
             return False
         return params
 

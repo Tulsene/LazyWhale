@@ -10,8 +10,12 @@ import zebitexFormatted
 
 
 class APIManager(UtilsMixin):
-    def __init__(self, config):
-        self.config = config
+    def __init__(self, config, bot=None):
+        if bot:
+            self.bot = bot
+            self.config = config
+        else:
+            self.bot, self.config = config, config
         self.exchange = None
         self.err_counter = 0
         self.is_kraken = False
@@ -230,9 +234,9 @@ class APIManager(UtilsMixin):
             if type(history) == list:
                 return history
             else:
-                self.config.applog.warning(f'WARNING: Unexpected order history: {history}')
+                self.bot.applog.warning(f'WARNING: Unexpected order history: {history}')
         except Exception as e:
-            self.config.applog.warning(f'WARNING: {e}')
+            self.bot.applog.warning(f'WARNING: {e}')
 
     def cancel_order(self, order_id, price, timestamp, side):
         """Cancel an order with it's id.
@@ -246,7 +250,7 @@ class APIManager(UtilsMixin):
         order have been filled before it's cancellation"""
         cancel_side = 'cancel_buy' if side == 'buy' else 'cancel_sell'
         try:
-            self.config.applog.debug(f'Init cancel {side} order {order_id} {price}')
+            self.bot.applog.debug(f'Init cancel {side} order {order_id} {price}')
             rsp = self.exchange.cancel_order(order_id)
             if rsp:
                 self.order_logger_formatter(cancel_side, order_id, price, 0)
@@ -256,10 +260,10 @@ class APIManager(UtilsMixin):
                     f'The {side} {order_id} have been filled '
                     f'before being canceled'
                 )
-                self.config.stratlog.warning(msg)
+                self.bot.stratlog.warning(msg)
                 return rsp
         except Exception as e:
-            self.config.applog.warning(f'WARNING: {e}')
+            self.bot.applog.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
             orders = self.get_orders(self.config.selected_market)[side]
@@ -276,24 +280,23 @@ class APIManager(UtilsMixin):
                     f'The {side} {order_id} have been filled '
                     f'before being canceled'
                 )
-                self.config.stratlog.warning(msg)
+                self.bot.stratlog.warning(msg)
                 return False
             else:
                 self.order_logger_formatter(cancel_side, order_id, price, 0)
                 return True
 
     def cancel_all(self, open_orders=None):
-        if open_orders:
-            if open_orders['buy']:
-                for item in open_orders['buy']:
-                    self.cancel_order(item[0], item[1], item[4], 'buy')
-            if open_orders['sell']:
-                for item in open_orders['sell']:
-                    self.cancel_order(item[0], item[1], item[4], 'sell')
-        else:
-            open_orders = self.fetch_open_orders(market=self.config.selected_market)
-            for item in open_orders:
-                self.cancel_order(item['id'], item['price'], item['timestamp'], 'sell')
+        if not open_orders:
+            open_orders = self.get_orders(market=self.config.selected_market)
+        if open_orders['buy']:
+            for item in open_orders['buy']:
+                self.cancel_order(item[0], item[1], item[4], 'buy')
+        if open_orders['sell']:
+            for item in open_orders['sell']:
+                self.cancel_order(item[0], item[1], item[4], 'sell')
+
+
 
     def api_fail_message_handler(self):
         """Send an alert where ther eis too much fail with the exchange API"""
@@ -363,7 +366,7 @@ class APIManager(UtilsMixin):
     def display_user_balance(self):
         """Display the user balance"""
         for key, value in self.config.user_balance.items():
-            self.config.stratlog.info(f'{key}: {value}')
+            self.bot.stratlog.info(f'{key}: {value}')
         return
 
     def format_order(self, order_id, price, amount, timestamp, date):
@@ -446,10 +449,10 @@ class APIManager(UtilsMixin):
         """
         if orders['buy']:
             for order in orders['buy']:
-                self.config.stratlog.info(self.format_order_to_display(order))
+                self.bot.stratlog.info(self.format_order_to_display(order))
         if orders['sell']:
             for order in orders['sell']:
-                self.config.stratlog.info(self.format_order_to_display(order))
+                self.bot.stratlog.info(self.format_order_to_display(order))
         return
 
     def format_order_to_display(self, order):
@@ -477,6 +480,6 @@ class APIManager(UtilsMixin):
         if self.config.slack:
             self.config.slack.send_slack_message(msg)
         else:
-            self.config.stratlog.warning(msg)
+            self.bot.stratlog.warning(msg)
         return timestamp, date_time
 

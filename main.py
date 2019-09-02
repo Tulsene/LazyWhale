@@ -20,9 +20,8 @@ from exchange_manager.api_manager import APIManager
 class BotConfiguration(UtilsMixin):
 
     def create_config(self, bot_obj, params={}, keys=(), test_mode=False):
-        from logger.logger import Logger
         from logger.slack import Slack
-        self.bot_obj = bot_obj
+        self.bot = bot_obj
         self.test_mode = test_mode
         self.test_params = params
         self.test_keys = keys
@@ -30,18 +29,6 @@ class BotConfiguration(UtilsMixin):
         self.script_position = os.path.dirname(sys.argv[0])
         self.root_path = f'{self.script_position}/' if self.script_position else ''
         self.keys_file = f'{self.root_path}{static_config.KEYS_FILE}'
-        self.stratlog = Logger(name='stratlogs',
-                               log_file='strat.log',
-                               log_formatter='%(message)s',
-                               console_level=logging.DEBUG,
-                               file_level=logging.INFO,
-                               root_path=self.root_path+"logger/").create()
-        self.applog = Logger(name='debugs',
-                             log_file='app.log',
-                             log_formatter='%(asctime)s - %(levelname)s - %(message)s',
-                             console_level=logging.DEBUG,
-                             file_level=logging.DEBUG,
-                             root_path=self.root_path+"logger/").create()
         self.user_market_name_list = []
         self.exchanges_list = self._exchanges_list_init()
         self.keys = self._keys_initialisation(self.keys_file)
@@ -77,14 +64,14 @@ class BotConfiguration(UtilsMixin):
         """
         if not os.path.isfile(keys_file):
             Path(keys_file).touch()
-            self.applog.critical(
+            self.bot.applog.critical(
                 f'No file was found, an empty one has been created, '
                 f'please fill it as indicated in the documentation')
             self.exit()
         else:
             keys = self._keys_file_reader(keys_file)
             if not keys:
-                self.applog.critical(
+                self.bot.applog.critical(
                     f'Your key.txt file is empty, please '
                     f'fill it as indicated to the documentation')
                 self.exit()
@@ -113,7 +100,7 @@ class BotConfiguration(UtilsMixin):
                         if k not in name_list:
                             raise NameError('The marketplace name is invalid!')
                 except Exception as e:
-                    self.applog.critical(f'Something went wrong : {e}')
+                    self.bot.applog.critical(f'Something went wrong : {e}')
                     self.exit()
                 keys.update(key)
         return keys
@@ -125,14 +112,41 @@ class Bot(UtilsMixin):
         self.is_init_order_plased = False
         self.config = BotConfiguration()
         self.config.create_config(params, keys, test_mode)
+        from logger.logger import Logger
+        self.stratlog = Logger(name='stratlogs',
+                               log_file='strat.log',
+                               log_formatter='%(message)s',
+                               console_level=logging.DEBUG,
+                               file_level=logging.INFO,
+                               root_path=self.config.root_path + "logger/").create()
+        self.applog = Logger(name='debugs',
+                             log_file='app.log',
+                             log_formatter='%(asctime)s - %(levelname)s - %(message)s',
+                             console_level=logging.DEBUG,
+                             file_level=logging.DEBUG,
+                             root_path=self.config.root_path + "logger/").create()
         from user_interface import UserInterface
         self.user_interface = UserInterface(self, self.config)
-        self.api = APIManager(self.config)
+        self.api = APIManager(self.config, bot=self)
 
     def launch(self):
         self.set_params()
+        self.cancel_all_orders()
         self.place_init_orders()
         self.main_loop()
+
+    def cancel_all_orders(self):
+        open_orders = self.get_orders(self.config.selected_market)
+        for side in open_orders:
+            for order in open_orders[side]:
+                self.api.cancel_order(order[0],
+                                      order[1],
+                                      order[4],
+                                      side)
+        open_orders = self.api.get_orders(self.config.selected_market)
+        if not len(open_orders['buy']) == 0 or not len(open_orders['buy']) == 0:
+            self.applog.error(f"The problem with the cancellation of open orders, current open orders:{open_orders}(should be zero buy orders, zero sell orders)")
+            self.exit()
 
     def set_params(self):
         if self.config.test_mode:
@@ -187,7 +201,7 @@ class Bot(UtilsMixin):
                     f'total_sell_funds_needed: {total_sell_funds_needed}, '
                     f'sell_balance: {sell_balance}, price: {price}'
                 )
-                self.config.applog.debug(msg)
+                self.applog.debug(msg)
                 # When the strategy will start with spread bot inferior or
                 # equal to the actual market price
                 if params['spread_bot'] <= price:
@@ -241,7 +255,7 @@ class Bot(UtilsMixin):
                     f'{pair[1]}; {pair[0]} needed: {total_sell_funds_needed}'
                     f' and you have {sell_balance} {pair[0]}.'
                 )
-                self.config.applog.debug(msg)
+                self.applog.debug(msg)
                 # In case there is not enough funds, check if there is none stuck
                 # before asking to change params
                 if total_buy_funds_needed > buy_balance:
@@ -255,7 +269,7 @@ class Bot(UtilsMixin):
                     raise ValueError('You don\'t own enough funds!')
                 is_valid = True
             except ValueError as e:
-                self.config.stratlog.warning('%s\nYou need to change some parameters:', e)
+                self.stratlog.warning('%s\nYou need to change some parameters:', e)
                 params = self.user_interface.change_params(params)
         return params
 
@@ -290,7 +304,7 @@ class Bot(UtilsMixin):
         the right amount of alts.
         return: dict, of open orders used for the strategy.
         """
-        self.config.stratlog.debug('strat_init()')
+        self.stratlog.debug('strat_init()')
         # Add funds locker value in intervals
         self.config.intervals = [self.config.safety_buy_value] + self.config.intervals + \
                          [self.config.safety_sell_value]
@@ -321,7 +335,7 @@ class Bot(UtilsMixin):
                 self.config.params['spread_top']) + self.config.params['nb_sell_to_display'] - 1]
         else:
             highest_sell = self.config.intervals[self.config.max_sell_index]
-        self.config.stratlog.debug(
+        self.stratlog.debug(
             f'self.intervals: {self.config.intervals}, open_orders: {open_orders}, '
             f'self.max_sell_index: {self.config.max_sell_index}, '
             f'lowest_buy: {lowest_buy}, self.params["spread_bot"]: '
@@ -417,7 +431,7 @@ class Bot(UtilsMixin):
             for order in open_orders['sell']:
                 remaining_orders_price['sell'].append(order[1])
 
-        self.config.stratlog.debug(
+        self.stratlog.debug(
             f'orders_to_remove: {orders_to_remove}, open_orders: {open_orders}'
             f', remaining_orders_price: {remaining_orders_price}')
         return self.set_first_orders(remaining_orders_price, open_orders)
@@ -427,7 +441,7 @@ class Bot(UtilsMixin):
         remaining_orders_price: dict.
         open_orders: dict.
         return: dict, of open orders used for the strategy."""
-        self.config.stratlog.debug('set_first_orders()')
+        self.stratlog.debug('set_first_orders()')
         buy_target = self.config.intervals.index(self.config.params['spread_bot'])
         lowest_sell_index = buy_target + 1
         new_orders = {'sell': [], 'buy': []}
@@ -448,7 +462,7 @@ class Bot(UtilsMixin):
         else:
             sell_target = len(self.config.intervals) - 2
 
-        self.config.stratlog.debug(
+        self.stratlog.debug(
             f'buy target: {buy_target}, lowest_buy_index: '
             f'{lowest_buy_index}, lowest_sell_index: {lowest_sell_index}, '
             f'sell_target: {sell_target}, max_sell_index: '
@@ -487,7 +501,7 @@ class Bot(UtilsMixin):
                         break
             lowest_sell_index += 1
 
-        self.config.stratlog.debug(f'new_orders: {new_orders}')
+        self.stratlog.debug(f'new_orders: {new_orders}')
         return new_orders
 
     def remove_safety_order(self, open_orders):
@@ -500,7 +514,7 @@ class Bot(UtilsMixin):
             from self.open_orders set it as True
         return: dict.
         """
-        self.config.applog.debug(f'remove_safety_order()')
+        self.applog.debug(f'remove_safety_order()')
 
         # To not to a complete cycle when we reach range top or bot at a previous cycle
         if self.config.open_orders['buy']:
@@ -523,7 +537,7 @@ class Bot(UtilsMixin):
                                       open_orders['buy'][0][1],
                                       open_orders['buy'][0][4],
                                       'buy')
-                self.config.stratlog.debug(
+                self.stratlog.debug(
                     f"delete open_orders['buy'][0]: "
                     f"{open_orders['buy'][0]}")
                 del open_orders['buy'][0]
@@ -535,7 +549,7 @@ class Bot(UtilsMixin):
                                       open_orders['sell'][-1][1],
                                       open_orders['sell'][-1][4],
                                       'sell')
-                self.config.stratlog.debug(
+                self.stratlog.debug(
                     f"delete open_orders['sell'][-1]: "
                     f"{open_orders['sell'][-1]}")
                 del open_orders['sell'][-1]
@@ -547,11 +561,11 @@ class Bot(UtilsMixin):
             del self.config.open_orders['sell'][-1]
             self.config.id_list[-1] = None
         if self.config.open_orders['buy']:
-            self.config.stratlog.debug(
+            self.stratlog.debug(
                 f"self.config.open_orders['buy'][0]: "
                 f"{self.config.open_orders['buy'][0]}")
         if self.config.open_orders['sell']:
-            self.config.stratlog.debug(
+            self.stratlog.debug(
                 f"self.config.open_orders['sell'][-1]: "
                 f"{self.config.open_orders['sell'][-1]}")
         return open_orders
@@ -560,7 +574,7 @@ class Bot(UtilsMixin):
         """Add safety orders to lock funds for the strategy.
         lowest_buy_index: int.
         highest_sell_index: int."""
-        self.config.stratlog.debug(
+        self.stratlog.debug(
             f'set_safety_orders(), lowest_buy_index: {lowest_buy_index}, '
             f'highest_sell_index: {highest_sell_index}')
 
@@ -568,11 +582,11 @@ class Bot(UtilsMixin):
         highest_sell_index = highest_sell_index+1
         if lowest_buy_index > 0:
             buy_sum = Decimal('0')
-            self.config.stratlog.debug(f'lowest_buy_index: {lowest_buy_index}')
+            self.stratlog.debug(f'lowest_buy_index: {lowest_buy_index}')
             while lowest_buy_index > 0:
                 buy_sum += self.multiplier(self.config.params['amount'], self.config.intervals[lowest_buy_index], Decimal('10E8'))
                 lowest_buy_index -= 1
-            self.config.stratlog.debug(
+            self.stratlog.debug(
                 f'buy_sum: {buy_sum}, lowest_buy_index: {lowest_buy_index}')
             self.config.open_orders['buy'].insert(0, self.api.init_limit_buy_order(
                 self.config.selected_market, buy_sum, f'{self.config.intervals[0]:8f}'))
@@ -582,11 +596,11 @@ class Bot(UtilsMixin):
 
         if highest_sell_index <= self.config.max_sell_index:
             sell_sum = Decimal('0')
-            self.config.stratlog.debug(f'highest_sell_index: {highest_sell_index}')
+            self.stratlog.debug(f'highest_sell_index: {highest_sell_index}')
             while highest_sell_index <= self.config.max_sell_index:
                 sell_sum += self.config.params['amount']
                 highest_sell_index += 1
-            self.config.stratlog.debug(
+            self.stratlog.debug(
                 f'sell_sum: {sell_sum}, highest_sell_index: '
                 f'{highest_sell_index}, self.max_sell_index: '
                 f'{self.config.max_sell_index}')
@@ -596,7 +610,7 @@ class Bot(UtilsMixin):
             if self.config.open_orders['sell'][-1][1] != self.config.safety_sell_value:
                 self.config.open_orders['sell'].append(self.create_fake_sell())
 
-        self.config.stratlog.debug(
+        self.stratlog.debug(
             f'safety buy: {self.config.open_orders["buy"][0]} , '
             f'safety sell: {self.config.open_orders["sell"][-1]}')
         return
@@ -617,7 +631,7 @@ class Bot(UtilsMixin):
         """Remove all orders that are not included in the strategy
         new_open_orders: dict, every open orders on the market
         return: dict, open orders wich are included in the strategy"""
-        self.config.stratlog.debug(
+        self.stratlog.debug(
             f'remove_orders_off_strat(), new_open_orders: {new_open_orders}')
         orders_to_remove = {'sell': [], 'buy': []}
 
@@ -639,17 +653,17 @@ class Bot(UtilsMixin):
             for i, index in enumerate(orders_to_remove['sell']):
                 del new_open_orders['sell'][index - i]
 
-        self.config.stratlog.debug(f'orders_to_remove: {orders_to_remove}')
+        self.stratlog.debug(f'orders_to_remove: {orders_to_remove}')
         return new_open_orders
 
     def check_if_no_orders(self, new_open_orders):
         """Open orders when there is none on the market.
         return: dict"""
-        self.config.stratlog.debug('check_if_no_orders()')
+        self.stratlog.debug('check_if_no_orders()')
 
         # compare_orders() will fail without any open orders
         if not new_open_orders['buy']:
-            self.config.stratlog.debug("no new_open_orders['buy']")
+            self.stratlog.debug("no new_open_orders['buy']")
             if len(self.config.open_orders['buy']) > 0:
                 target = self.config.intervals.index(
                     self.config.open_orders['buy'][0][1]) - 1
@@ -660,14 +674,14 @@ class Bot(UtilsMixin):
             if target < 1:
                 if self.config.params['stop_at_bot']:
                     msg = (f'Bottom target reached! target: {target}')
-                    if self.slack:
-                        self.slack.send_slack_message(msg)
+                    if self.config.slack:
+                        self.config.slack.send_slack_message(msg)
                     else:
-                        self.config.stratlog.critical(msg)
+                        self.stratlog.critical(msg)
 
                     self.api.cancel_all(self.remove_safety_order(
                         self.remove_orders_off_strat(
-                            self.get_orders(self.selected_market))))
+                            self.get_orders(self.config.selected_market))))
                     self.exit()
 
                 else:
@@ -678,10 +692,10 @@ class Bot(UtilsMixin):
             else:
                 # Or create the right number of new orders
                 msg = 'Buys side is empty'
-                if self.slack.channel:
-                    self.slack.send_slack_message(msg)
+                if self.config.slack.channel:
+                    self.config.slack.send_slack_message(msg)
                 else:
-                    self.config.stratlog.warning(msg)
+                    self.stratlog.warning(msg)
                 if target - self.config.params['nb_buy_to_display'] + 1 >= 1:
                     start_index = target - self.config.params['nb_buy_to_display'] + 1
                 else:
@@ -691,12 +705,12 @@ class Bot(UtilsMixin):
                 for i, order in enumerate(orders):
                     new_open_orders['buy'].insert(i, order)
                     self.config.open_orders['buy'].insert(i, order)
-            self.config.stratlog.debug(
+            self.stratlog.debug(
                 f'updated new_buy_orders: {new_open_orders["buy"]}')
             self.update_id_list()
 
         if not new_open_orders['sell']:
-            self.config.stratlog.debug("no new_open_orders['sell']")
+            self.stratlog.debug("no new_open_orders['sell']")
             if len(self.config.open_orders['sell']) > 0:
                 start_index = self.config.intervals.index(
                     self.config.open_orders['sell'][-1][1]) + 1
@@ -728,7 +742,7 @@ class Bot(UtilsMixin):
                 if self.slack.channel:
                     self.slack.send_slack_message(msg)
                 else:
-                    self.config.stratlog.warning(msg)
+                    self.stratlog.warning(msg)
 
                 if start_index + self.config.params['nb_sell_to_display'] - 1 \
                         <= self.config.max_sell_index:
@@ -740,7 +754,7 @@ class Bot(UtilsMixin):
                 for order in orders:
                     new_open_orders['sell'].append(order)
                     self.config.open_orders['sell'].append(order)
-            self.config.stratlog.debug(
+            self.stratlog.debug(
                 f'updated new_sell_orders: {new_open_orders["sell"]}')
             self.update_id_list()
         return new_open_orders
@@ -751,7 +765,7 @@ class Bot(UtilsMixin):
         """
         missing_orders = deepcopy(self.config.open_orders)
         executed_orders = {'sell': [], 'buy': []}
-        self.config.applog.debug('compare_orders()')
+        self.applog.debug('compare_orders()')
         for order in self.config.open_orders['buy']:
             rsp = any(new_order[0] == order[0] for new_order in new_open_orders['buy'])
             if rsp:
@@ -766,24 +780,24 @@ class Bot(UtilsMixin):
             if self.config.slack:
                 self.config.slack.send_slack_message(msg)
             else:
-                self.config.stratlog.warning(msg)
+                self.stratlog.warning(msg)
             start_index = self.config.id_list.index(new_open_orders['buy'][-1][0]) + 1
             target = start_index + len(missing_orders['buy']) - 1
-            self.config.stratlog.debug(f'start_index: {start_index}, target: {target}')
+            self.stratlog.debug(f'start_index: {start_index}, target: {target}')
             executed_orders['sell'] = self.api.set_several_sell(start_index, target)
 
         if missing_orders['sell']:
             msg = 'A sell has occurred'
-            if self.slack.channel:
+            if self.config.slack.channel:
                 self.config.slack.send_slack_message(msg)
             else:
-                self.config.stratlog.warning(msg)
+                self.stratlog.warning(msg)
             target = self.config.id_list.index(new_open_orders['sell'][0][0]) - 1
             start_index = target - len(missing_orders['sell']) + 1
-            self.config.stratlog.debug(f'start_index: {start_index}, target: {target}')
+            self.stratlog.debug(f'start_index: {start_index}, target: {target}')
             executed_orders['buy'] = self.set_several_buy(start_index, target, True)
 
-        self.config.stratlog.debug(
+        self.stratlog.debug(
             f'compare_orders, missing_orders: {missing_orders} '
             f'executed_orders: {executed_orders}')
         """
@@ -819,7 +833,7 @@ class Bot(UtilsMixin):
         """Update self.open_orders with orders missing and executed orders.
         missing_orders: dict, all the missing orders since the last LW cycle.
         executed_order: dict, all the executed orders since the last LW cycle"""
-        self.config.stratlog.debug('update_open_orders()')
+        self.stratlog.debug('update_open_orders()')
         if executed_orders['buy']:
             for order in missing_orders['sell']:
                 self.config.open_orders['sell'].remove(order)
@@ -851,12 +865,12 @@ class Bot(UtilsMixin):
                 nb_orders -= 1
         else:
             nb_orders = 0
-        self.config.stratlog.debug(
+        self.stratlog.debug(
             f'nb_orders: {nb_orders}, params["nb_buy_to_display"]: '
             f"{self.config.params['nb_buy_to_display']}")
         # When there is too much buy orders on the order book
         if nb_orders > self.config.params['nb_buy_to_display']:
-            self.config.stratlog.debug(f'nb_orders > params["nb_buy_to_display"]')
+            self.stratlog.debug(f'nb_orders > params["nb_buy_to_display"]')
             # Care of the fake order
             if not self.config.open_orders['buy'][0][0]:
                 del self.config.open_orders['buy'][0]
@@ -872,7 +886,7 @@ class Bot(UtilsMixin):
         elif nb_orders < self.config.params['nb_buy_to_display']:
             # Ignore if the bottom of the range is reached. It's value is None
             if self.config.open_orders['buy'][0][2]:
-                self.config.stratlog.debug(
+                self.stratlog.debug(
                     f"{self.config.open_orders['buy'][0][1]} > {self.config.intervals[1]}")
                 # Set the range of buy orders to create
                 target = self.config.intervals.index(self.config.open_orders['buy'][0][1]) - 1
@@ -880,7 +894,7 @@ class Bot(UtilsMixin):
                               + len(self.config.open_orders['buy']) + 1
                 if start_index <= 1:
                     start_index = 1
-                self.config.stratlog.debug(f'start_index: {start_index}, target: {target}')
+                self.stratlog.debug(f'start_index: {start_index}, target: {target}')
                 orders = self.set_several_buy(start_index, target)
                 for i, order in enumerate(orders):
                     self.config.open_orders['buy'].insert(i, order)
@@ -891,7 +905,7 @@ class Bot(UtilsMixin):
                 nb_orders -= 1
         else:
             nb_orders = 0
-        self.config.stratlog.debug(
+        self.stratlog.debug(
             f'nb_orders: {nb_orders}; params["nb_sell_to_display"]: '
             f"{self.config.params['nb_sell_to_display']}")
         # When there is too much sell orders on the order book
@@ -900,7 +914,7 @@ class Bot(UtilsMixin):
             if not self.config.open_orders['sell'][-1][0]:
                 del self.config.open_orders['sell'][-1]
             nb_orders -= self.config.params['nb_sell_to_display']
-            self.config.stratlog.debug(f'nb_orders to delete: {nb_orders}')
+            self.stratlog.debug(f'nb_orders to delete: {nb_orders}')
             while nb_orders > 0:
                 self.api.cancel_order(new_open_orders['sell'][-1][0],
                                   new_open_orders['sell'][-1][1],
@@ -920,13 +934,13 @@ class Bot(UtilsMixin):
                          - len(self.config.open_orders['sell']) - 1
                 if target > len(self.config.intervals) - 2:
                     target = len(self.config.intervals) - 2
-                self.config.stratlog.debug(f'start_index: {start_index}, target: {target}')
+                self.stratlog.debug(f'start_index: {start_index}, target: {target}')
                 if target > self.config.max_sell_index:
                     target = self.config.max_sell_index
                 orders = self.api.set_several_sell(start_index, target)
                 for order in orders:
                     self.config.open_orders['sell'].append(order)
-        self.config.stratlog.debug(f'self.config.open_orders: {self.config.open_orders}')
+        self.stratlog.debug(f'self.config.open_orders: {self.config.open_orders}')
         return
 
     def set_several_buy(self, start_index, target, profits_alloc=None):
@@ -1009,7 +1023,7 @@ class Bot(UtilsMixin):
                 id_list.append(order[0])
         # Remove id or orders no longer in open_order.
         self.config.id_list[:] = [None if x not in id_list else x for x in self.config.id_list]
-        self.config.stratlog.debug(f'self.config.id_list: {self.config.id_list}')
+        self.stratlog.debug(f'self.config.id_list: {self.config.id_list}')
         return
 
     def calculate_buy_funds(self, index, amount):
@@ -1087,7 +1101,7 @@ class Bot(UtilsMixin):
                                 funds += order[1] * order[2]
                             else:
                                 funds += order[2]
-                            self.config.stratlog.debug(
+                            self.stratlog.debug(
                                 f'You have now {funds} {side} '
                                 f'funds and you need {funds_needed}.')
                     else:
@@ -1130,21 +1144,22 @@ class Bot(UtilsMixin):
         Simple execution loop.
         """
         while True:
-            self.config.applog.debug('CYCLE START')
-            orders = self.remove_safety_order(self.remove_orders_off_strat(
-                self.orders_price_ordering(self.get_orders(
-                    self.config.selected_market))))  # for comparing by Id
-            if orders:
-                orders = self.check_if_no_orders(orders)
-                self.compare_orders(orders)
-                self.update_id_list()
-                self.limit_nb_orders()
-                self.set_safety_orders(self.config.intervals.index(
-                    self.config.open_orders['buy'][0][1]),
-                    self.config.intervals.index(
-                        self.config.open_orders['sell'][-1][1]))
-                self.update_id_list()
-            self.config.applog.debug('CYCLE STOP')
+            self.applog.debug('CYCLE START')
+            # orders = self.remove_safety_order(self.remove_orders_off_strat(
+            #     self.orders_price_ordering(self.get_orders(
+            #         self.config.selected_market))))  # for comparing by Id
+            # if orders:
+            #     pass
+            #     # orders = self.check_if_no_orders(orders)
+            #     # self.compare_orders(orders)
+            #     # self.update_id_list()
+            #     # self.limit_nb_orders()
+            #     # self.set_safety_orders(self.config.intervals.index(
+            #     #     self.config.open_orders['buy'][0][1]),
+            #     #     self.config.intervals.index(
+            #     #         self.config.open_orders['sell'][-1][1]))
+            #     # self.update_id_list()
+            self.applog.debug('CYCLE STOP')
             self.last_loop_datetime = datetime.now().timestamp()
             sleep(5)
 
