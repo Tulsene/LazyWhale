@@ -303,11 +303,19 @@ class APIManager(UtilsMixin):
         self.err_counter += 1
         if self.err_counter >= 10:
             msg = 'api error >= 10'
-            if self.config.slack:
-                self.config.slack.send_slack_message(msg)
+            if self.bot.slack:
+                self.bot.slack.send_slack_message(msg)
             else:
                 self.config.strat.warning(msg)
             self.err_counter = 0
+
+    def order_book(self, market):
+        if type(self.exchange) is zebitexFormatted.ZebitexFormatted:
+            market = market.replace('/','').lower()
+            return self.exchange.ze.orderbook(market)
+        else:
+            #TODO
+            raise Exception('Unsupported yet')
 
 
     """
@@ -477,8 +485,8 @@ class APIManager(UtilsMixin):
             f'{{"side": "{str(side)}", "order_id": "{str(order_id)}", '
             f'"price": "{str(price)}", "amount": "{str(amount)}", '
             f'"timestamp": "{timestamp}", "datetime": "{date_time}" }}')
-        if self.config.slack:
-            self.config.slack.send_slack_message(msg)
+        if self.bot.slack:
+            self.bot.slack.send_slack_message(msg)
         else:
             self.bot.stratlog.warning(msg)
         return timestamp, date_time

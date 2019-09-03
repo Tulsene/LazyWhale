@@ -187,7 +187,14 @@ class UtilsMixin:
             self.applog.critical(msg)
         else:
             from main import BotConfiguration
-            applog = BotConfiguration().applog
+            # applog = BotConfiguration().bot.applog
+            from logger.logger import Logger
+            applog = Logger(name='stratlogs',
+                                   log_file='strat.log',
+                                   log_formatter='%(message)s',
+                                   console_level=logging.DEBUG,
+                                   file_level=logging.INFO,
+                                   root_path=BotConfiguration().root_path + "logger/").create()
             try:
                 eval('applog.'+level)(msg)
             except:

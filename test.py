@@ -1,5 +1,4 @@
 import zebitexFormatted
-import lazyStarter
 import main
 import threading
 import sys, os
@@ -204,12 +203,17 @@ class TestCases(UtilsMixin):
 
 
     def testing_by_open_orders_ids(self, test_case_data):
+
         if not test_case_data:
             self.logger.error(f"ERROR: test_case_data required")
             self.exit()
         raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(self.test_obj.selected_market)
         real_id_list = sorted([order['id'] for order in raw_open_orders])
-        bot_config_id_list = sorted(self.get_input_ids())
+        try:
+            bot_config_id_list = sorted(self.get_input_ids())
+        except:
+            bot_config_id_list=2
+            pass
         filled_order_ids = []
         if not real_id_list == bot_config_id_list:
             msg = f"Unexpected strategy behaviour: expected {str(real_id_list)} open orders, but got {str(bot_config_id_list)}"
@@ -218,15 +222,31 @@ class TestCases(UtilsMixin):
             self.exit()
 
 
-        open_orders = deepcopy(self.bot.config.open_orders)
-        open_orders['buy'] = list(reversed(open_orders['buy']))
+
         for test_case in test_case_data:
+            open_orders = deepcopy(self.bot.config.open_orders)
+            open_orders['buy'] = list(reversed(open_orders['buy']))
             for side in ['buy','sell']:
                 for index, order in enumerate(open_orders[side]):
+                    if order[0] in ['FB','FS']:
+                        continue
                     if index in test_case['input'][side]:
                         amount_coef = test_case['input'][side][index]['amount_percent']
-                        amount = order[3] * Decimal(amount_coef)
-                        eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
+                        try:
+                            amount = order[2] * Decimal(amount_coef)
+                        except Exception as e:
+                            a=e
+                        orderbook1 = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
+                        self.test_obj.slack.send_slack_message(f"fixing order data: {str(orderbook1)}")
+                        result = eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
+                        self.test_obj.slack.send_slack_message(f'Expected that order {order[0]} has been filled')
+                        updated_raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(
+                            self.test_obj.selected_market)
+                        updated_real_id_list = sorted([order['id'] for order in updated_raw_open_orders])
+                        if order[0] in updated_real_id_list:
+                            orderbook2 = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
+                            self.test_obj.slack.send_slack_message(f"fixing order data: {str(orderbook2)}")
+                            a=1
                         filled_order_ids.append(order[0])
                     else:
                         #TODO handle this case
@@ -236,10 +256,14 @@ class TestCases(UtilsMixin):
             updated_real_id_list = sorted([order['id'] for order in updated_raw_open_orders])
             for filled_order_id in filled_order_ids:
                 if filled_order_id in updated_real_id_list:
-                    msg = f"Unexpected strategy behaviour: expected that order {filled_order_id} already filled, but it's in order book now"
+                    msg = f"Unexpected strategy behaviour: expected that order {filled_order_id} already filled, but order is still included in the order book now"
                     self.logger.error(msg)
                     self.test_obj.slack.send_slack_message(msg)
+                    orderbook = self.test_obj.lazy_account.exchange.ze.orderbook(self.test_obj.selected_market.replace('/',''))
                     self.exit()
+            a=1
+        sleep(SLEEP_FOR_TEST*2)
+        return
 
     def get_input_nb(self):
         return {
@@ -248,7 +272,7 @@ class TestCases(UtilsMixin):
         }
 
     def get_input_ids(self):
-        return [id for id in self.bot.config.id_list if id]
+        return [id for id in self.bot.config.id_list if id and not id in ['FS','FB']]
 
     def check_if_missed_order_is_safety(self):
 

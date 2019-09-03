@@ -347,7 +347,7 @@ class UserInterface(UtilsMixin):
         try:
             message = str(message)
             self.bot.stratlog.warning(message)
-            rsp = self.config.slack.send_slack_message(
+            rsp = self.bot.slack.send_slack_message(
                 text=message)
             if rsp['ok'] is False:
                 for item in rsp:
