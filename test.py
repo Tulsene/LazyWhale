@@ -2,6 +2,7 @@ import zebitexFormatted
 import main
 import threading
 import sys, os
+import datetime
 from time import sleep
 from decimal import *
 from copy import deepcopy
@@ -30,13 +31,14 @@ class LazyTest():
         self.root_path = f'{self.script_position}/' if self.script_position else ''
         self.keys_file2 = f'{self.root_path}keys2.txt'
         self.fees_coef = Decimal(static_config.FEES_COEF)  # TODO: could be different for other exchanges?
+        self.params = {'increment_coef':"1.02"}
         self.lazy_keys = None
+        self.slack_webhook_url = None
         self.lazy_account = "lazy_account"
         self.a_user_account = "a_user_account"
         self.selected_market = 'DASH/BTC'
         self.safety_buy_value = Decimal('0.00000001')
         self.safety_sell_value = Decimal('1')
-        self.slack = Slack(static_config.SLACK_HOOK_URL)
         self.testlog = Logger(name='test_logs',
                                log_file='strat.log',
                                log_formatter='%(asctime)s - %(levelname)s - %(message)s',
@@ -72,7 +74,10 @@ class LazyTest():
                 try:
                     key = json.loads(line)
                     for k in key.keys():
-                        if k not in ["lazy_account", "a_user_account"]:
+                        if k == 'slack':
+                            self.slack_webhook_url = key[k]
+                            continue
+                        elif k not in ["lazy_account", "a_user_account"]:
                             raise NameError('The account name is invalid!')
                 except Exception as e:
                     self.testlog.critical(f'Something went wrong : {e}')
@@ -112,6 +117,10 @@ class LazyTest():
 
     def main(self):
         self.keys_launcher()
+        if self.slack_webhook_url:
+            self.slack = Slack(self.slack_webhook_url)
+        else:
+            raise Exception("Slack webhook url required")
         self.lazy_account.cancel_all()
         self.a_user_account.cancel_all()
         l = main.Bot(params=self.lazy_params, keys=self.lazy_keys, test_mode=True)
@@ -207,6 +216,7 @@ class TestCases(UtilsMixin):
         if not test_case_data:
             self.logger.error(f"ERROR: test_case_data required")
             self.exit()
+        sleep(10)
         raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(self.test_obj.selected_market)
         real_id_list = sorted([order['id'] for order in raw_open_orders])
         try:
@@ -224,6 +234,7 @@ class TestCases(UtilsMixin):
 
 
         for test_case in test_case_data:
+            print('test case started')
             open_orders = deepcopy(self.bot.config.open_orders)
             open_orders['buy'] = list(reversed(open_orders['buy']))
             for side in ['buy','sell']:
@@ -231,35 +242,36 @@ class TestCases(UtilsMixin):
                     if order[0] in ['FB','FS']:
                         continue
                     if index in test_case['input'][side]:
-                        amount_coef = test_case['input'][side][index]['amount_percent']
-                        try:
-                            amount = order[2] * Decimal(amount_coef)
-                        except Exception as e:
-                            a=e
+                        amount = order[2]
                         orderbook1 = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
-                        self.test_obj.slack.send_slack_message(f"fixing order data: {str(orderbook1)}")
+                        self.test_obj.slack.send_slack_message(f"order book before : {str(orderbook1)}")
+                        self.test_obj.slack.send_slack_message(f"last test case order: {str(order)}")
                         result = eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
-                        self.test_obj.slack.send_slack_message(f'Expected that order {order[0]} has been filled')
-                        updated_raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(
+                        if result[1] == order[1]: #TODO: opposite case
+                            self.test_obj.slack.send_slack_message(f'Expected that order {order[0]} has been filled')
+                            updated_raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(
                             self.test_obj.selected_market)
-                        updated_real_id_list = sorted([order['id'] for order in updated_raw_open_orders])
-                        if order[0] in updated_real_id_list:
-                            orderbook2 = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
-                            self.test_obj.slack.send_slack_message(f"fixing order data: {str(orderbook2)}")
-                            a=1
-                        filled_order_ids.append(order[0])
+                            updated_real_id_list = sorted([order['id'] for order in updated_raw_open_orders])
+                            if order[0] in updated_real_id_list:
+                                self.test_obj.slack.send_slack_message(f"but order in open_order list: {str(updated_real_id_list)}")
+                                orderbook2 = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
+                                self.test_obj.slack.send_slack_message(f"order book after: {str(orderbook2)}")
+                                a=1
+                            filled_order_ids.append(order[0])
                     else:
-                        #TODO handle this case
+                        #TODO handle this case get order by price, add to filled_order_ids
                         pass
+            print('test case finished ', str(datetime.datetime.now()))
             sleep(SLEEP_FOR_TEST)
+            print('fin checking started ', str(datetime.datetime.now()))
             updated_raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(self.test_obj.selected_market)
             updated_real_id_list = sorted([order['id'] for order in updated_raw_open_orders])
             for filled_order_id in filled_order_ids:
                 if filled_order_id in updated_real_id_list:
-                    msg = f"Unexpected strategy behaviour: expected that order {filled_order_id} already filled, but order is still included in the order book now"
+                    msg = f"Unexpected strategy behaviour: expected order {filled_order_id} already filled, but order is still included in the order book now"
                     self.logger.error(msg)
                     self.test_obj.slack.send_slack_message(msg)
-                    orderbook = self.test_obj.lazy_account.exchange.ze.orderbook(self.test_obj.selected_market.replace('/',''))
+                    orderbook = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
                     self.exit()
             a=1
         sleep(SLEEP_FOR_TEST*2)

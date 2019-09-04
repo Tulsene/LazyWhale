@@ -238,6 +238,13 @@ class APIManager(UtilsMixin):
         except Exception as e:
             self.bot.applog.warning(f'WARNING: {e}')
 
+    def is_order_open(self, order_id):
+        raw_open_orders = self.fetch_open_orders(self.config.selected_market)
+        id_list = [order['id'] for order in raw_open_orders]
+        if order_id in id_list:
+            return True
+
+
     def cancel_order(self, order_id, price, timestamp, side):
         """Cancel an order with it's id.
         Retry 1000 times, send an email each 10 tries.
@@ -252,8 +259,11 @@ class APIManager(UtilsMixin):
         try:
             self.bot.applog.debug(f'Init cancel {side} order {order_id} {price}')
             rsp = self.exchange.cancel_order(order_id)
+            self.bot.slack.send_slack_message(f'canceled order {str(order_id)} responce: {str(rsp)}')
             if rsp:
                 self.order_logger_formatter(cancel_side, order_id, price, 0)
+                if self.is_order_open(order_id):
+                    raise Exception('Cancelled order still open')
                 return True
             else:
                 msg = (
@@ -266,9 +276,10 @@ class APIManager(UtilsMixin):
             self.bot.applog.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
-            orders = self.get_orders(self.config.selected_market)[side]
-            is_open = self.does_an_order_is_open(price, orders)
-            if is_open:
+            # orders = self.get_orders(self.config.selected_market)[side]
+            # is_open = self.does_an_order_is_open(price, orders)
+            # if is_open:
+            if self.is_order_open(order_id):
                 rsp = self.exchange.cancel_order(order_id)
                 if rsp:
                     self.err_counter = 0
@@ -484,7 +495,7 @@ class APIManager(UtilsMixin):
         msg = (
             f'{{"side": "{str(side)}", "order_id": "{str(order_id)}", '
             f'"price": "{str(price)}", "amount": "{str(amount)}", '
-            f'"timestamp": "{timestamp}", "datetime": "{date_time}" }}')
+            f'"timestamp": "{timestamp}", "datetime": "{date_time}" н}}')
         if self.bot.slack:
             self.bot.slack.send_slack_message(msg)
         else:

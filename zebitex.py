@@ -68,6 +68,8 @@ class Zebitex():
         headers = {**user_agent, **authorization_header}
         r = requests.request(method, url, params=params, headers=headers, json=True)
         status = {'status_code': r.status_code}
+        if path == '/api/v1/orders/385502/cancel' and r.status_code is not 204:
+            a = 1
         if r.status_code >= 500:
             raise ZebitexError(status)
         if r.status_code not in status_code_list:

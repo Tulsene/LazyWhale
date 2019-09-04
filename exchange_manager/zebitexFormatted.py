@@ -6,7 +6,6 @@ from utils.helper import UtilsMixin
 
 class ZebitexFormatted(UtilsMixin):
     """"Zebittex api formatter to get almost same output as ccxt"""
-    getcontext().prec = 8
 
     def __init__(self, access_key=None, secret_key=None, is_staging=False):
         self.ze = Zebitex(access_key, secret_key, is_staging)

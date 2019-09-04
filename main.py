@@ -67,7 +67,7 @@ class BotConfiguration(UtilsMixin):
                 f'please fill it as indicated in the documentation')
             self.exit()
         else:
-            keys = self._keys_file_reader(keys_file)
+            keys = self._keys_file_reader()
             if not keys:
                 self.bot.applog.critical(
                     f'Your key.txt file is empty, please '
@@ -76,7 +76,7 @@ class BotConfiguration(UtilsMixin):
             else:
                 return keys
 
-    def _keys_file_reader(self, keys_file):  # Need to be refactored
+    def _keys_file_reader(self):  # Need to be refactored
         """Check the consistence of datas in key.txt.
         return: dict, api keys
         """
@@ -93,6 +93,9 @@ class BotConfiguration(UtilsMixin):
                             raise KeyError(
                                 f'You already have a key for this '
                                 f'marketplace, please RTFM')
+                        elif k == 'slack':
+                            self.slack_webhook_url = key[k]
+                            continue
                         else:
                             self.user_market_name_list.append(k)
                         if k not in name_list:
@@ -740,7 +743,7 @@ class Bot(UtilsMixin):
                     self.config.open_orders['sell'].append(order)
 
             else:
-                msg = 'Buys side is empty'
+                msg = 'Sell side is empty'
                 if self.slack:
                     self.slack.send_slack_message(msg)
                 else:
@@ -1024,7 +1027,11 @@ class Bot(UtilsMixin):
                 self.config.id_list[interval_index] = order[0]
                 id_list.append(order[0])
         # Remove id or orders no longer in open_order.
+        print(f'id_list in update_id_list: {id_list}')
         self.config.id_list[:] = [None if x not in id_list else x for x in self.config.id_list]
+        for i in id_list:
+            if not i in self.config.id_list:
+                a = 1
         self.stratlog.debug(f'self.config.id_list: {self.config.id_list}')
         return
 
@@ -1150,16 +1157,31 @@ class Bot(UtilsMixin):
             orders = self.remove_safety_order(self.remove_orders_off_strat(
                 self.orders_price_ordering(self.get_orders(
                     self.config.selected_market))))  # for comparing by Id
+            print(f'id_list0: {str([i for i in self.config.id_list if i])}')
+
             if orders:
                 orders = self.check_if_no_orders(orders)
+                print(f'new open orders: {str(orders)}')
+                print(f'id_list1: {str([i for i in self.config.id_list if i])}')
+                print(f'open_order_id_list1: {str([[i[0] for i in self.config.open_orders[side] if i] for side in self.config.open_orders])}')
                 self.compare_orders(orders)
+                print(f'id_list1.5: {str([i for i in self.config.id_list if i])}')
+                print(f'open_order_id_list1.5: {str([[i[0] for i in self.config.open_orders[side] if i] for side in self.config.open_orders])}')
                 self.update_id_list()
+                print(f'id_list2: {str([i for i in self.config.id_list if i])}')
+                print(f'open_order_id_list2: {str([[i[0] for i in self.config.open_orders[side] if i] for side in self.config.open_orders])}')
                 self.limit_nb_orders()
                 self.update_id_list()
+                print(f'id_list3: {str([i for i in self.config.id_list if i])}')
+                print(f'open_order_id_list3: {str([[i[0] for i in self.config.open_orders[side] if i] for side in self.config.open_orders])}')
                 self.set_safety_orders(self.config.intervals.index(
                     self.config.open_orders['buy'][0][1]),
                     self.config.intervals.index(
                         self.config.open_orders['sell'][-1][1]))
+                self.update_id_list()
+                print(f'id_list4: {str([i for i in self.config.id_list if i])}')
+                print(f'open_order_id_list4: {str([[i[0] for i in self.config.open_orders[side] if i] for side in self.config.open_orders])}')
+            else:
                 self.update_id_list()
             self.applog.debug('CYCLE STOP')
             self.last_loop_datetime = datetime.now().timestamp()

@@ -187,7 +187,6 @@ class UtilsMixin:
             self.applog.critical(msg)
         else:
             from main import BotConfiguration
-            # applog = BotConfiguration().bot.applog
             from logger.logger import Logger
             applog = Logger(name='stratlogs',
                                    log_file='strat.log',
