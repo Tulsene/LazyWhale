@@ -221,7 +221,7 @@ class APIManager(UtilsMixin):
                     if target * coef <= item[1] <= target:
                         return True
         if side == 'sell':
-            coef = self.config.params['increment_coef'] - Decimal('0.001')
+            coef = Decimal(self.config.params['increment_coef']) - Decimal('0.001')
             for item in a_list:
                 if item[4] >= timestamp:
                     if target * coef >= item[1] >= target:
@@ -276,9 +276,6 @@ class APIManager(UtilsMixin):
             self.bot.applog.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
-            # orders = self.get_orders(self.config.selected_market)[side]
-            # is_open = self.does_an_order_is_open(price, orders)
-            # if is_open:
             if self.is_order_open(order_id):
                 rsp = self.exchange.cancel_order(order_id)
                 if rsp:

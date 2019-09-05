@@ -73,16 +73,17 @@ class LazyTest():
                 line = line.replace("'", '"')
                 try:
                     key = json.loads(line)
-                    for k in key.keys():
-                        if k == 'slack':
-                            self.slack_webhook_url = key[k]
-                            continue
-                        elif k not in ["lazy_account", "a_user_account"]:
+                    for k in key['exchange_api'].keys():
+                        if k not in ["lazy_account", "a_user_account"]:
                             raise NameError('The account name is invalid!')
+                    for k in key['messenger'].keys():
+                        if k == 'slack':
+                            self.slack_webhook_url = key['messenger'][k]
+                            self.slack = Slack(self.slack_webhook_url) #TODO: shit code
                 except Exception as e:
                     self.testlog.critical(f'Something went wrong : {e}')
                     self.exit()
-                keys.update(key)
+                keys.update(key['exchange_api'])
         return keys
 
     def keys_launcher(self):
@@ -117,10 +118,7 @@ class LazyTest():
 
     def main(self):
         self.keys_launcher()
-        if self.slack_webhook_url:
-            self.slack = Slack(self.slack_webhook_url)
-        else:
-            raise Exception("Slack webhook url required")
+        sleep(2)
         self.lazy_account.cancel_all()
         self.a_user_account.cancel_all()
         l = main.Bot(params=self.lazy_params, keys=self.lazy_keys, test_mode=True)
@@ -248,7 +246,7 @@ class TestCases(UtilsMixin):
                         self.test_obj.slack.send_slack_message(f"last test case order: {str(order)}")
                         result = eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
                         if result[1] == order[1]: #TODO: opposite case
-                            self.test_obj.slack.send_slack_message(f'Expected that order {order[0]} has been filled')
+                            self.test_obj.slack.send_slack_message(f'Expected that order {order[0]}({side.upper()}) has been filled')
                             updated_raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(
                             self.test_obj.selected_market)
                             updated_real_id_list = sorted([order['id'] for order in updated_raw_open_orders])

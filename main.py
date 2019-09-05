@@ -88,22 +88,23 @@ class BotConfiguration(UtilsMixin):
                 line = line.replace("'", '"')
                 try:
                     key = json.loads(line)
-                    for k in key.keys():
+                    for k in key['exchange_api'].keys():
                         if k in self.user_market_name_list:
                             raise KeyError(
                                 f'You already have a key for this '
                                 f'marketplace, please RTFM')
-                        elif k == 'slack':
-                            self.slack_webhook_url = key[k]
-                            continue
                         else:
                             self.user_market_name_list.append(k)
                         if k not in name_list:
                             raise NameError('The marketplace name is invalid!')
+                    for k in key['messenger'].keys():
+                        if k == 'slack':
+                            self.slack_webhook_url = key['messenger'][k]
+                            continue
                 except Exception as e:
                     self.bot.applog.critical(f'Something went wrong : {e}')
                     self.exit()
-                keys.update(key)
+                keys.update(key['exchange_api'])
         return keys
 
 
@@ -127,7 +128,7 @@ class Bot(UtilsMixin):
                              file_level=logging.DEBUG,
                              root_path=self.config.root_path + "logger/").create()
         from logger.slack import Slack
-        self.slack = Slack(static_config.SLACK_HOOK_URL)
+        self.slack = Slack(self.config.slack_webhook_url)
         from user_interface import UserInterface
         self.user_interface = UserInterface(self, self.config)
         self.api = APIManager(self.config, bot=self)
@@ -1025,6 +1026,7 @@ class Bot(UtilsMixin):
                                      f'intervals: {str(self.config.intervals)}, got: '
                                      f'{str(order[1])}, raw error: {e}')
                 self.config.id_list[interval_index] = order[0]
+                print('>self.config.id_list: ', self.config.id_list)
                 id_list.append(order[0])
         # Remove id or orders no longer in open_order.
         print(f'id_list in update_id_list: {id_list}')
@@ -1157,30 +1159,17 @@ class Bot(UtilsMixin):
             orders = self.remove_safety_order(self.remove_orders_off_strat(
                 self.orders_price_ordering(self.get_orders(
                     self.config.selected_market))))  # for comparing by Id
-            print(f'id_list0: {str([i for i in self.config.id_list if i])}')
-
             if orders:
                 orders = self.check_if_no_orders(orders)
-                print(f'new open orders: {str(orders)}')
-                print(f'id_list1: {str([i for i in self.config.id_list if i])}')
-                print(f'open_order_id_list1: {str([[i[0] for i in self.config.open_orders[side] if i] for side in self.config.open_orders])}')
                 self.compare_orders(orders)
-                print(f'id_list1.5: {str([i for i in self.config.id_list if i])}')
-                print(f'open_order_id_list1.5: {str([[i[0] for i in self.config.open_orders[side] if i] for side in self.config.open_orders])}')
                 self.update_id_list()
-                print(f'id_list2: {str([i for i in self.config.id_list if i])}')
-                print(f'open_order_id_list2: {str([[i[0] for i in self.config.open_orders[side] if i] for side in self.config.open_orders])}')
                 self.limit_nb_orders()
                 self.update_id_list()
-                print(f'id_list3: {str([i for i in self.config.id_list if i])}')
-                print(f'open_order_id_list3: {str([[i[0] for i in self.config.open_orders[side] if i] for side in self.config.open_orders])}')
                 self.set_safety_orders(self.config.intervals.index(
                     self.config.open_orders['buy'][0][1]),
                     self.config.intervals.index(
                         self.config.open_orders['sell'][-1][1]))
                 self.update_id_list()
-                print(f'id_list4: {str([i for i in self.config.id_list if i])}')
-                print(f'open_order_id_list4: {str([[i[0] for i in self.config.open_orders[side] if i] for side in self.config.open_orders])}')
             else:
                 self.update_id_list()
             self.applog.debug('CYCLE STOP')
