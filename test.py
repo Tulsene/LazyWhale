@@ -232,6 +232,8 @@ class TestCases(UtilsMixin):
 
 
         for test_case in test_case_data:
+            self.wait_until_loop_lock()
+            self.bot.test_lock = True
             print('test case started')
             open_orders = deepcopy(self.bot.config.open_orders)
             open_orders['buy'] = list(reversed(open_orders['buy']))
@@ -245,7 +247,7 @@ class TestCases(UtilsMixin):
                         self.test_obj.slack.send_slack_message(f"order book before : {str(orderbook1)}")
                         self.test_obj.slack.send_slack_message(f"last test case order: {str(order)}")
                         result = eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
-                        if result[1] == order[1]: #TODO: opposite case
+                        if result[1] == order[1]:
                             self.test_obj.slack.send_slack_message(f'Expected that order {order[0]}({side.upper()}) has been filled')
                             updated_raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(
                             self.test_obj.selected_market)
@@ -260,6 +262,7 @@ class TestCases(UtilsMixin):
                         #TODO handle this case get order by price, add to filled_order_ids
                         pass
             print('test case finished ', str(datetime.datetime.now()))
+            self.bot.test_lock = False
             sleep(SLEEP_FOR_TEST)
             print('fin checking started ', str(datetime.datetime.now()))
             updated_raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(self.test_obj.selected_market)
@@ -269,11 +272,15 @@ class TestCases(UtilsMixin):
                     msg = f"Unexpected strategy behaviour: expected order {filled_order_id} already filled, but order is still included in the order book now"
                     self.logger.error(msg)
                     self.test_obj.slack.send_slack_message(msg)
-                    orderbook = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
+                    # orderbook = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
                     self.exit()
             a=1
         sleep(SLEEP_FOR_TEST*2)
         return
+
+    def wait_until_loop_lock(self):
+        while self.bot.loop_lock:
+            sleep(0.5)
 
     def get_input_nb(self):
         return {

@@ -112,6 +112,8 @@ class BotConfiguration(UtilsMixin):
 class Bot(UtilsMixin):
     def __init__(self, params={}, keys=(), test_mode=False):
         self.is_init_order_plased = False
+        self.test_lock = False
+        self.loop_lock = False
         self.config = BotConfiguration()
         self.config.create_config(params, keys, test_mode)
         from logger.logger import Logger
@@ -694,6 +696,7 @@ class Bot(UtilsMixin):
                     order = self.create_fake_buy()
                     new_open_orders['buy'].insert(0, order)
                     self.config.open_orders['buy'].insert(0, order)
+                    self.update_id_list()
 
             else:
                 # Or create the right number of new orders
@@ -702,18 +705,13 @@ class Bot(UtilsMixin):
                     self.slack.send_slack_message(msg)
                 else:
                     self.stratlog.warning(msg)
-                if target - self.config.params['nb_buy_to_display'] + 1 >= 1:
-                    start_index = target - self.config.params['nb_buy_to_display'] + 1
-                else:
-                    start_index = 1
 
-                orders = self.set_several_buy(start_index, target)
-                for i, order in enumerate(orders):
-                    new_open_orders['buy'].insert(i, order)
-                    self.config.open_orders['buy'].insert(i, order)
+                order = self.create_fake_buy()
+                new_open_orders['buy'].append(order)
+                self.config.open_orders['buy'].insert(0, order)
+                self.update_id_list()
             self.stratlog.debug(
                 f'updated new_buy_orders: {new_open_orders["buy"]}')
-            self.update_id_list()
 
         if not new_open_orders['sell']:
             self.stratlog.debug("no new_open_orders['sell']")
@@ -742,6 +740,7 @@ class Bot(UtilsMixin):
                     order = self.create_fake_sell()
                     new_open_orders['sell'].append(order)
                     self.config.open_orders['sell'].append(order)
+                    self.update_id_list()
 
             else:
                 msg = 'Sell side is empty'
@@ -750,19 +749,12 @@ class Bot(UtilsMixin):
                 else:
                     self.stratlog.warning(msg)
 
-                if start_index + self.config.params['nb_sell_to_display'] - 1 \
-                        <= self.config.max_sell_index:
-                    target = start_index + self.config.params['nb_sell_to_display'] - 1
-                else:
-                    target = self.config.max_sell_index
-
-                orders = self.api.set_several_sell(start_index, target)
-                for order in orders:
-                    new_open_orders['sell'].append(order)
-                    self.config.open_orders['sell'].append(order)
+                order = self.create_fake_sell()
+                new_open_orders['sell'].append(order)
+                self.config.open_orders['sell'].append(order)
+                self.update_id_list()
             self.stratlog.debug(
                 f'updated new_sell_orders: {new_open_orders["sell"]}')
-            self.update_id_list()
         return new_open_orders
 
     def compare_orders(self, new_open_orders):
@@ -799,6 +791,7 @@ class Bot(UtilsMixin):
             else:
                 self.stratlog.warning(msg)
             target = self.config.id_list.index(new_open_orders['sell'][0][0]) - 1
+
             start_index = target - len(missing_orders['sell']) + 1
             self.stratlog.debug(f'start_index: {start_index}, target: {target}')
             executed_orders['buy'] = self.set_several_buy(start_index, target, True)
@@ -1026,10 +1019,8 @@ class Bot(UtilsMixin):
                                      f'intervals: {str(self.config.intervals)}, got: '
                                      f'{str(order[1])}, raw error: {e}')
                 self.config.id_list[interval_index] = order[0]
-                print('>self.config.id_list: ', self.config.id_list)
                 id_list.append(order[0])
         # Remove id or orders no longer in open_order.
-        print(f'id_list in update_id_list: {id_list}')
         self.config.id_list[:] = [None if x not in id_list else x for x in self.config.id_list]
         for i in id_list:
             if not i in self.config.id_list:
@@ -1149,6 +1140,11 @@ class Bot(UtilsMixin):
                 orders['sell'].append(formated_order)
         return orders
 
+    def wait_while_test_checking(self):
+        if not self.config.test_mode:
+            return
+        while self.test_lock:
+            sleep(0.5)
 
     def main_loop(self):
         """Do the lazy whale strategy.
@@ -1160,6 +1156,8 @@ class Bot(UtilsMixin):
                 self.orders_price_ordering(self.get_orders(
                     self.config.selected_market))))  # for comparing by Id
             if orders:
+                self.loop_lock = True  #for test case
+                self.wait_while_test_checking()
                 orders = self.check_if_no_orders(orders)
                 self.compare_orders(orders)
                 self.update_id_list()
@@ -1170,6 +1168,7 @@ class Bot(UtilsMixin):
                     self.config.intervals.index(
                         self.config.open_orders['sell'][-1][1]))
                 self.update_id_list()
+                self.loop_lock = False #for test case
             else:
                 self.update_id_list()
             self.applog.debug('CYCLE STOP')
