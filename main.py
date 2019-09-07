@@ -28,6 +28,19 @@ class BotConfiguration(UtilsMixin):
         self.script_position = os.path.dirname(sys.argv[0])
         self.root_path = f'{self.script_position}/' if self.script_position else ''
         self.keys_file = f'{self.root_path}{static_config.KEYS_FILE}'
+        from logger.logger import Logger
+        self.stratlog = Logger(name='stratlogs',
+                               log_file='strat.log',
+                               log_formatter='%(message)s',
+                               console_level=logging.DEBUG,
+                               file_level=logging.INFO,
+                               root_path=self.config.root_path + "logger/").create()
+        self.applog = Logger(name='debugs',
+                             log_file='app.log',
+                             log_formatter='%(asctime)s - %(levelname)s - %(message)s',
+                             console_level=logging.DEBUG,
+                             file_level=logging.DEBUG,
+                             root_path=self.config.root_path + "logger/").create()
         self.user_market_name_list = []
         self.exchanges_list = self._exchanges_list_init()
         self.keys = self._keys_initialisation(self.keys_file)
@@ -102,7 +115,7 @@ class BotConfiguration(UtilsMixin):
                             self.slack_webhook_url = key['messenger'][k]
                             continue
                 except Exception as e:
-                    self.bot.applog.critical(f'Something went wrong : {e}')
+                    self.applog.critical(f'Something went wrong : {e}')
                     self.exit()
                 keys.update(key['exchange_api'])
         return keys
@@ -116,19 +129,8 @@ class Bot(UtilsMixin):
         self.loop_lock = False
         self.config = BotConfiguration()
         self.config.create_config(params, keys, test_mode)
-        from logger.logger import Logger
-        self.stratlog = Logger(name='stratlogs',
-                               log_file='strat.log',
-                               log_formatter='%(message)s',
-                               console_level=logging.DEBUG,
-                               file_level=logging.INFO,
-                               root_path=self.config.root_path + "logger/").create()
-        self.applog = Logger(name='debugs',
-                             log_file='app.log',
-                             log_formatter='%(asctime)s - %(levelname)s - %(message)s',
-                             console_level=logging.DEBUG,
-                             file_level=logging.DEBUG,
-                             root_path=self.config.root_path + "logger/").create()
+        self.stratlog = self.config.stratlog
+        self.applog = self.config.applog
         from logger.slack import Slack
         self.slack = Slack(self.config.slack_webhook_url)
         from user_interface import UserInterface

@@ -19,16 +19,16 @@ test_case_by_open_orders_ids = [
             ]
         },
 },
-{
-        'input':{
-            'buy':[
-                0
-            ],
-            'sell':[
-                0,
-            ]
-        },
-},
+# {
+#         'input':{
+#             'buy':[
+#                 0
+#             ],
+#             'sell':[
+#                 0,
+#             ]
+#         },
+# },
 {
         'input':{
             'buy':[
