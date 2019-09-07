@@ -34,13 +34,13 @@ class BotConfiguration(UtilsMixin):
                                log_formatter='%(message)s',
                                console_level=logging.DEBUG,
                                file_level=logging.INFO,
-                               root_path=self.config.root_path + "logger/").create()
+                               root_path=self.root_path + "logger/").create()
         self.applog = Logger(name='debugs',
                              log_file='app.log',
                              log_formatter='%(asctime)s - %(levelname)s - %(message)s',
                              console_level=logging.DEBUG,
                              file_level=logging.DEBUG,
-                             root_path=self.config.root_path + "logger/").create()
+                             root_path=self.root_path + "logger/").create()
         self.user_market_name_list = []
         self.exchanges_list = self._exchanges_list_init()
         self.keys = self._keys_initialisation(self.keys_file)
