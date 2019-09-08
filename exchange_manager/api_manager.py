@@ -259,7 +259,10 @@ class APIManager(UtilsMixin):
         try:
             self.bot.applog.debug(f'Init cancel {side} order {order_id} {price}')
             rsp = self.exchange.cancel_order(order_id)
-            self.bot.slack.send_slack_message(f'canceled order {str(order_id)} responce: {str(rsp)}')
+            msg = f'canceled order {str(order_id)} responce: {str(rsp)}'
+            if self.bot.slack:
+                self.bot.slack.send_slack_message(msg)
+            self.bot.stratlog.warning(msg)
             if rsp:
                 self.order_logger_formatter(cancel_side, order_id, price, 0)
                 if self.is_order_open(order_id):
@@ -313,8 +316,7 @@ class APIManager(UtilsMixin):
             msg = 'api error >= 10'
             if self.bot.slack:
                 self.bot.slack.send_slack_message(msg)
-            else:
-                self.config.strat.warning(msg)
+            self.config.strat.warning(msg)
             self.err_counter = 0
 
     def order_book(self, market):
@@ -495,7 +497,6 @@ class APIManager(UtilsMixin):
             f'"timestamp": "{timestamp}", "datetime": "{date_time}" н}}')
         if self.bot.slack:
             self.bot.slack.send_slack_message(msg)
-        else:
-            self.bot.stratlog.warning(msg)
+        self.bot.stratlog.warning(msg)
         return timestamp, date_time
 

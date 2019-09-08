@@ -1,2 +1,9 @@
+# Copy the following example on the first line of keys.txt for normal use:
+
 {"marketplaceName": {"apiKey": "YOUR_PUBLIC_API_KEY","secret": "YOUR_SECRET_PRIVATE_KEY"}}
 {"marketplaceName2": {"apiKey": "YOUR_PUBLIC_API_KEY","secret": "YOUR_SECRET_PRIVATE_KEY"}}
+{"exchange_api": {"marketplaceName": {"apiKey": "YOUR_PUBLIC_API_KEY", "secret": "YOUR_SECRET_PRIVATE_KEY"}, "kraken": {"apiKey": "YOUR_PUBLIC_API_KEY", "secret": "YOUR_SECRET_PRIVATE_KEY"}}, "messenger": {"slack": "INCOMING_SLACK_WEBHOOK_URL"}}
+
+# Copy the following example on one line of keys2.txt for testing use:
+
+{"exchange_api": {"lazy_account": {"apiKey": "YOUR_PUBLIC_API_KEY","secret": "YOUR_SECRET_PRIVATE_KEY"}, "a_user_account": {"apiKey": "YOUR_PUBLIC_API_KEY","secret": "YOUR_SECRET_PRIVATE_KEY"}}, "messenger": {"slack": "INCOMING_SLACK_WEBHOOK_URL"}}

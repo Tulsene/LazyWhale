@@ -49,7 +49,7 @@ For other OS do a PR if you want it!
 
 ### API Keys Configuration
 
-Create keys.txt and follow the scheme in `keySkeletton.txt`
+Create keys.txt and follow the scheme in `keySkeletton.txt`. Slack is not mandatory for normal use, is it for testing.
 
 ### Strategy parameters
 
@@ -65,9 +65,8 @@ Are in params.txt file and are not kept forever. Backup it before entering new p
 
 
 ## TODO
+
 - [ ] Set spread before asking max amount and set max amount per order
-- [ ] Send slack message.
-- [ ] Improve marketplace selection by adding it into params.
 - [ ] Organize this mess!
 
 ### If you want to help

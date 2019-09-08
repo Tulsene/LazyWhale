@@ -368,10 +368,11 @@ class UserInterface(UtilsMixin):
         logs_data = {'buy': [], 'sell': []}
         # In case there is no log file
         if not self.create_file_when_none(strat_log_file):
-            self.bot.applog.warning("params.txt file have been created")
+            self.bot.applog.warning("strat.log file have been created")
             return
         self.bot.applog.debug("Reading the strat.log file")
         nb_of_lines = self.file_line_counter(strat_log_file)
+        print(nb_of_lines)
         # In case the log file is empty
         if not nb_of_lines:
             self.bot.applog.warning('Your strat.log file was empty')

@@ -13,6 +13,7 @@ import static_config
 from utils.singleton import singleton
 from utils.helper import UtilsMixin
 from exchange_manager.api_manager import APIManager
+from logger.logger import Logger
 
 
 
@@ -28,7 +29,6 @@ class BotConfiguration(UtilsMixin):
         self.script_position = os.path.dirname(sys.argv[0])
         self.root_path = f'{self.script_position}/' if self.script_position else ''
         self.keys_file = f'{self.root_path}{static_config.KEYS_FILE}'
-        from logger.logger import Logger
         self.stratlog = Logger(name='stratlogs',
                                log_file='strat.log',
                                log_formatter='%(message)s',
@@ -84,7 +84,7 @@ class BotConfiguration(UtilsMixin):
             if not keys:
                 self.bot.applog.critical(
                     f'Your key.txt file is empty, please '
-                    f'fill it as indicated to the documentation')
+                    f'fill it as indicated in the documentation')
                 self.exit()
             else:
                 return keys
@@ -592,7 +592,9 @@ class Bot(UtilsMixin):
             buy_sum = Decimal('0')
             self.stratlog.debug(f'lowest_buy_index: {lowest_buy_index}')
             while lowest_buy_index > 0:
-                buy_sum += self.multiplier(self.config.params['amount'], self.config.intervals[lowest_buy_index], Decimal('10E8'))
+                buy_sum += self.multiplier(self.config.params['amount'], 
+                                           self.config.intervals[lowest_buy_index])\
+                                           / self.config.safety_buy_value
                 lowest_buy_index -= 1
             self.stratlog.debug(
                 f'buy_sum: {buy_sum}, lowest_buy_index: {lowest_buy_index}')
@@ -686,8 +688,7 @@ class Bot(UtilsMixin):
                     msg = (f'Bottom target reached! target: {target}')
                     if self.slack:
                         self.slack.send_slack_message(msg)
-                    else:
-                        self.stratlog.critical(msg)
+                    self.stratlog.critical(msg)
 
                     self.api.cancel_all(self.remove_safety_order(
                         self.remove_orders_off_strat(
@@ -705,8 +706,7 @@ class Bot(UtilsMixin):
                 msg = 'Buys side is empty'
                 if self.slack:
                     self.slack.send_slack_message(msg)
-                else:
-                    self.stratlog.warning(msg)
+                self.stratlog.warning(msg)
 
                 order = self.create_fake_buy()
                 new_open_orders['buy'].append(order)
@@ -730,8 +730,7 @@ class Bot(UtilsMixin):
                         f'self.max_sell_index: {self.config.max_sell_index}')
                     if self.slack:
                         self.slack.send_slack_message(msg)
-                    else:
-                        self.stratlog.critical(msg)
+                    self.stratlog.critical(msg)
 
                     self.api.cancel_all(self.remove_safety_order(
                         self.remove_orders_off_strat(self.get_orders(
@@ -748,8 +747,7 @@ class Bot(UtilsMixin):
                 msg = 'Sell side is empty'
                 if self.slack:
                     self.slack.send_slack_message(msg)
-                else:
-                    self.stratlog.warning(msg)
+                self.stratlog.warning(msg)
 
                 order = self.create_fake_sell()
                 new_open_orders['sell'].append(order)
@@ -779,8 +777,7 @@ class Bot(UtilsMixin):
             msg = 'A buy has occurred'
             if self.slack:
                 self.slack.send_slack_message(msg)
-            else:
-                self.stratlog.warning(msg)
+            self.stratlog.warning(msg)
             start_index = self.config.id_list.index(new_open_orders['buy'][-1][0]) + 1
             target = start_index + len(missing_orders['buy']) - 1
             self.stratlog.debug(f'start_index: {start_index}, target: {target}')
@@ -790,8 +787,7 @@ class Bot(UtilsMixin):
             msg = 'A sell has occurred'
             if self.slack:
                 self.slack.send_slack_message(msg)
-            else:
-                self.stratlog.warning(msg)
+            self.stratlog.warning(msg)
             target = self.config.id_list.index(new_open_orders['sell'][0][0]) - 1
 
             start_index = target - len(missing_orders['sell']) + 1
