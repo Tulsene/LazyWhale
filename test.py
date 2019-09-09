@@ -47,7 +47,7 @@ class LazyTest():
                                file_level=logging.DEBUG,
                                root_path=self.root_path + "logger/"
                                 ).create()
-        self.applog, self.stratlog = [self.testlog]*2   #   script classes expected expected self.applog, self.stratlog as looger
+        self.applog, self.stratlog = [self.testlog]*2   #because script classes expected expected self.applog, self.stratlog as looger
         self.lazy_params = {"datetime": "2019-07-27 23:58:47.834790",
                             "marketplace": "zebitex_testnet",
                             "market": self.selected_market,
@@ -157,14 +157,13 @@ class TestCases(UtilsMixin):
         self.test_case_data = {
             # 'testing_by_open_orders_number':test_case_by_open_orders_number,
             'testing_by_open_orders_ids':test_case_by_open_orders_ids,
-            #add new test case here as new dict element. Test case must have a key that equal to the name of the method..
+            # add new test case here as new dict element. Test case must have a key that equal to the name of the method..
         }
 
     def execute(self):
         while True:
             for test_case, test_case_data in self.test_case_data.items():
                 if self.is_valid_test(test_case, test_case_data):
-                    #TODO: sync and async ways
                     eval('self.'+test_case)(test_case_data=test_case_data)
                     sleep(2)
 
@@ -191,9 +190,7 @@ class TestCases(UtilsMixin):
                         amount_coef = test_case['input'][side][index]['amount_percent']
                         amount = order[3] * Decimal(amount_coef)
                         result = eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
-                    else:
-                        #TODO handle this case
-                        pass
+
             sleep(SLEEP_FOR_TEST)
             updated_open_orders = self.test_obj.lazy_account.get_orders(self.test_obj.selected_market)
             for side in ['buy','sell']:

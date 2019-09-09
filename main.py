@@ -142,7 +142,6 @@ class Bot(UtilsMixin):
 
     def launch(self):
         self.set_params()
-        # self.cancel_all_orders()
         self.place_init_orders()
         self.main_loop()
 
@@ -839,15 +838,11 @@ class Bot(UtilsMixin):
                 self.config.open_orders['sell'].remove(order)
             for order in executed_orders['buy']:
                 self.config.open_orders['buy'].append(order)
-            # self.stratlog.debug(
-            #    f'self.open_orders buy: {self.open_orders["buy"]}')
         if executed_orders['sell']:
             for order in missing_orders['buy']:
                 self.config.open_orders['buy'].remove(order)
             for i, order in enumerate(executed_orders['sell']):
                 self.config.open_orders['sell'].insert(i, order)
-            # self.stratlog.debug(
-            #    f'self.open_orders sell: {self.open_orders["sell"]}')
         return
 
     def limit_nb_orders(self):
@@ -856,9 +851,6 @@ class Bot(UtilsMixin):
         new_open_orders = self.remove_orders_off_strat(
             self.orders_price_ordering(self.get_orders(
                 self.config.selected_market)))
-        # self.stratlog.debug(
-        #    f'Limit nb orders(), new_open_orders: {new_open_orders}')
-        # Don't mess up if all buy orders have been filled during the cycle
         if new_open_orders['buy']:
             nb_orders = len(new_open_orders['buy'])
             if new_open_orders['buy'][0][1] == self.config.safety_buy_value:
@@ -1019,8 +1011,11 @@ class Bot(UtilsMixin):
                     raise ValueError(f'Wrong order price for self.intervals, '
                                      f'intervals: {str(self.config.intervals)}, got: '
                                      f'{str(order[1])}, raw error: {e}')
+                print('order: ', str(order))
                 self.config.id_list[interval_index] = order[0]
                 id_list.append(order[0])
+                print('id_list: ', str(id_list))
+
         # Remove id or orders no longer in open_order.
         self.config.id_list[:] = [None if x not in id_list else x for x in self.config.id_list]
         for i in id_list:

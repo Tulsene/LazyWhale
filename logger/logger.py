@@ -30,7 +30,7 @@ class Logger:
 
     def create(self):
         dir_name = f'{self.root_path}logfiles'
-        self._create_dir_when_none('logger/logfiles')    #TODO; in logger
+        self._create_dir_when_none('logger/logfiles')
         log_file = f'{dir_name}/{self.log_file}'
         logger = logging.getLogger(self.name)
         logger.setLevel(self.logging_level)

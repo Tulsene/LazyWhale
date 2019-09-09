@@ -291,7 +291,7 @@ class UserInterface(UtilsMixin):
                     # self.config.keys[self.config.user_market_name_list[choice]]['secret'],
                     # False)
             elif self.config.user_market_name_list[choice] == 'zebitex_testnet':
-                self.config.exchange = self.bot.api.set_exchange('zebitex') #TODO: or zebitex_testnet
+                self.config.exchange = self.bot.api.set_exchange('zebitex')
                     # zebitexFormatted.ZebitexFormatted(
                     # self.config.keys[self.config.user_market_name_list[choice]]['apiKey'],
                     # self.config.keys[self.config.user_market_name_list[choice]]['secret'],
