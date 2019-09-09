@@ -122,7 +122,7 @@ class BotConfiguration(UtilsMixin):
 
 
 class Bot(UtilsMixin):
-    def __init__(self, params={}, keys=(), test_mode=False):
+    def __init__(self, params={}, keys=(), slack_notif=True, test_mode=False):
         self.slack = None
         self.is_init_order_plased = False
         self.test_lock = False
@@ -134,8 +134,9 @@ class Bot(UtilsMixin):
                                   test_mode=test_mode)
         self.stratlog = self.config.stratlog
         self.applog = self.config.applog
-        from logger.slack import Slack
-        self.slack = Slack(self.config.slack_webhook_url)
+        if slack_notif:
+            from logger.slack import Slack
+            self.slack = Slack(self.config.slack_webhook_url)
         from user_interface import UserInterface
         self.user_interface = UserInterface(self, self.config)
         self.api = APIManager(self.config, bot=self)
