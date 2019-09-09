@@ -54,7 +54,7 @@ class LazyTest():
                             "range_bot": "0.01",
                             "range_top": "0.015",
                             "increment_coef": "1.02",
-                            "amount": "0.2",
+                            "amount": "0.02",
                             "spread_bot": "0.01082432",
                             "spread_top": "0.01104081",
                             "stop_at_bot": "False",
@@ -80,7 +80,7 @@ class LazyTest():
                     for k in key['messenger'].keys():
                         if k == 'slack':
                             self.slack_webhook_url = key['messenger'][k]
-                            # self.slack = Slack(self.slack_webhook_url)
+                            self.slack = Slack(self.slack_webhook_url)
                 except Exception as e:
                     self.testlog.critical(f'Something went wrong : {e}')
                     self.exit()
