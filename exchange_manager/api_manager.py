@@ -131,7 +131,6 @@ class APIManager(UtilsMixin):
             else:
                 return rsp
 
-
     def init_limit_sell_order(self, market, amount, price):
         """Generate a global timestamp before calling """
         self.now = self.timestamp_formater()
@@ -244,7 +243,6 @@ class APIManager(UtilsMixin):
         if order_id in id_list:
             return True
 
-
     def cancel_order(self, order_id, price, timestamp, side):
         """Cancel an order with it's id.
         Retry 1000 times, send an email each 10 tries.
@@ -316,7 +314,10 @@ class APIManager(UtilsMixin):
             msg = 'api error >= 10'
             if self.bot.slack:
                 self.bot.slack.send_slack_message(msg)
-            self.config.strat.warning(msg)
+            try:
+                self.config.strat.warning(msg)
+            except:
+                a=1
             self.err_counter = 0
 
     def order_book(self, market):

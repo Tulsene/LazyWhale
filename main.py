@@ -49,7 +49,7 @@ class BotConfiguration(UtilsMixin):
         self.user_balance = {}
         self.selected_market = None
         self.open_orders = {'sell': [], 'buy': []}
-        self.params = {}
+        self.params = params
         self.intervals = []
         self.id_list = []
         self.err_counter = 0
@@ -121,14 +121,17 @@ class BotConfiguration(UtilsMixin):
         return keys
 
 
-
 class Bot(UtilsMixin):
     def __init__(self, params={}, keys=(), test_mode=False):
+        self.slack = None
         self.is_init_order_plased = False
         self.test_lock = False
         self.loop_lock = False
         self.config = BotConfiguration()
-        self.config.create_config(params, keys, test_mode)
+        self.config.create_config(bot_obj=self,
+                                  params=params,
+                                  keys=keys,
+                                  test_mode=test_mode)
         self.stratlog = self.config.stratlog
         self.applog = self.config.applog
         from logger.slack import Slack
@@ -139,7 +142,7 @@ class Bot(UtilsMixin):
 
     def launch(self):
         self.set_params()
-        self.cancel_all_orders()
+        # self.cancel_all_orders()
         self.place_init_orders()
         self.main_loop()
 

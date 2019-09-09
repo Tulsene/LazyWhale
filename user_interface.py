@@ -269,7 +269,7 @@ class UserInterface(UtilsMixin):
         return: String, name of the selected marketplace.
         """
         if self.config.test_mode:
-            self.config.exchange = self.bot.api.set_exchange('zebitex_testnet') #TODO: or zebitex_testnet
+            self.config.exchange = self.bot.api.set_exchange('zebitex_testnet')
             # zebitexFormatted.ZebitexFormatted(
             #     self.config.testing_keys[0], self.config.testing_keys[1], True)
             self.bot.api.load_markets()
@@ -285,7 +285,7 @@ class UserInterface(UtilsMixin):
                 else False
 
             if self.config.user_market_name_list[choice] == 'zebitex':
-                self.config.exchange = self.bot.api.set_exchange('zebitex') #TODO: or zebitex_testnet
+                self.config.exchange = self.bot.api.set_exchange('zebitex')
                     # zebitexFormatted.ZebitexFormatted(
                     # self.config.keys[self.config.user_market_name_list[choice]]['apiKey'],
                     # self.config.keys[self.config.user_market_name_list[choice]]['secret'],
@@ -347,7 +347,8 @@ class UserInterface(UtilsMixin):
         try:
             message = str(message)
             self.bot.stratlog.warning(message)
-            rsp = self.bot.slack.send_slack_message(
+            if self.bot.slack:
+                rsp = self.bot.slack.send_slack_message(
                 text=message)
             if rsp['ok'] is False:
                 for item in rsp:
