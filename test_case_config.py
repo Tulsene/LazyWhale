@@ -2,27 +2,17 @@
 
 
 test_case_by_open_orders_ids = [
-    {
-        'input':{
-            'buy':[
-                0,  #order book index
-            ],
-            'sell':[]
-        },
-},
-    {
-        'input':{
-            'buy':[
-            ],
-            'sell':[
-                0,
-            ]
-        },
-},
-# {
+#     {
 #         'input':{
 #             'buy':[
-#                 0
+#                 0,  #order book index
+#             ],
+#             'sell':[]
+#         },
+# },
+#     {
+#         'input':{
+#             'buy':[
 #             ],
 #             'sell':[
 #                 0,
@@ -32,27 +22,37 @@ test_case_by_open_orders_ids = [
 {
         'input':{
             'buy':[
+                0
             ],
             'sell':[
                 0,
-                1,
-                2,
-                3,
             ]
         },
 },
-{
-        'input':{
-            'sell':[
-            ],
-            'buy':[
-                0,
-                1,
-                2,
-                3,
-            ]
-        },
-},
+# {
+#         'input':{
+#             'buy':[
+#             ],
+#             'sell':[
+#                 0,
+#                 1,
+#                 2,
+#                 3,
+#             ]
+#         },
+# },
+# {
+#         'input':{
+#             'sell':[
+#             ],
+#             'buy':[
+#                 0,
+#                 1,
+#                 2,
+#                 3,
+#             ]
+#         },
+# },
 ]
 
 

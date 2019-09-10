@@ -116,7 +116,11 @@ class APIManager(UtilsMixin):
         price: string, price of the order.
         return: list, formatted trade history by ccxt."""
         try:
+            orderbook = self.order_book('OMG/BTC')
             order = self.exchange.create_limit_buy_order(market, amount, price)
+            if not self.is_order_open(order['id']):
+                orderbook1 = self.order_book('OMG/BTC')
+                raise Exception('Cancelled order still open')
             date = self.order_logger_formatter('buy', order['id'], price,
                                                amount)
             return self.format_order(order['id'], price, amount,
@@ -145,9 +149,14 @@ class APIManager(UtilsMixin):
         return: list, formatted trade history by ccxt
                 or boolean True when the order is already filled"""
         try:
+            orderbook = self.order_book('OMG/BTC')
             order = self.exchange.create_limit_sell_order(market,
                                                           amount,
                                                           price)
+            if not self.is_order_open(order['id']):
+                orderbook1 = self.order_book('OMG/BTC')
+                raise Exception('Cancelled order still open')
+
             date = self.order_logger_formatter('sell', order['id'], price,
                                                amount)
             return self.format_order(order['id'], price, amount,

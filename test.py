@@ -27,7 +27,7 @@ class LazyTest():
     getcontext().prec = 15
 
     def __init__(self):
-        self.selected_market = 'CVC/BTC'
+        self.selected_market = 'OMG/BTC'
         self.slack = None
         self.script_position = os.path.dirname(sys.argv[0])
         self.root_path = f'{self.script_position}/' if self.script_position else ''
@@ -227,7 +227,8 @@ class TestCases(UtilsMixin):
                 self.test_obj.slack.send_slack_message(msg)
             self.exit()
 
-
+        if self.test_obj.slack:
+            self.test_obj.slack.send_slack_message('START TEST CYCLE:')
 
         for test_case in test_case_data:
             self.wait_until_loop_lock()
@@ -244,7 +245,7 @@ class TestCases(UtilsMixin):
                         orderbook1 = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
                         if self.test_obj.slack:
                             self.test_obj.slack.send_slack_message(f"order book before : {str(orderbook1)}")
-                            self.test_obj.slack.send_slack_message(f"last test case order: {str(order)}")
+                            self.test_obj.slack.send_slack_message(f"last test case({side.upper()}) order: {str(order)}")
                         result = eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
                         if result[1] == order[1]:
                             if self.test_obj.slack:
@@ -260,7 +261,11 @@ class TestCases(UtilsMixin):
                     else:
                         #TODO handle this case get order by price, add to filled_order_ids
                         pass
+            orderbook2 = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
+            self.test_obj.slack.send_slack_message(f"order book fin: {str(orderbook2)}")
             print('test case finished ', str(datetime.datetime.now()))
+            self.test_obj.slack.send_slack_message('FINISH TEST CYCLE:')
+
             self.bot.test_lock = False
             sleep(SLEEP_FOR_TEST)
             print('fin checking started ', str(datetime.datetime.now()))
@@ -274,7 +279,7 @@ class TestCases(UtilsMixin):
                         self.test_obj.slack.send_slack_message(msg)
                     orderbook = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
                     self.exit()
-        sleep(SLEEP_FOR_TEST*2)
+        sleep(SLEEP_FOR_TEST)
         return
 
     def wait_until_loop_lock(self):
