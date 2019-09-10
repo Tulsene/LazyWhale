@@ -1154,50 +1154,20 @@ class Bot(UtilsMixin):
             self.loop_lock = True  # for test case
             self.wait_while_test_checking()
             self.applog.debug('CYCLE START')
-            raw_open_orders = self.api.fetch_open_orders(self.config.selected_market)
-            id_list = [order['id'] for order in raw_open_orders]
-            print('0open_orders a: ', id_list)
             orders = self.remove_safety_order(self.remove_orders_off_strat(
                 self.orders_price_ordering(self.get_orders(
                     self.config.selected_market))))  # for comparing by Id
-            raw_open_orders = self.api.fetch_open_orders(self.config.selected_market)
-            id_list = [order['id'] for order in raw_open_orders]
-            print('0open_orders a: ', id_list)
-            print('ORDERS:', str(orders))
             if orders:
-
                 orders = self.check_if_no_orders(orders)
-                print('1config id list: ', self.config.id_list)
-                print('1config open orders: ', self.config.open_orders)
-                raw_open_orders = self.api.fetch_open_orders(self.config.selected_market)
-                id_list = [order['id'] for order in raw_open_orders]
-                print('1open_orders: ', id_list)
-
                 self.compare_orders(orders)
-                print('2config id list: ', self.config.id_list)
-                print('2config open orders: ', self.config.open_orders)
-                raw_open_orders = self.api.fetch_open_orders(self.config.selected_market)
-                id_list = [order['id'] for order in raw_open_orders]
-                print('2open_orders: ', id_list)
-
                 self.update_id_list()
                 self.limit_nb_orders()
-                print('3config id list: ', self.config.id_list)
-                print('3config open orders: ', self.config.open_orders)
-                raw_open_orders = self.api.fetch_open_orders(self.config.selected_market)
-                id_list = [order['id'] for order in raw_open_orders]
-                print('3open_orders: ', id_list)
                 self.update_id_list()
                 self.set_safety_orders(self.config.intervals.index(
                     self.config.open_orders['buy'][0][1]),
                     self.config.intervals.index(
                         self.config.open_orders['sell'][-1][1]))
                 self.update_id_list()
-                print('4config id list: ', self.config.id_list)
-                print('4config open orders: ', self.config.open_orders)
-                raw_open_orders = self.api.fetch_open_orders(self.config.selected_market)
-                id_list = [order['id'] for order in raw_open_orders]
-                print('4open_orders: ', id_list)
                 self.loop_lock = False #for test case
             else:
                 self.update_id_list()

@@ -155,7 +155,7 @@ class TestCases(UtilsMixin):
         else:
             self.logger = logger
         self.test_case_data = {
-            # 'testing_by_open_orders_number':test_case_by_open_orders_number,
+            'testing_by_open_orders_number':test_case_by_open_orders_number,
             'testing_by_open_orders_ids':test_case_by_open_orders_ids,
             # add new test case here as new dict element. Test case must have a key that equal to the name of the method..
         }
@@ -177,6 +177,8 @@ class TestCases(UtilsMixin):
         if not test_case_data:
             self.logger.error(f"ERROR: test_case_data required")
             self.exit()
+        self.wait_until_loop_lock()
+        self.bot.test_lock = True
         open_orders = deepcopy(self.bot.config.open_orders)
         open_orders['buy'] = list(reversed(open_orders['buy']))
         input_nb = self.get_input_nb()
@@ -187,11 +189,12 @@ class TestCases(UtilsMixin):
                     self.exit()
                 for index, order in enumerate(open_orders[side]):
                     if index in test_case['input'][side]:
-                        amount_coef = test_case['input'][side][index]['amount_percent']
-                        amount = order[3] * Decimal(amount_coef)
+                        amount = order[3]
                         result = eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
-
+            self.bot.test_lock = False
             sleep(SLEEP_FOR_TEST)
+            self.wait_until_loop_lock()
+            self.bot.test_lock = True
             updated_open_orders = self.test_obj.lazy_account.get_orders(self.test_obj.selected_market)
             for side in ['buy','sell']:
                 if not test_case['output_nb'][side+'_nb'] == len(updated_open_orders[side]):
@@ -201,6 +204,8 @@ class TestCases(UtilsMixin):
                     if self.test_obj.slack:
                         self.test_obj.slack.send_slack_message(msg)
                     self.exit()
+            self.bot.test_lock = False
+
 
 
 
@@ -269,6 +274,8 @@ class TestCases(UtilsMixin):
             self.bot.test_lock = False
             sleep(SLEEP_FOR_TEST)
             print('fin checking started ', str(datetime.datetime.now()))
+            self.bot.test_lock = True
+
             updated_raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(self.test_obj.selected_market)
             updated_real_id_list = sorted([order['id'] for order in updated_raw_open_orders])
             for filled_order_id in filled_order_ids:
@@ -279,7 +286,7 @@ class TestCases(UtilsMixin):
                         self.test_obj.slack.send_slack_message(msg)
                     orderbook = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
                     self.exit()
-        sleep(SLEEP_FOR_TEST)
+            self.bot.test_lock = False
         return
 
     def wait_until_loop_lock(self):
