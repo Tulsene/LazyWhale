@@ -18,7 +18,10 @@ from utils.helper import UtilsMixin
 from test_case_config import *
 
 
-
+order_book_side_map = {
+    'buy':'bids',
+    'sell':'asks'
+}
 
 
 
@@ -155,8 +158,9 @@ class TestCases(UtilsMixin):
         else:
             self.logger = logger
         self.test_case_data = {
-            'testing_by_open_orders_number':test_case_by_open_orders_number,
-            'testing_by_open_orders_ids':test_case_by_open_orders_ids,
+            # 'testing_by_open_orders_number':test_case_by_open_orders_number,
+            # 'testing_by_open_orders_ids':test_case_by_open_orders_ids,
+            'testing_by_price_from_params':test_case_by_price_from_params
             # add new test case here as new dict element. Test case must have a key that equal to the name of the method..
         }
 
@@ -206,17 +210,14 @@ class TestCases(UtilsMixin):
                     self.exit()
             self.bot.test_lock = False
 
-
-
-
-
-
     def testing_by_open_orders_ids(self, test_case_data):
 
         if not test_case_data:
             self.logger.error(f"ERROR: test_case_data required")
             self.exit()
+
         sleep(10)
+        self.wait_until_loop_lock()
         raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(self.test_obj.selected_market)
         real_id_list = sorted([order['id'] for order in raw_open_orders])
         try:
@@ -243,16 +244,19 @@ class TestCases(UtilsMixin):
             open_orders['buy'] = list(reversed(open_orders['buy']))
             for side in ['buy','sell']:
                 for index, order in enumerate(open_orders[side]):
-                    if order[0] in ['FB','FS']:
+                    if order[0] in ['FB','FS'] or order[1] in [self.bot.config.intervals[0],self.bot.config.intervals[-1]]:
                         continue
                     if index in test_case['input'][side]:
                         amount = order[2]
-                        orderbook1 = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
+                        orderbook_before = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
                         if self.test_obj.slack:
-                            self.test_obj.slack.send_slack_message(f"order book before : {str(orderbook1)}")
+                            self.test_obj.slack.send_slack_message(f"order book before : {str(orderbook_before)}")
                             self.test_obj.slack.send_slack_message(f"last test case({side.upper()}) order: {str(order)}")
+
                         result = eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(self.test_obj.selected_market, amount, order[1])
                         if result[1] == order[1]:
+                            if not orderbook_before[order_book_side_map[side]][0][1] == order[1]:
+                                continue
                             if self.test_obj.slack:
                                 self.test_obj.slack.send_slack_message(f'Expected that order {order[0]}({side.upper()}) has been filled')
                             updated_raw_open_orders = self.test_obj.lazy_account.fetch_open_orders(self.test_obj.selected_market)
@@ -289,6 +293,60 @@ class TestCases(UtilsMixin):
             self.bot.test_lock = False
         return
 
+    def testing_by_price_from_params(self, test_case_data):
+        if not test_case_data:
+            self.logger.error(f"ERROR: test_case_data required")
+            self.exit()
+        self.wait_until_loop_lock()
+        open_orders = deepcopy(self.bot.config.open_orders)
+        open_orders['buy'] = list(reversed(open_orders['buy']))
+        input_nb = self.get_input_nb()
+        for test_case in test_case_data:
+            self.wait_until_loop_lock()
+            self.bot.test_lock = True
+            for side in ['buy','sell']:
+                if test_case['input'][side] is None:
+                    continue
+                if not input_nb[side] == len(open_orders[side]):
+                    self.logger.error(f"Unexpected strategy behaviour: expected {str(test_case['output_nb'][side+'_nb'])} open orders, but got {str(len(open_orders[side]))}")
+                    self.exit()
+                orderbook_before = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
+                order = open_orders[side][0]
+                # if not Decimal(orderbook_before[order_book_side_map[side]][0][0]) == order[1]:
+                #     self.logger.error(f"Unexpected strategy behaviour: current order {order} is not order book best {side} order")
+                #     self.exit()
+                amount = order[2]
+                price = self.bot.config.params[test_case['input'][side]['param']]
+                relation_type = test_case['input'][side]['type']
+                price = self._change_price(price, type=relation_type)
+                result = eval(f'self.test_obj.a_user_account.init_limit_{self.flip_side(side)}_order')(
+                    self.test_obj.selected_market, amount, price)
+                orderbook_after = self.test_obj.lazy_account.order_book(self.test_obj.selected_market)
+                if side == 'buy':
+                    if not Decimal(orderbook_after['bids'][0][0]) < Decimal(orderbook_before['bids'][0][0]):
+                        self.logger.error(f"Unexpected strategy behaviour: expected order {order} filled")
+                        self.exit()
+                if side == 'sell':
+                    if not Decimal(orderbook_after['asks'][0][0]) > Decimal(orderbook_before['asks'][0][0]):
+                        self.logger.error(f"Unexpected strategy behaviour: expected order {order} filled")
+                        self.exit()
+
+            self.bot.test_lock = False
+            sleep(SLEEP_FOR_TEST)
+            self.wait_until_loop_lock()
+            self.bot.test_lock = True
+            updated_open_orders = self.test_obj.lazy_account.get_orders(self.test_obj.selected_market)
+            for side in ['buy','sell']:
+                if not test_case['output_nb'][side+'_nb'] == len(updated_open_orders[side]):
+                    #check again if in this moment safety orders will be cancelled
+                    msg = f"Unexpected strategy behaviour: expected {str(test_case['output_nb'][side+'_nb'])} open orders, but got {str(len(updated_open_orders[side]))}"
+                    self.logger.error(msg)
+                    if self.test_obj.slack:
+                        self.test_obj.slack.send_slack_message(msg)
+                    self.exit()
+            self.bot.test_lock = False
+
+
     def wait_until_loop_lock(self):
         while self.bot.loop_lock:
             sleep(0.5)
@@ -302,9 +360,13 @@ class TestCases(UtilsMixin):
     def get_input_ids(self):
         return [id for id in self.bot.config.id_list if id and not id in ['FS','FB']]
 
-    def check_if_missed_order_is_safety(self):
-
-        return
+    def _change_price(self, price, type, add_value=Decimal('0.001')):
+        if type == 'equal':
+            return price
+        if type == 'more':
+            return str(Decimal(price) + add_value)
+        elif type == 'less':
+            return str(Decimal(price) - add_value)
 
 if __name__ == "__main__":
     l = LazyTest()

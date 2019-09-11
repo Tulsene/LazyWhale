@@ -1172,6 +1172,7 @@ class Bot(UtilsMixin):
             else:
                 self.update_id_list()
             self.applog.debug('CYCLE STOP')
+            self.loop_lock = False
             self.last_loop_datetime = datetime.now().timestamp()
             sleep(5)
 
