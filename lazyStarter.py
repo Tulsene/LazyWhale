@@ -15,7 +15,7 @@ from pathlib import Path
 from datetime import datetime
 from operator import itemgetter
 import pdb
-import slack
+from simpleSlackSendMessage import SimpleSlackSendMessage as slack
 
 
 class LazyStarter:
@@ -126,10 +126,11 @@ class LazyStarter:
         return: dict, api keys
         """
         name_list = deepcopy(self.exchanges_list)
-        name_list.append("slack")
+        name_list.append("messenger")
         keys = {}
         with open(self.keys_file, mode='r', encoding='utf-8') as keys_file:
             for line in keys_file:
+                print(line)
                 line = line.replace('\n', '')
                 line = line.replace("'", '"')
                 try:
@@ -147,11 +148,9 @@ class LazyStarter:
                     self.applog.critical(f'Something went wrong : {e}')
                     self.exit()
                 keys.update(key)
-        if "slack" in keys:
-            self.slack = slack.WebClient(keys['slack']['token'])
-            self.slack_channel = keys['slack']['channel']
-            del keys['slack']
-            slack_test = self.send_slack_message('Start routine.')
+        if "messenger" in keys:
+            self.slack = slack(keys['messenger']['slack'])
+            slack_test = self.slack.post_message('Start routine.')
         return keys
 
     def select_marketplace(self, marketplace=None):
@@ -1076,25 +1075,6 @@ class LazyStarter:
         if not self.simple_question(q):
             self.exit()
 
-    def send_slack_message(self, message):
-        """Send a message to slack channel.
-        message: string.
-        return: slack object"""
-        try:
-            message = str(message)
-            self.stratlog.warning(message)
-            rsp = self.slack.chat_postMessage(
-                channel=self.slack_channel,
-                text=message)
-            if rsp['ok'] is False:
-                for item in rsp:
-                    raise ValueError(item)
-            return rsp
-        except Exception as e:
-            self.applog.critical(f'Something went wrong with slack: {e}')
-            return
-
-
     """
     ########################## API REQUESTS ###################################
     """
@@ -1395,7 +1375,7 @@ class LazyStarter:
         if self.err_counter >= 10:
             msg = 'api error >= 10'
             if self.slack_channel:
-                self.send_slack_message(msg)
+                self.slack.post_message(msg)
             else:
                 self.strat.warning(msg)
             self.err_counter = 0
@@ -1568,7 +1548,7 @@ class LazyStarter:
             f'"price": "{str(price)}", "amount": "{str(amount)}", '
             f'"timestamp": "{timestamp}", "datetime": "{date_time}" }}')
         if self.slack_channel:
-            self.send_slack_message(msg)
+            self.slack.post_message(msg)
         else:
             self.stratlog.warning(msg)
         return timestamp, date_time
@@ -1973,7 +1953,7 @@ class LazyStarter:
                 if self.params['stop_at_bot']:
                     msg = (f'Bottom target reached! target: {target}')
                     if self.slack_channel:
-                        self.send_slack_message(msg)
+                        self.slack.post_message(msg)
                     else:
                         self.stratlog.critical(msg)
 
@@ -1991,7 +1971,7 @@ class LazyStarter:
                 # Or create the right number of new orders
                 msg = 'Buys side is empty'
                 if self.slack_channel:
-                    self.send_slack_message(msg)
+                    self.slack.post_message(msg)
                 else:
                     self.stratlog.warning(msg)
                 if target - self.params['nb_buy_to_display'] + 1 >= 1:
@@ -2021,7 +2001,7 @@ class LazyStarter:
                         f'Top target reached! start_index: {start_index}, '
                         f'self.max_sell_index: {self.max_sell_index}')
                     if self.slack_channel:
-                        self.send_slack_message(msg)
+                        self.slack.post_message(msg)
                     else:
                         self.stratlog.critical(msg)
 
@@ -2038,7 +2018,7 @@ class LazyStarter:
             else:
                 msg = 'Buys side is empty'
                 if self.slack_channel:
-                    self.send_slack_message(msg)
+                    self.slack.post_message(msg)
                 else:
                     self.stratlog.warning(msg)
 
@@ -2076,7 +2056,7 @@ class LazyStarter:
         if missing_orders['buy']:
             msg = 'A buy has occurred'
             if self.slack_channel:
-                self.send_slack_message(msg)
+                self.slack.post_message(msg)
             else:
                 self.stratlog.warning(msg)
             start_index = self.id_list.index(new_open_orders['buy'][-1][0]) + 1
@@ -2087,7 +2067,7 @@ class LazyStarter:
         if missing_orders['sell']:
             msg = 'A sell has occurred'
             if self.slack_channel:
-                self.send_slack_message(msg)
+                self.slack.post_message(msg)
             else:
                 self.stratlog.warning(msg)
             target = self.id_list.index(new_open_orders['sell'][0][0]) - 1
