@@ -1,8 +1,7 @@
 import json
 import requests
-from utils.singleton import singleton
 
-class Slack():
+class Slack:
     def __init__(self, webhook_url):
         self.webhook_url = self.webhook_check(webhook_url)
 
@@ -21,7 +20,7 @@ class Slack():
             raise ValueError(f'{webhook_url} is not a valid webhook url')
         return webhook_url
 
-    def send_slack_message(self, message):
+    def post_message(self, message):
         """Post a message to slack through an incoming webhook.
         :message: string, the message that will be send to slack.
         response: request response object."""
@@ -35,4 +34,4 @@ class Slack():
                 'Request to slack returned an error %s, the response is:\n%s'
                 % (response.status_code, response.text))
 
-        return response
+        return response.status_code

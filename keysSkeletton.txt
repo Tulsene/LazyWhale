@@ -1,2 +1,0 @@
-{"marketplaceName": {"apiKey": "YOUR_PUBLIC_API_KEY","secret": "YOUR_SECRET_PRIVATE_KEY"}}
-{"marketplaceName2": {"apiKey": "YOUR_PUBLIC_API_KEY","secret": "YOUR_SECRET_PRIVATE_KEY"}}
