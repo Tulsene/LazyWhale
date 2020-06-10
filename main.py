@@ -356,17 +356,22 @@ class LazyWhale:
 
         return new_orders
 
-    def remove_safety_orders(self, open_orders):
+    def safety_orders_checkpoint(self, open_orders):
         """Main function of remove safety orders strategy.
         open_orders: dict.
         return: dict.
         """
-        self.log(f'remove_safety_orders()', level='debug', print_=True)
+        self.log(f'safety_orders_checkpoint()', level='debug', print_=True)
         open_orders = self.safety_failsafe(open_orders)
         
         if self.main_loop_abort(open_orders):
             return False
 
+        open_orders = self.remove_safety_orders(open_orders)
+
+        return open_orders
+
+    def remove_safety_orders(self, open_orders):
         for side in self.sides:
             if open_orders[side]:
                 open_orders[side] = self.remove_safety_order(open_orders[side], side)
@@ -443,7 +448,8 @@ class LazyWhale:
             if self.open_orders['buy'][0][1] != self.safety_buy_value:
                 self.open_orders['buy'].insert(0, self.create_fake_buy())
 
-        if highest_sell_index < self.max_sell_index + 1:
+
+        if highest_sell_index < self.max_sell_index:
             self.create_safety_sell(highest_sell_index)
             
         else:
@@ -881,7 +887,7 @@ class LazyWhale:
         self.log('Whala ça passe')
         while True:
             self.log('CYCLE START', level='debug', print_=True)
-            orders = self.remove_safety_orders(self.remove_orders_off_strat(
+            orders = self.safety_orders_checkpoint(self.remove_orders_off_strat(
                 self.connector.orders_price_ordering(
                     self.connector.get_orders(
                         self.params['market']))))
