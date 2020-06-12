@@ -1,14 +1,11 @@
 import os, sys
 import logging
 import logging.handlers
+import inspect
 from datetime import datetime
 from utils.slack import Slack
 import utils.helpers as helper
 
-def set_slack(slack_webhook_url):
-    slack = Slack(webhook_url=slack_webhook_url)
-    slack.webhook_check(webhook_url=slack_webhook_url)
-    return slack
 
 class Logger:
     """Generate logging systems which display any level on the console
@@ -30,14 +27,14 @@ class Logger:
                  console_level=logging.DEBUG,
                  file_level=logging.DEBUG,
                  logging_level=logging.DEBUG,
-                 slack_webhook_url='https://hooks.slack.com/services/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'):
+                 slack_webhook=''):
         self.name = name
         self.log_file = self.set_log_file(log_file)
         self.log_formatter = log_formatter
         self.console_level = console_level
         self.file_level = file_level
         self.logging_level = logging_level
-        self.slack = set_slack(slack_webhook_url)
+        self.slack = self.set_slack(slack_webhook)
         self.root_path = helper.set_root_path()
         self.logger = self.create_logger(separate_file=(True if log_file else False))
 
@@ -49,7 +46,7 @@ class Logger:
 
     def create_logger(self, separate_file=False):
         dir_name = f'{self.root_path}logs'
-        self._create_dir_when_none(dir_name)
+        helper.create_dir_when_none(dir_name)
         logger = logging.getLogger(self.log_file)
         
         if not logger.handlers:
@@ -61,16 +58,10 @@ class Logger:
         log_file = f'{dir_name}/{self.log_file}'
         logger.setLevel(self.logging_level)
         formatter = logging.Formatter(self.log_formatter)
-        # Console handler stream
-        # ch = logging.StreamHandler()
-        # ch.setLevel(self.console_level)
-        # ch.setFormatter(formatter)
-        # File Handler stream
         fh = logging.FileHandler(log_file)
         fh.setLevel(self.file_level)
         fh.setFormatter(formatter)
         # Apply parameters
-        # logger.addHandler(ch)
         logger.addHandler(fh)
         handler = logging.handlers.RotatingFileHandler(
             log_file, maxBytes=2000000, backupCount=20)
@@ -78,19 +69,17 @@ class Logger:
 
         return logger
 
-    def _create_dir_when_none(self, dir_name):
-        """Check if a directory exist or create one.
-        return: bool."""
-        try:
-            if dir_name[0] == '/':
-                dir_name = dir_name[1:]
-            if not os.path.isdir(dir_name):
-                os.makedirs(dir_name)
-                return False
-            else:
-                return True
-        except OSError:
-            pass
+    def set_slack(self, slack_webhook_url):
+        if not slack_webhook_url:
+            return None
+
+        slack = Slack(webhook_url=slack_webhook_url)
+        slack.webhook_check(webhook_url=slack_webhook_url)
+        
+        if inspect.stack()[1].function != '__init__':
+            self.slack = slack
+
+        return slack
 
     def log(self, msg, level='info', from_=None, slack=False, print_=False, **log):
         log['from'] = f'{self.name}__{from_}' if from_ else self.name
@@ -117,6 +106,6 @@ class Logger:
             if not self.slack:
                 raise Exception("Slack hasn't connected")
             try:
-                self.slack.send_slack_message(msg)
+                self.slack.post_message(msg)
             except:
                 pass

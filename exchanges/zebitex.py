@@ -21,7 +21,7 @@ class Zebitex():
     def __init__(self, access_key=None, secret_key=None, is_staging=False):
         self.access_key = str(access_key) if access_key else None
         self.secret_key = str(secret_key) if secret_key else None
-        self.url = "https://api-staging.zebitex.com" if is_staging else "https://zebitex.com"
+        self.url = "https://api-staging.zebitex.com" if is_staging else "https://api.zebitex.com"
 
     #
     # Private methods

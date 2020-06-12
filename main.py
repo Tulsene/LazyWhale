@@ -18,7 +18,8 @@ class LazyWhale:
     """Core strategy for LW.
     open order = [id, price, amount, value, timestamp, date]"""
     def __init__(self, test_params=False):
-        self.log = Logger('main').log
+        self.logger = Logger('main')
+        self.log = self.logger.log
         self.test_params = test_params
         self.root_path = helper.set_root_path()
         self.keys = self.keys_initialisation()
@@ -64,7 +65,7 @@ class LazyWhale:
         """Check the consistence of datas in key.txt.
         return: dict, api keys
         """
-        name_list = ccxt.exchanges + ['zebitex', 'zebitex_testnet']
+        name_list = ccxt.exchanges + ['zebitex', 'zebitex_testnet', 'slack_webhook']
         api_keys = {}
         with open(keys_path, mode='r', encoding='utf-8') as keys_file:
             for line in keys_file:
@@ -83,6 +84,10 @@ class LazyWhale:
                             raise KeyError(
                                 f'You already have a key for this '
                                 f'marketplace, please RTFM')
+
+                        if k == 'slack_webhook':
+                            self.logger.set_slack(line[k])
+                            self.log = self.logger.log
 
                 except Exception as e:
                     self.log(f'Something went wrong : {e}', level='critical', print_=True)
@@ -699,7 +704,7 @@ class LazyWhale:
         coef = 1 if side == 'buy' else -1
         opposite_side = 'sell' if side == 'buy' else 'buy'
         api_call = self.connector.set_several_sell if side == 'buy' else self.connector.set_several_buy
-        self.log(f'A {side} has occurred',
+        self.log(f'{len(missing_orders[side])} {side}(s) has occurred',
                 level='warning', slack=True, print_=True)
         start_index = self.id_list.index(new_open_orders[side][list_index][0]) + convert.int_multiplier(2, coef)
         target = start_index + convert.int_multiplier(len(missing_orders[side]), coef) - convert.int_multiplier(1, coef)
@@ -708,7 +713,6 @@ class LazyWhale:
         self.log(f'start_index: {start_index}, target: {target}', level='debug', print_=True)
         executed_orders[opposite_side] = api_call(start_index, target)
 
-        breakpoint()
         return executed_orders
 
     def update_open_orders(self, missing_orders, executed_orders):
@@ -902,7 +906,6 @@ class LazyWhale:
             
             self.log('CYCLE STOP', level='debug', print_=True)
             sleep(5)
-            breakpoint()
 
 if __name__ == "__main__":
     LazyWhale().main()

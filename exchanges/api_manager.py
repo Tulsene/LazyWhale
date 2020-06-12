@@ -10,8 +10,8 @@ from utils.logger import Logger
 
 
 class APIManager():
-    def __init__(self):
-        self.log = Logger('api_manager').log
+    def __init__(self, url):
+        self.log = Logger(name='api_manager', slack_webhook=url).log
         self.exchange = None
         self.err_counter = 0
         self.is_kraken = False
@@ -42,7 +42,7 @@ class APIManager():
 
     def load_markets(self):
         """Load the market list from a marketplace to self.exchange.
-        Retry 1000 times when error and send a mail each 10 tries.
+        Retry 1000 times when error and send message on slack each 10 tries.
         """
         try:
             self.exchange.load_markets()
@@ -54,7 +54,7 @@ class APIManager():
 
     def fetch_balance(self):
         """Get account balance from the marketplace.
-        Retry 1000 times when error and send a mail each 10 tries.
+        Retry 1000 times when error and send message on slack each 10 tries.
         return: dict, formated balance by ccxt."""
         try:
             return self.exchange.fetch_balance()
@@ -66,7 +66,7 @@ class APIManager():
 
     def fetch_open_orders(self, market=None):
         """Get open orders of a market from a marketplace.
-        Retry 1000 times when error and send a mail each 10 tries.
+        Retry 1000 times when error and send message on slack each 10 tries.
         market: string, market name.
         return: list, formatted open orders by ccxt."""
         try:
@@ -79,7 +79,7 @@ class APIManager():
 
     def fetch_trades(self, market):
         """Get trading history of a market from a marketplace.
-        Retry 1000 times when error and send a mail each 10 tries.
+        Retry 1000 times when error and send message on slack each 10 tries.
         market: string, market name.
         return: list, formatted trade history by ccxt."""
         try:
@@ -92,7 +92,7 @@ class APIManager():
 
     def fetch_ticker(self, market=None):
         """Get ticker info of a market from a marketplace.
-        Retry 1000 times when error and send a mail each 10 tries.
+        Retry 1000 times when error and send message on slack each 10 tries.
         market: string, market name.
         return: list, formatted trade history by ccxt."""
         try:
@@ -112,7 +112,7 @@ class APIManager():
 
     def create_limit_buy_order(self, market, amount, price):
         """Create a limit buy order on a market of a marketplace.
-        Retry 1000 times when error and send a mail each 10 tries.
+        Retry 1000 times when error and send message on slack each 10 tries.
         market: string, market name.
         amount: string, amount of ALT to buy.
         price: string, price of the order.
@@ -177,7 +177,7 @@ class APIManager():
 
     def create_limit_sell_order(self, market, amount, price):
         """Create a limit sell order on a market of a marketplace.
-        Retry 1000 times when error and send a mail each 10 tries.
+        Retry 1000 times when error and send message on slack each 10 tries.
         market: string, market name.
         amount: string, amount of ALT to sell.
         price: string, price of the order.
@@ -272,13 +272,13 @@ class APIManager():
             if isinstance(history, list):
                 return history
             else:
-                self.log(f'WARNING: Unexpected order history: {history}', level='warning', print_=True)
+                self.log(f'WARNING: Unexpected order history: {history}', level='warning', print_=True, slack=True)
         except Exception as e:
-            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True)
+            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True, slack=True)
 
     def cancel_order(self, market, order_id, price, timestamp, side):
         """Cancel an order with it's id.
-        Retry 1000 times, send an email each 10 tries.
+        Retry 1000 times, send message on slack each 10 tries.
         Warning : Not connard proofed!
         order_id: string, marketplace order id.
         price: string, price of the order.
@@ -288,7 +288,7 @@ class APIManager():
         order have been filled before it's cancellation"""
         cancel_side = 'cancel_buy' if side == 'buy' else 'cancel_sell'
         try:
-            self.log(f'Init cancel {side} order {order_id} {price}', level='debug', print_=True)
+            self.log(f'Init cancel {side} order {order_id} {price}', level='debug', print_=True, slack=True)
             rsp = self.exchange.cancel_order(order_id)
             if rsp:
                 self.order_logger_formatter(cancel_side, order_id, price, 0)
@@ -321,7 +321,7 @@ class APIManager():
                     f'The {side} {order_id} have been filled '
                     f'before being canceled'
                 )
-                self.log(msg, level='warning', print_=True)
+                self.log(msg, level='warning', print_=True, slack=True)
                 return False
 
             else:

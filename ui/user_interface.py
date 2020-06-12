@@ -13,9 +13,10 @@ from utils.logger import Logger
 
 
 class UserInterface():
-    def __init__(self, allowed_exchanges, fees_coef, safety_buy_value, safety_sell_value):
+    def __init__(self, keys, fees_coef, safety_buy_value, safety_sell_value):
         self.log = Logger('user_interface').log
-        self.allowed_exchanges = allowed_exchanges
+        self.allowed_exchanges = keys
+        self.slack_webhook = None
         self.root_path = helper.set_root_path()
         self.fees_coef = fees_coef
         # TODO need to be improved, like with an automatic selection if there is already a bot running on the same market
@@ -150,7 +151,9 @@ class UserInterface():
         Connect to the selected marketplace.
         return: String, name of the selected marketplace.
         """
-        api_connector = api_manager.APIManager()
+        api_connector = api_manager.APIManager(self.allowed_exchanges['slack_webhook'])
+        del self.allowed_exchanges['slack_webhook']
+
         if test_mode:
             api_connector.set_zebitex(self.allowed_exchanges['zebitex_testnet'])
             
@@ -190,7 +193,6 @@ class UserInterface():
                 raise ValueError(limitation)
         else:
             while True:
-                # breakpoint()
                 self.log(f"Please enter the name of a market: {api_connector.exchange.symbols}", level='info', print_=True)
                 market = input(' >> ').upper()
                 allowed = check.limitation_to_btc_market(market)
@@ -379,6 +381,7 @@ class UserInterface():
         raw_data = []
         logs_data = {'buy': [], 'sell': []}
         nb_of_lines = self.check_history_file(file_path)
+        print('Function TODO')
         breakpoint()
 
         if not nb_of_lines:
@@ -408,6 +411,7 @@ class UserInterface():
 
         self.log("Reading the strat.log file", level='debug', print_=True)
         nb_of_lines = helper.file_line_counter(file_path)
+        print('function TODO')
         breakpoint()
         if not isinstance(nb_of_lines, int):
             self.log('Your strat.log file was empty', level='warning', print_=True)
