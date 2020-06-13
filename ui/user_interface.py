@@ -13,15 +13,25 @@ from utils.logger import Logger
 
 
 class UserInterface():
-    def __init__(self, keys, fees_coef, safety_buy_value, safety_sell_value):
+    def __init__(self, api_keys, fees_coef, safety_buy_value, safety_sell_value):
         self.log = Logger('user_interface').log
-        self.allowed_exchanges = keys
         self.slack_webhook = None
+        self.allowed_exchanges = self.set_keys(api_keys)
         self.root_path = helper.set_root_path()
         self.fees_coef = fees_coef
         # TODO need to be improved, like with an automatic selection if there is already a bot running on the same market
         self.safety_buy_value = safety_buy_value
         self.safety_sell_value = safety_sell_value
+
+    def set_keys(self, api_keys):
+        """Little hack because I'm lazy and I don't want to add another argument to init.
+        api_keys: dict.
+        return: dict."""
+        if 'slack_webhook' in api_keys.keys():
+            self.slack_webhook = api_keys['slack_webhook']
+            del api_keys['slack_webhook']
+
+        return api_keys
 
     def simple_question(self, q):
         """Simple question prompted and response handling.
@@ -97,29 +107,26 @@ class UserInterface():
         At the end of this section, parameters are set and LW can be initialized.
         """
         if test_file_path:
+            # TODO
             return self.check_for_enough_funds(self.params_reader(test_file_path))
 
-        q = 'Do you want to check if a previous parameter is in params.txt?'
         file_path = f'{self.root_path}config/params.txt'
         params = self.params_reader(file_path)
-        
-        if  self.simple_question(q):
-            if params:
-                self.log(f'Your previous parameters are: {params}', level='info', print_=True)
-                q = 'Do you want to display history from logs?'
-                if self.simple_question(q):
-                    self.history_reader()
-                
-                q = 'Do you want to use those params?'
-                if self.simple_question(q):
-                    params = self.check_for_enough_funds(params)
-                else:
-                    params = None
+        self.log(f'Your previous parameters are: {params}', level='info', print_=True)
+
+        if params:
+            # q = 'Do you want to display history from logs?'
+            # if self.simple_question(q):
+            #     self.history_reader()
+            
+            q = 'Do you want to use those params?'
+            if self.simple_question(q):
+                params = self.check_for_enough_funds(params)
             else:
-                self.log(f'Your parameters are corrupted: {params}, please enter new one!',
-                         level='warning', print_=True)
+                params = None
         else:
-            params = None
+            self.log(f'Your parameters are not set correctly: {params}, please enter new one!',
+                        level='warning', print_=True)
 
         if not params:
             params = self.enter_params()
@@ -151,8 +158,7 @@ class UserInterface():
         Connect to the selected marketplace.
         return: String, name of the selected marketplace.
         """
-        api_connector = api_manager.APIManager(self.allowed_exchanges['slack_webhook'])
-        del self.allowed_exchanges['slack_webhook']
+        api_connector = api_manager.APIManager(self.slack_webhook)
 
         if test_mode:
             api_connector.set_zebitex(self.allowed_exchanges['zebitex_testnet'])
@@ -526,8 +532,6 @@ class UserInterface():
             spread_bot_index = params['intervals'].index(params['spread_bot'])
             if params['spread_top'] != params['intervals'][spread_bot_index + 2]:
                 raise ValueError('Spread_top isn\'t properly configured')
-        
-            self.log(f'param_checker, params: {params}', level='debug', print_=True)
 
         except Exception as e:
             self.log(f'The LW parameters are not well configured: {e}', level='warning', print_=True)

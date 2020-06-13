@@ -17,10 +17,10 @@ from utils.logger import Logger
 class LazyWhale:
     """Core strategy for LW.
     open order = [id, price, amount, value, timestamp, date]"""
-    def __init__(self, test_params=False):
+    def __init__(self, preset_params=False):
         self.logger = Logger('main')
         self.log = self.logger.log
-        self.test_params = test_params
+        self.preset_params = preset_params
         self.root_path = helper.set_root_path()
         self.keys = self.keys_initialisation()
         # Concervative value, need to be modified when it's more than 0.25% of fees
@@ -36,6 +36,7 @@ class LazyWhale:
         self.params = {}
         self.connector = None
         self.intervals = []
+        self.amounts = []
         self.id_list = []
         self.max_sell_index = 0
         self.sides = ('buy', 'sell')
@@ -151,15 +152,11 @@ class LazyWhale:
         self.log('strat_init()', level='debug', print_=True)
         self.intervals = [self.safety_buy_value] + self.intervals + \
                          [self.safety_sell_value]
+        self.amounts = helper.generate_list(len(self.intervals), self.params['amount'])
         self.connector.intervals = self.intervals
         self.max_sell_index = len(self.intervals) - 2
         orders_to_remove = {'sell': [], 'buy': []}
         remaining_orders_price = {'buy': [], 'sell': []}
-        q = 'Do you want to remove this order ? (y or n)'
-        q2 = (f"This order has an amount inferior or superior to "
-            f"params['amount']. Do you want to cancel it? (y or no)")
-        q3 = (f'Those orders have the same price that is used by the strategy. '
-            f'Which one of the two do you want to cancel : ')
 
         lowest_buy, highest_sell = self.init_open_orders_price_target()
         
@@ -175,14 +172,12 @@ class LazyWhale:
                                                  open_orders['buy'],
                                                  lowest_buy,
                                                  self.params['spread_bot'],
-                                                 orders_to_remove['buy'],
-                                                 q, q2, q3)
+                                                 orders_to_remove['buy'])
         orders_to_remove['sell'] = self.init_remove_orders('sell',
                                                  open_orders['sell'],
                                                  self.params['spread_top'],
                                                  highest_sell,
-                                                 orders_to_remove['sell'],
-                                                 q, q2, q3)
+                                                 orders_to_remove['sell'])
         
         for side in self.sides:
             open_orders, remaining_orders_price =  self.update_orders(side,
@@ -220,13 +215,16 @@ class LazyWhale:
 
         return lowest_buy, highest_sell
 
-    def init_remove_orders(self, side, open_orders, lowest_price, highest_price, orders_to_remove, q, q2, q3):
+    def init_remove_orders(self, side, open_orders, lowest_price, highest_price, orders_to_remove):
         """Remove unwanted buys orders for the strategy.
         open_orders: dict.
         lowest_buy: Decimal.
         orders_to_remove: dict.
         q, q2, q3: string.
         return: dict """
+        q = 'Do you want to remove this order ? (y or n)'
+        q2 = (f"This order has an amount inferior or superior to "
+              f"{self.params['amount']}. Do you want to cancel it? (y or no)")
         for i, order in enumerate(open_orders):
             if order[1] in self.intervals:
                 if not lowest_price <= order[1] <= highest_price:
@@ -235,14 +233,14 @@ class LazyWhale:
                     continue
                 
                 if order[2] != self.params['amount']:
-                    if not self.test_params:
+                    if not self.preset_params:
                         if self.ui.simple_question(f'{order} {q2}'):
                             self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
                             orders_to_remove.append(i)
                             continue
             
             else:
-                if not self.test_params:
+                if not self.preset_params:
                     if self.ui.simple_question(f'{q} {order}'):
                         self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
                 
@@ -253,21 +251,27 @@ class LazyWhale:
             if i > 0:
                 if order[1] == open_orders[i - 1][1] \
                         and i - 1 not in orders_to_remove:
-                    order_to_select = [order, open_orders[i - 1]]
-                    
-                    if self.test_params:
-                        rsp = 1
-                    else:
-                        rsp = int(self.ui.ask_to_select_in_a_list(q3, order_to_select))
-                    
-                    if rsp == 1:
-                        self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
-                        orders_to_remove.append(i)
-                    else:
-                        self.connector.cancel_order(self.params['market'], order_to_select[1][0],
-                                          order_to_select[1][1],
-                                          order_to_select[1][4], side)
-                        orders_to_remove.append(i - 1)
+                    orders_to_remove = self.remove_one_of_two_orders(side, open_orders, order, i, orders_to_remove)
+
+        return orders_to_remove
+
+    def remove_one_of_two_orders(self, side, open_orders, order, i, orders_to_remove):
+        q = ('Those two orders have the same price, which one do you want to cancel : ')
+        order_to_select = [order, open_orders[i - 1]]
+        
+        if self.preset_params:
+            rsp = 1
+        else:
+            rsp = int(self.ui.ask_to_select_in_a_list(q, order_to_select))
+        
+        if rsp == 1:
+            self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
+            orders_to_remove.append(i)
+        else:
+            self.connector.cancel_order(self.params['market'], order_to_select[1][0],
+                                order_to_select[1][1],
+                                order_to_select[1][4], side)
+            orders_to_remove.append(i - 1)
 
         return orders_to_remove
 
@@ -346,7 +350,7 @@ class LazyWhale:
             if self.intervals[lowest_index] \
             not in remaining_orders_price:
                 order = api_call(self.params['market'],
-                                self.params['amount'],
+                                self.amounts[lowest_index],
                                 self.intervals[lowest_index])
                 new_orders.append(order)
                 sleep(0.2)
@@ -422,17 +426,12 @@ class LazyWhale:
                                     open_orders[index][1],
                                     open_orders[index][4],
                                     side)
-            # self.log(f"delete open_orders['{side}'][{index}]: "
-            #     f"{open_orders[index]}", level='debug', print_=True)
+
             del open_orders[index]
 
         if self.open_orders[side][index][0] == self.id_list[index]:
             del self.open_orders[side][index]
             self.id_list[index] = None
-        
-        # if self.open_orders[side]:
-        #     self.log(f"self.open_orders['{side}'][{index}]: "
-        #         f"{self.open_orders[side][index]}", level='debug', print_=True)
 
         return open_orders
 
@@ -608,7 +607,7 @@ class LazyWhale:
         else:
             start_index = 1
 
-        orders = self.connector.set_several_buy(start_index, target)
+        orders = self.connector.set_several_buy(start_index, target, self.amounts)
         for i, order in enumerate(orders):
             new_open_orders['buy'].insert(i, order)
             self.open_orders['buy'].insert(i, order)
@@ -664,7 +663,7 @@ class LazyWhale:
         else:
             target = self.max_sell_index
 
-        orders = self.connector.set_several_sell(start_index, target)
+        orders = self.connector.set_several_sell(start_index, target, self.amounts)
         for order in orders:
             new_open_orders['sell'].append(order)
             self.open_orders['sell'].append(order)
@@ -681,6 +680,7 @@ class LazyWhale:
 
         for side in self.sides:
             if missing_orders[side]:
+                self.set_amounts(missing_orders)
                 executed_orders = self.execute_orders(side, new_open_orders, missing_orders, executed_orders)
 
         self.log(
@@ -699,6 +699,26 @@ class LazyWhale:
 
         return missing_orders
 
+    def set_amounts(self, missing_orders):
+        if missing_orders['buy']:
+            for order in missing_orders['buy']:
+                self.amounts[self.intervals.index(order[1]) + 1] = self.params['amount']
+
+        if missing_orders['sell']:
+            for order in missing_orders['sell']:
+                self.amounts[self.intervals.index(order[1]) - 1] = self.set_buy_amount(order)
+
+    def set_buy_amount(self, order):
+        if self.params['profits_alloc'] != 0:
+            btc_won = convert.multiplier(order[1], self.params['amount'], self.fees_coef)
+            btc_to_spend = convert.multiplier(self.intervals[self.intervals.index(order[1]) - 2],
+                                          self.params['amount'])
+            return convert.quantizator(((btc_won - btc_to_spend) * Decimal(
+                    self.params['profits_alloc']) / Decimal('100') + \
+                    btc_to_spend) / self.intervals[self.intervals.index(order[1]) - 2])
+        else:
+            return self.params['amount']
+
     def execute_orders(self, side, new_open_orders, missing_orders, executed_orders):
         list_index = -1 if side == 'buy' else 0
         coef = 1 if side == 'buy' else -1
@@ -711,7 +731,7 @@ class LazyWhale:
         if side == 'sell':
             start_index, target = target, start_index
         self.log(f'start_index: {start_index}, target: {target}', level='debug', print_=True)
-        executed_orders[opposite_side] = api_call(start_index, target)
+        executed_orders[opposite_side] = api_call(start_index, target, self.amounts)
 
         return executed_orders
 
@@ -744,14 +764,14 @@ class LazyWhale:
         
         nb_orders = self.how_much_buys(new_open_orders)
         if nb_orders > self.params['nb_buy_to_display']:
-            self.cancel_some_buys(nb_orders)
+            self.cancel_some_buys(nb_orders, new_open_orders)
 
         elif nb_orders < self.params['nb_buy_to_display']:
             self.open_some_buys(nb_orders)
     
         nb_orders = self.how_much_sells(new_open_orders)
         if nb_orders > self.params['nb_sell_to_display']:
-            self.cancel_some_sells(nb_orders)
+            self.cancel_some_sells(nb_orders, new_open_orders)
     
         elif nb_orders < self.params['nb_sell_to_display']:
             self.open_some_sells(nb_orders)
@@ -773,7 +793,7 @@ class LazyWhale:
         
         return nb_orders
 
-    def cancel_some_buys(self, nb_orders):
+    def cancel_some_buys(self, nb_orders, new_open_orders):
         """When there is too much buy orders in the order book
         nb_orders: int.
         new_open_orders: dict.
@@ -791,6 +811,16 @@ class LazyWhale:
                                         self.open_orders['buy'][0][1],
                                         self.open_orders['buy'][0][4],
                                         'buy')
+            
+            # I consider that if there is a fucked up at this stage LW will crash
+            if self.open_orders['buy'][0][0] == new_open_orders['buy'][0][0]:
+                if new_open_orders['buy'][0][2] != self.params['amount']:
+                    # Amount should be saved in order to not open an order with
+                    # full amount. That could be costly during long range.
+                    self.amounts[self.id_list.index(new_open_orders['buy'][0][0])] = new_open_orders['buy'][0][2]
+                # But we never know so this deletion is inside the statement
+                del new_open_orders['buy'][0]
+            
             del self.open_orders['buy'][0]
             nb_orders -= 1
 
@@ -808,7 +838,7 @@ class LazyWhale:
                 start_index = 1
             self.log(f'start_index: {start_index}, target: {target}')
             
-            orders = self.connector.set_several_buy(start_index, target)
+            orders = self.connector.set_several_buy(start_index, target, self.amounts)
             for i, order in enumerate(orders):
                 self.open_orders['buy'].insert(i, order)
 
@@ -828,7 +858,7 @@ class LazyWhale:
         
         return nb_orders
 
-    def cancel_some_sells(self, nb_orders):
+    def cancel_some_sells(self, nb_orders, new_open_orders):
         """When there is too much sell orders in the order book
         Care of fake order"""
         if not self.open_orders['sell'][-1][0]:
@@ -841,6 +871,13 @@ class LazyWhale:
                                 self.open_orders['sell'][-1][1],
                                 self.open_orders['sell'][-1][4],
                                 'sell')
+
+            if self.open_orders['sell'][-1][0] == new_open_orders['sell'][-1][0]:
+                if new_open_orders['sell'][-1][2] != self.params['amount']:
+                    self.amounts[self.id_list.index(new_open_orders['sell'][-1][0])] = new_open_orders['sell'][-1][2]
+
+                del new_open_orders['sell'][-1]
+
             del self.open_orders['sell'][-1]
             nb_orders -= 1
 
@@ -860,15 +897,15 @@ class LazyWhale:
             if target > self.max_sell_index:
                 target = self.max_sell_index
             
-            orders = self.connector.set_several_sell(start_index, target)
+            orders = self.connector.set_several_sell(start_index, target, self.amounts)
             for order in orders:
                 self.open_orders['sell'].append(order)
 
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.
         """
-        if self.test_params:
-            params = self.ui.check_params(self.test_params)
+        if self.preset_params:
+            params = self.ui.check_params(self.preset_params)
             self.params = self.ui.check_for_enough_funds(params)
         else:
             self.params = self.ui.ask_for_params()#f'{self.root_path}config/params.txt')
@@ -883,7 +920,7 @@ class LazyWhale:
                     self.params['market'])))
         self.open_orders = self.strat_init(open_orders)
         self.set_safety_orders()
-        self.id_list = helper.generate_empty_list(len(self.intervals))
+        self.id_list = helper.generate_list(len(self.intervals))
         self.update_id_list()
 
     def main(self):

@@ -19,8 +19,6 @@ class APIManager():
         self.fees_coef = 0
         self.intervals = []
         self.market = ''
-        self.amount = 0
-        self.increment_coef = 0
         self.profits_alloc = 0
 
     def set_zebitex(self, keys, network):
@@ -36,8 +34,6 @@ class APIManager():
     def set_params(self, params):
         self.intervals = params['intervals']
         self.market = params['market']
-        self.amount = params['amount']
-        self.increment_coef = params['increment_coef']
         self.profits_alloc = params['profits_alloc']
 
     def load_markets(self):
@@ -133,41 +129,20 @@ class APIManager():
             else:
                 return rsp
 
-    def set_several_buy(self, start_index, target, profits_alloc=None):
+    def set_several_buy(self, start_index, target, amounts):
         """Loop for opening buy orders. It generate amount to split benef
         following benef alloc.
         start_index: int, from where the loop start in self.intervals.
         target: int, from where the loop start in self.intervals.
-        profits_alloc: boolean, optional.
+        amounts: list, orders amount per intervals.
         return: list, of executed orders.
         """
         buy_orders = []
-        if profits_alloc:
-            amount = []
-            start_index_copy = start_index
-            while start_index_copy <= target:
-                btc_won = convert.multiplier(self.intervals[start_index_copy + 1],
-                                          self.amount, self.fees_coef)
-                btc_to_spend = convert.multiplier(self.intervals[start_index_copy],
-                                               self.amount, self.fees_coef)
-                total = ((btc_won - btc_to_spend) * Decimal(
-                    self.profits_alloc) / Decimal('100') + \
-                         btc_to_spend) / self.intervals[start_index_copy]
-                amount.append(convert.quantizator(total))
-                start_index_copy += 1
-        else:
-            if target - start_index > 0:
-                amount = [self.amount for x in \
-                          range(target - start_index + 1)]
-            else:
-                amount = [self.amount]
-        i = 0
         while start_index <= target:
-            order = self.init_limit_buy_order(self.market, amount[i],
+            order = self.init_limit_buy_order(self.market, amounts[start_index],
                                               self.intervals[start_index])
             buy_orders.append(order)
             start_index += 1
-            i += 1
         return buy_orders
 
     def init_limit_sell_order(self, market, amount, price):
@@ -201,16 +176,17 @@ class APIManager():
             else:
                 return rsp
 
-    def set_several_sell(self, start_index, target):
+    def set_several_sell(self, start_index, target, amounts):
         """Loop for opening sell orders.
         start_index: int, from where the loop start in self.intervals.
         target: int, from where the loop start in self.intervals.
+        amounts: list, orders amount per intervals.
         return: list, of executed orders.
         """
         sell_orders = []
         while start_index <= target:
             order = self.init_limit_sell_order(self.market,
-                                               self.amount,
+                                               amounts[start_index],
                                                self.intervals[start_index])
             sell_orders.append(order)
             start_index += 1

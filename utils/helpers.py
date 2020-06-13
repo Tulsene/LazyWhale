@@ -5,10 +5,6 @@ from copy import deepcopy
 from datetime import datetime
 from time import time
 
-# from utils.logger import Logger
-
-#log = Logger('test', slack_webhook_url='https://hooks.slack.com/services/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').log
-
 def set_root_path():
     root_path = os.path.dirname(sys.argv[0])
     return f'{root_path}/' if root_path else ''
@@ -78,8 +74,8 @@ def read_file(file_name):
         return lines
     return False
 
-def generate_empty_list(size):
+def generate_list(size, value=None):
     """List generator.
     size: int.
     return: list."""
-    return [None for _ in range(size)]
+    return [value for _ in range(size)]
