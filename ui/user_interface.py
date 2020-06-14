@@ -278,7 +278,7 @@ class UserInterface():
                                       - 1))
 
         q = (f"How much {params['market'][:4]} do you want to sell "
-             f'per order? It must be between'
+             f'per order? It must be between '
              f"{Decimal('0.001') / params['range_bot']} and 10000000."
              f"Suggestion:  {suggestion}")
         
