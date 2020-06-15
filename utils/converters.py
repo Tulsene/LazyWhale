@@ -23,10 +23,10 @@ def str_to_datetime(str_date):
     except Exception as e:
         raise ValueError(f'{str_date} is not a valid date: {e}')
 
-def timestamp_to_string(timestamp):
-    """timestamp: datetime object.
+def datetime_to_string(dt):
+    """dt: datetime object.
     return: string."""
-    return timestamp.strftime("%m/%d/%Y, %H:%M:%S")
+    return dt.strftime("%m/%d/%Y, %H:%M:%S")
 
 def str_to_bool(s, error_message=None):
     """Convert a string to boolean or rise an error

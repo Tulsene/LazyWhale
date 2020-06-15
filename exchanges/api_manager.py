@@ -43,7 +43,7 @@ class APIManager():
         try:
             self.exchange.load_markets()
         except Exception as e:
-            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True)
+            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
             self.api_fail_message_handler()
             self.load_markets()
@@ -55,7 +55,7 @@ class APIManager():
         try:
             return self.exchange.fetch_balance()
         except Exception as e:
-            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True)
+            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_balance()
@@ -68,7 +68,7 @@ class APIManager():
         try:
             return self.exchange.fetch_open_orders(market)
         except Exception as e:
-            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True)
+            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_open_orders(market)
@@ -81,7 +81,7 @@ class APIManager():
         try:
             return self.exchange.fetch_trades(market)
         except Exception as e:
-            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True)
+            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_trades(market)
@@ -96,7 +96,7 @@ class APIManager():
                 market = self.market
             return self.exchange.fetch_ticker(market)
         except Exception as e:
-            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True)
+            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_ticker(market)
@@ -120,7 +120,7 @@ class APIManager():
             return self.format_order(order['id'], price, amount,
                                      date[0], date[1])
         except Exception as e:
-            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True)
+            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
             self.api_fail_message_handler()
             rsp = self.check_limit_order(market, price, 'buy')
@@ -167,7 +167,7 @@ class APIManager():
             return self.format_order(order['id'], price, amount,
                                      date[0], date[1])
         except Exception as e:
-            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True)
+            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
             self.api_fail_message_handler()
             rsp = self.check_limit_order(market, price, 'sell')
@@ -248,9 +248,9 @@ class APIManager():
             if isinstance(history, list):
                 return history
             else:
-                self.log(f'WARNING: Unexpected order history: {history}', level='warning', print_=True, slack=True)
+                self.log(f'WARNING: Unexpected order history: {history}', level='warning')
         except Exception as e:
-            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True, slack=True)
+            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
 
     def cancel_order(self, market, order_id, price, timestamp, side):
         """Cancel an order with it's id.
@@ -264,7 +264,7 @@ class APIManager():
         order have been filled before it's cancellation"""
         cancel_side = 'cancel_buy' if side == 'buy' else 'cancel_sell'
         try:
-            self.log(f'Init cancel {side} order {order_id} {price}', level='debug', print_=True, slack=True)
+            self.log(f'Init cancel {side} order {order_id} {price}', level='info', print_=True, slack=True)
             rsp = self.exchange.cancel_order(order_id)
             if rsp:
                 self.order_logger_formatter(cancel_side, order_id, price, 0)
@@ -272,12 +272,12 @@ class APIManager():
            
             else:
                 msg = (f'The {side} {order_id} have been filled '
-                    f'before being canceled')
-                self.log(msg, level='warning', print_=True)
+                       f'before being canceled')
+                self.log(msg, level='warning')
 
                 return rsp
         except Exception as e:
-            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning', print_=True)
+            self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
             self.api_fail_message_handler()
             orders = self.get_orders(self.market)[side]
@@ -293,11 +293,9 @@ class APIManager():
             is_traded = self.order_in_history(market, price, trades, side, timestamp)
 
             if is_traded:
-                msg = (
-                    f'The {side} {order_id} have been filled '
-                    f'before being canceled'
-                )
-                self.log(msg, level='warning', print_=True, slack=True)
+                msg = (f'The {side} {order_id} have been filled '
+                       f'before being canceled')
+                self.log(msg, level='warning')
                 return False
 
             else:
@@ -321,8 +319,7 @@ class APIManager():
         """Send an alert where ther eis too much fail with the exchange API"""
         self.err_counter += 1
         if self.err_counter >= 10:
-            msg = 'api error >= 10'
-            self.log(msg, level='warning', slack=True, print_=True)
+            self.log('api error >= 10', level='warning', slack=True, print_=True)
             self.err_counter = 0
 
 
@@ -447,9 +444,9 @@ class APIManager():
         timestamp = convert.timestamp_formater()
         date_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
         msg = (
-            f'{{"side": "{str(side)}", "order_id": "{str(order_id)}", '
-            f'"price": "{str(price)}", "amount": "{str(amount)}", '
-            f'"timestamp": "{timestamp}", "datetime": "{date_time}" }}')
-        self.log(msg, level='warning', slack=True, print_=True)
+            f'{{side: {str(side)}, order_id: {str(order_id)}, '
+            f'price: {str(price)}, amount: {str(amount)}, '
+            f'timestamp: {timestamp}, datetime: {date_time} }}')
+        self.log(msg, level='info', slack=True, print_=True)
 
         return timestamp, date_time

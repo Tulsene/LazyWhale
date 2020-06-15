@@ -3,8 +3,10 @@ import logging
 import logging.handlers
 import inspect
 from datetime import datetime
+
 from utils.slack import Slack
 import utils.helpers as helper
+import utils.converters as convert
 
 
 class Logger:
@@ -81,31 +83,44 @@ class Logger:
 
         return slack
 
-    def log(self, msg, level='info', from_=None, slack=False, print_=False, **log):
+    def log(self, msg, level='debug', from_=None, slack=False, print_=False, **log):
         log['from'] = f'{self.name}__{from_}' if from_ else self.name
-        log['timestamp'] = datetime.now().timestamp()
+        log['timestamp'] = convert.datetime_to_string(datetime.now())
         log['msg'] = str(msg)
         log['level'] = level
 
-        if level == 'warning':
-            self.logger.warning(log)
-        elif level == 'error':
-            self.logger.error(log)
-        elif level == 'debug' or level == 'dev':
+        if level == 'debug' or level == 'dev':
             self.logger.debug(log)
-        elif level == 'critical':
-            self.logger.critical(log)
-        # add your custom log type here..
-        else:
+        elif level == 'info':
             self.logger.info(log)
+        else:
+            slack = True
+            print_ = True
+            if level == 'warning':
+                self.logger.warning(log)
+            elif level == 'error':
+                self.logger.error(log)
+            elif level == 'critical':
+                self.logger.critical(log)
+            # add your custom log type here..
+            else:
+                self.logger.critical(f'Wrong logger level: {level}, from: '
+                f'{inspect.stack()[1].function}, log message: {log}')
+            
         
         if print_:
             print(msg)
         
         if slack:
-            if not self.slack:
-                raise Exception("Slack hasn't connected")
-            try:
-                self.slack.post_message(msg)
-            except:
-                pass
+            if self.slack:
+                try:
+                    self.slack.post_message(msg)
+                except Exception as e:
+                    msg = f'slack.post_message error: {e}'
+                    self.logger.warning(msg)
+                    print(msg)
+            else:
+                msg = "Slack isn't connected"
+                self.logger.warning(msg)
+                print(msg)
+            
