@@ -444,9 +444,9 @@ class APIManager():
         timestamp = convert.timestamp_formater()
         date_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
         msg = (
-            f'{{side: {str(side)}, order_id: {str(order_id)}, '
+            f'side: {str(side)}, order_id: {str(order_id)}, '
             f'price: {str(price)}, amount: {str(amount)}, '
-            f'timestamp: {timestamp}, datetime: {date_time} }}')
+            f'timestamp: {timestamp}, datetime: {date_time}')
         self.log(msg, level='info', slack=True, print_=True)
 
         return timestamp, date_time
