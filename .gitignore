@@ -1,6 +1,7 @@
 # gitignore
 
 .idea/*
+.vscode/*
 .workspace
 
 *.pyc
@@ -8,8 +9,10 @@
 logfiles/*
 logger/*
 tests/*
+logs/*
 
 venv/*
+.venv/*
 keys.txt
 keys2.txt
 params.txt
