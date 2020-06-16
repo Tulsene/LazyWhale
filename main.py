@@ -698,6 +698,7 @@ class LazyWhale:
         self.log(f'compare_orders, missing_orders: {missing_orders} '
                  f'executed_orders: {executed_orders}')
         self.update_open_orders(missing_orders, executed_orders)
+        self.backup_spread_value(executed_orders)
 
     def get_missing_orders(self, new_open_orders):
         missing_orders = deepcopy(self.open_orders)
@@ -763,7 +764,12 @@ class LazyWhale:
             for i, order in enumerate(executed_orders['sell']):
                 self.open_orders['sell'].insert(i, order)
 
-        return
+    def backup_spread_value(self, executed_orders):
+        if executed_orders['buy'] or executed_orders['sell']:
+            index = self.intervals.index(self.open_orders['buy'][-1][1])
+            self.params['spread_bot'] = self.intervals[index]
+            self.params['spread_top'] = self.intervals[index + 2]
+            helper.params_writer(f'{self.root_path}config/params.txt', self.params)
 
     def limit_nb_orders(self):
         """Cancel open orders if there is too many, open orders if there is

@@ -131,7 +131,7 @@ class UserInterface():
         if not params:
             params = self.enter_params()
         
-        self.params_writer(file_path, params)
+        helper.params_writer(file_path, params)
         
         return params
 
@@ -329,14 +329,6 @@ class UserInterface():
             'be between 0 and 100, both included:')
         return {'profits_alloc': self.ask_question(q, convert.str_to_int,
                                                    check.profits_alloc)}
-
-    def params_writer(self, file_path, params):
-        updated = deepcopy(params)
-        if 'intervals' in updated.keys():
-            del updated['intervals']
-        if 'api_connector' in updated.keys():
-            del updated['api_connector']
-        helper.simple_file_writer(file_path, convert.dict_to_str(updated))
 
     def change_params(self, params):
         """Allow the user to change one LW parameter.
@@ -585,12 +577,12 @@ class UserInterface():
                     total_sell_funds_needed,
                     buy_balance,
                     sell_balance,
-                    params
-                )
+                    params)
                 
                 return params
             except ValueError as e:
-                self.log(f'You need to change some parameters: {e}', level='info', print_=True)
+                self.log(f'You need to change some parameters: {e}',
+                         level='info', print_=True)
                 params = self.change_params(params)
 
     def calculate_buy_funds(self, index, amount, intervals):
@@ -675,7 +667,11 @@ class UserInterface():
         # strategy
         if funds > Decimal('0'):
             if orders_outside_strat:
-                funds = self.ask_cancel_orders(params, orders_outside_strat, funds, funds_needed, side)
+                funds = self.ask_cancel_orders(params,
+                                               orders_outside_strat,
+                                               funds,
+                                               funds_needed,
+                                               side)
                 
         return funds
 

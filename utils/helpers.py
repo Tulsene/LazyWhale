@@ -5,6 +5,8 @@ from copy import deepcopy
 from datetime import datetime
 from time import time
 
+import utils.converters as convert
+
 def set_root_path():
     root_path = os.path.dirname(sys.argv[0])
     return f'{root_path}/' if root_path else ''
@@ -61,6 +63,14 @@ def simple_file_writer(file_name, text):
         return True
     except Exception as e:
         return f'File writer error: {e}'
+
+def params_writer(file_path, params):
+    updated = deepcopy(params)
+    if 'intervals' in updated.keys():
+        del updated['intervals']
+    if 'api_connector' in updated.keys():
+        del updated['api_connector']
+    simple_file_writer(file_path, convert.dict_to_str(updated))
 
 def append_to_file(file_name, line):
     with open(file_name, mode='a', encoding='utf-8') as a_file:
