@@ -924,6 +924,8 @@ class LazyWhale:
         self.connector = self.params['api_connector']
         self.intervals = self.params['intervals']
         self.connector.set_params(self.params)
+
+        self.log('LW is starting', slack=True)
         
         open_orders = self.remove_safety_before_init(
             self.connector.orders_price_ordering(
@@ -936,7 +938,6 @@ class LazyWhale:
 
     def main(self):
         self.lw_initialisation()
-        self.log('Whala ça passe')
         while True:
             self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE START',
                        level='info', print_=True)

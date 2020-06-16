@@ -4,14 +4,18 @@ from datetime import datetime
 from decimal import Decimal
 from operator import itemgetter
 
+import utils.helpers as helpers
 import utils.converters as convert
 from exchanges.zebitexFormatted import ZebitexFormatted
 from utils.logger import Logger
 
 
 class APIManager():
-    def __init__(self, url):
+    def __init__(self, url, safety_buy_value, safety_sell_value):
         self.log = Logger(name='api_manager', slack_webhook=url).log
+        self.safety_buy_value = safety_buy_value
+        self.safety_sell_value = safety_sell_value
+        self.root_path = helpers.set_root_path()
         self.exchange = None
         self.err_counter = 0
         self.is_kraken = False
@@ -264,7 +268,7 @@ class APIManager():
         order have been filled before it's cancellation"""
         cancel_side = 'cancel_buy' if side == 'buy' else 'cancel_sell'
         try:
-            self.log(f'Init cancel {side} order {order_id} {price}', level='info', print_=True, slack=True)
+            self.log(f'Init cancel {side} order {order_id} {price}')
             rsp = self.exchange.cancel_order(order_id)
             if rsp:
                 self.order_logger_formatter(cancel_side, order_id, price, 0)
@@ -447,6 +451,13 @@ class APIManager():
             f'side: {str(side)}, order_id: {str(order_id)}, '
             f'price: {str(price)}, amount: {str(amount)}, '
             f'timestamp: {timestamp}, datetime: {date_time}')
-        self.log(msg, level='info', slack=True, print_=True)
+
+        if price in [self.safety_buy_value, self.safety_sell_value, '0.00000001']:
+            slack = False
+        else:
+            slack = True
+            helpers.append_to_file(f'{self.root_path}logs/history.txt', f'{msg}\n')
+
+        self.log(msg, level='info', slack=slack, print_=True)
 
         return timestamp, date_time

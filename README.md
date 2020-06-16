@@ -65,7 +65,7 @@ Parameters are stored in params.txt, backup it before entering new parameters!
 
 
 ## TODO
-- [ ] Add orders (open/cancel) in history.txt without safety orders
+- [ ] keep orders amount list on a file & allow to retart with it
 - [ ] Unit tests
 - [ ] Functionnal tests
 - [ ] Switch from lists to pandas

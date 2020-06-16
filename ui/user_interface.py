@@ -115,9 +115,9 @@ class UserInterface():
         self.log(f'Your previous parameters are: {params}', level='info', print_=True)
 
         if params:
-            # q = 'Do you want to display history from logs?'
-            # if self.simple_question(q):
-            #     self.history_reader()
+            q = 'Do you want to display history from logs?'
+            if self.simple_question(q):
+                self.history_reader()
             
             q = 'Do you want to use those params?'
             if self.simple_question(q):
@@ -126,7 +126,7 @@ class UserInterface():
                 params = None
         else:
             self.log(f'Your parameters are not set correctly: {params}, please enter new one!',
-                        level='warning', print_=True)
+                        level='info', print_=True)
 
         if not params:
             params = self.enter_params()
@@ -140,17 +140,18 @@ class UserInterface():
         return: dict, valid parameters """
         params = {'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}
         params.update(self.set_marketplace())
-        params.update({'market': self.select_market(params['api_connector'])})
+        params.update(self.select_market(params['api_connector']))
         params.update(self.ask_range_setup())
-        params.update(self.ask_params_spread(params['api_connector'], params['market'], params['intervals']))
-        params.update({'amount': self.ask_param_amount(params)})
+        params.update(self.ask_params_spread(params['api_connector'],
+                                             params['market'],
+                                             params['intervals']))
+        params.update(self.ask_param_amount(params))
+        # No need to continue further without enough funds
         params = self.check_for_enough_funds(params)
-        q = 'Do you want to stop LW if range_bot is reach? (y) or (n) only.'
-        params.update({'stop_at_bot': self.ask_question(q, convert.str_to_bool)})
-        q = 'Do you want to stop LW if range_top is reach? (y) or (n) only.'
-        params.update({'stop_at_top': self.ask_question(q, convert.str_to_bool)})
+
+        params.update(self.ask_if_stop())
         params.update(self.ask_nb_to_display(params['intervals']))
-        params.update({'profits_alloc': self.ask_profits_alloc()})
+        params.update(self.ask_profits_alloc())
         return params
 
     def set_marketplace(self, marketplace=None, test_mode=None):
@@ -158,7 +159,9 @@ class UserInterface():
         Connect to the selected marketplace.
         return: String, name of the selected marketplace.
         """
-        api_connector = api_manager.APIManager(self.slack_webhook)
+        api_connector = api_manager.APIManager(self.slack_webhook,
+                                               self.safety_buy_value,
+                                               self.safety_sell_value)
 
         if test_mode:
             api_connector.set_zebitex(self.allowed_exchanges['zebitex_testnet'])
@@ -171,10 +174,14 @@ class UserInterface():
             else:
                 choice = exchanges_list.index(marketplace)
             # Because kraken balance do not return free and used balance
-            api_connector.is_kraken = True if self.allowed_exchanges[exchanges_list[choice]] == 'kraken' \
+            api_connector.is_kraken = True \
+                if self.allowed_exchanges[exchanges_list[choice]] == 'kraken' \
                 else False
+            
             if exchanges_list[choice] in ['zebitex', 'zebitex_testnet']:
-                api_connector.set_zebitex(self.allowed_exchanges[exchanges_list[choice]], exchanges_list[choice])
+                api_connector.set_zebitex(
+                    self.allowed_exchanges[exchanges_list[choice]],
+                    exchanges_list[choice])
                 
             else:
                 api_connector.exchange = eval(
@@ -192,19 +199,21 @@ class UserInterface():
         """
         if market:
             if market not in api_connector.exchange.symbols:
-                raise ValueError(f"{market} not in api_connector.exchange.symbols : {api_connector.exchange.symbols}")
+                raise ValueError(f"{market} not in api_connector.exchange.symbols: "
+                                 f"{api_connector.exchange.symbols}")
             
             limitation = check.limitation_to_btc_market(market)
             if limitation != True:
                 raise ValueError(limitation)
         else:
             while True:
-                self.log(f"Please enter the name of a market: {api_connector.exchange.symbols}", level='info', print_=True)
+                self.log(f"Please enter the name of a market: {api_connector.exchange.symbols}",
+                         level='info', print_=True)
                 market = input(' >> ').upper()
                 allowed = check.limitation_to_btc_market(market)
                 if allowed == True:
                     if market in api_connector.exchange.symbols:
-                        return market
+                        return {'market': market}
                 else:
                     self.log(allowed, level='info', print_=True)
 
@@ -223,7 +232,7 @@ class UserInterface():
                         'increment_coef': increment, 'intervals': intervals}
             
             except Exception as e:
-                self.log(e, level='warning', print_=True)
+                self.log(e, level='info', print_=True)
 
     def ask_param_increment(self):
         """Ask the user to enter a value for the spread between each order.
@@ -286,7 +295,7 @@ class UserInterface():
             try:
                 amount = self.ask_question(q, convert.str_to_decimal)
                 check.amount(amount, params['range_bot'])
-                return amount
+                return {'amount': amount}
 
             except Exception as e:
                 self.log(e, level='info', print_=True)
@@ -306,12 +315,20 @@ class UserInterface():
         return {'nb_buy_to_display': result[0],
                 'nb_sell_to_display': result[1]}
 
+    def ask_if_stop(self):
+        q1 = 'Do you want to stop LW if range_bot is reach? (y) or (n) only.'
+        q2 = 'Do you want to stop LW if range_top is reach? (y) or (n) only.'
+
+        return {'stop_at_bot': self.ask_question(q1, convert.str_to_bool),
+                'stop_at_top': self.ask_question(q2, convert.str_to_bool)}
+
     def ask_profits_alloc(self):
         """Ask for profits allocation.
         return: int."""
         q = ('How do you want to allocate your profits in %. It must '
             'be between 0 and 100, both included:')
-        return self.ask_question(q, convert.str_to_int, check.profits_alloc)
+        return {'profits_alloc': self.ask_question(q, convert.str_to_int,
+                                                   check.profits_alloc)}
 
     def params_writer(self, file_path, params):
         updated = deepcopy(params)
@@ -361,12 +378,13 @@ class UserInterface():
                 break
 
             except Exception as e:
-                self.log(e, level='warning', print_=True)
+                self.log(e, level='info', print_=True)
 
         return params
 
     def change_spread(self, params):
-        spread = self.ask_params_spread(params['api_connector'], params['market'], params['intervals'])
+        spread = self.ask_params_spread(params['api_connector'],
+                                        params['market'], params['intervals'])
         for key, value in spread.items():
             params[key] = value
         return params
@@ -383,99 +401,34 @@ class UserInterface():
                                           list of executed sell,
                                           dict of parameters
         """
-        file_path = f'{self.root_path}logs/history.log'
-        raw_data = []
-        logs_data = {'buy': [], 'sell': []}
-        nb_of_lines = self.check_history_file(file_path)
-        print('Function TODO')
-        breakpoint()
+        file_path = f'{self.root_path}logs/history.txt'
+        last_line = self.check_history_file(file_path)
 
-        if not nb_of_lines:
+        if not last_line:
             return None
 
-        target = nb_of_lines - 20 if nb_of_lines > 20 else 0
+        line_nb = last_line - 20 if last_line > 20 else 0
         # Get the last 20 orders saved in log file
-        while target < nb_of_lines:
-            line = helper.read_one_line(file_path, nb_of_lines)
-            try:
-                line = json.loads(line)
-                raw_data.append(line)
-            # Don't care about malformed data, just skip it.
-            except Exception:
-                target = target - 1 if target - 1 >= 0 else target
-            nb_of_lines -= 1
-
-        self.display_user_trades(logs_data)
+        while line_nb < last_line:
+            print(helper.read_one_line(file_path, line_nb))
+            line_nb += 1
 
     def check_history_file(self, file_path):
         """Better to read when there is something to do so.
         file_path: string.
         return: int."""
         if helper.create_file_when_none(file_path):
-            self.log("history.txt file have been created", level='warning', print_=True)
+            self.log("history.txt file have been created", level='info', print_=True)
             return None
 
-        self.log("Reading the strat.log file", level='debug', print_=True)
+        self.log("Reading the strat.log file")
         nb_of_lines = helper.file_line_counter(file_path)
-        print('function TODO')
-        breakpoint()
+        
         if not isinstance(nb_of_lines, int):
-            self.log('Your strat.log file was empty', level='warning', print_=True)
+            self.log('Your strat.log file was empty', level='info', print_=True)
             return None
 
         return nb_of_lines
-
-    def format_bunch_of_trades(self, trades, logs_data):
-        for order in trades:
-            formated_order = self.format_log_order(
-                order['side'],
-                order['order_id'],
-                order['price'],
-                order['amount'],
-                order['timestamp'],
-                order['datetime'])
-            if order['side'] == 'buy' or \
-                    order['side'] == 'canceled_buy':
-                logs_data['buy'].append(formated_order)
-            if order['side'] == 'sell' or \
-                    order['side'] == 'canceled_sell':
-                logs_data['sell'].append(formated_order)
-
-        return logs_data
-
-    def format_log_order(self, side, order_id, price, amount, timestamp, date):
-        """Sort the information of an order in a list of 6 items.
-        id: string, order unique identifier.
-        price: Decimal or string.
-        amount: Decimal.
-        timestamp: string.
-        date: string.
-        return: list, containing: id, price, amount, value, timestamp and date.
-        """
-        return [side, order_id, price, amount, str(convert.multiplier(
-            Decimal(price), Decimal(amount), self.fees_coef)), \
-                timestamp, date]
-
-    def display_user_trades(self, orders):
-        """Pretify and display orders list.
-        orders: dict, contain all orders.
-        """
-        if orders['buy']:
-            for order in orders['buy']:
-                self.log(self.format_order_to_display(order), level='debug', print_=True)
-        if orders['sell']:
-            for order in orders['sell']:
-                self.log(self.format_order_to_display(order), level='debug', print_=True)
-        return
-
-    def format_order_to_display(self, order):
-        """To format an order as a string.
-        order: dict.
-        return: string."""
-        return (
-            f'{order[0]} on: {order[6]}, id: {order[1]}, price: {order[2]}, '
-            f'amount: {order[3]}, value: {order[4]}, timestamp: {order[5]}'
-        )
 
     def params_reader(self, file_path):
         """Load parameters from params.txt.
@@ -483,7 +436,8 @@ class UserInterface():
         return: dict with valid parameters, or False.
         """
         if helper.create_file_when_none(file_path):
-            self.log(f'There was no {file_path}. One have been created', level='warning', print_=True)        
+            self.log(f'There was no {file_path}. One have been created',
+                     level='info', print_=True)        
             return None
         
         try:
@@ -492,8 +446,8 @@ class UserInterface():
                     helper.read_one_line(file_path, 0)))
         
         except Exception as e:
-            msg = f'Something went wrong when loading params: {e}'
-            self.log(msg, level='warning', print_=True)
+            self.log(f'Something went wrong when loading params: {e}',
+                     level='info', print_=True)
             return None
 
     def check_params(self, params):
@@ -534,7 +488,8 @@ class UserInterface():
                 raise ValueError('Spread_top isn\'t properly configured')
 
         except Exception as e:
-            self.log(f'The LW parameters are not well configured: {e}', level='warning', print_=True)
+            self.log(f'The LW parameters are not well configured: {e}',
+                     level='info', print_=True)
             return False
         
         return params
@@ -599,7 +554,7 @@ class UserInterface():
                     f'total_sell_funds_needed: {total_sell_funds_needed}, '
                     f'sell_balance: {sell_balance}, price: {price}'
                 )
-                self.log(msg, level='debug', print_=True)
+                self.log(msg, level='info', print_=True)
 
                 # When the strategy start with spread bot inferior or
                 # equal to the actual market price
@@ -622,7 +577,7 @@ class UserInterface():
                     f'{pair[1]}; {pair[0]} needed: {total_sell_funds_needed}'
                     f' and you have {sell_balance} {pair[0]}.'
                 )
-                self.log(msg, level='debug', print_=True)
+                self.log(msg, level='info', print_=True)
                 
 
                 buy_balance, sell_balance = self.search_moar_funds(
@@ -635,7 +590,7 @@ class UserInterface():
                 
                 return params
             except ValueError as e:
-                self.log(f'You need to change some parameters: {e}', level='warning', print_=True)
+                self.log(f'You need to change some parameters: {e}', level='info', print_=True)
                 params = self.change_params(params)
 
     def calculate_buy_funds(self, index, amount, intervals):
