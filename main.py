@@ -466,10 +466,11 @@ class LazyWhale:
 
     def create_safety_buy(self, lowest_buy_index):
         buy_sum = Decimal('0')
+        lowest_buy_index -= 1
         self.log(f'lowest_buy_index: {lowest_buy_index}')
         while lowest_buy_index > 0:
             buy_sum += convert.divider(
-                convert.multiplier(self.params['amount'],
+                convert.multiplier(self.amounts[lowest_buy_index],
                     self.intervals[lowest_buy_index]),
                 self.safety_buy_value)
             lowest_buy_index -= 1
@@ -482,9 +483,10 @@ class LazyWhale:
 
     def create_safety_sell(self, highest_sell_index):
         sell_sum = Decimal('0')
+        highest_sell_index += 1
         self.log(f'highest_sell_index: {highest_sell_index}')
-        while highest_sell_index < self.max_sell_index:
-            sell_sum += self.params['amount']
+        while highest_sell_index <= self.max_sell_index:
+            sell_sum += self.amounts[highest_sell_index]
             highest_sell_index += 1
         
         self.log(f'sell_sum: {sell_sum}, highest_sell_index: '
@@ -724,9 +726,9 @@ class LazyWhale:
         if self.params['profits_alloc'] != 0:
             btc_won = convert.multiplier(order[1], self.params['amount'], self.fees_coef)
             btc_to_spend = convert.multiplier(self.intervals[self.intervals.index(order[1]) - 2],
-                                          self.params['amount'])
-            return convert.quantizator(((btc_won - btc_to_spend) * Decimal(
-                    self.params['profits_alloc']) / Decimal('100') + \
+                                              self.params['amount'], self.fees_coef)
+            return convert.quantizator(((btc_won - btc_to_spend) *
+                    self.params['profits_alloc'] / Decimal('100') + \
                     btc_to_spend) / self.intervals[self.intervals.index(order[1]) - 2])
         else:
             return self.params['amount']
@@ -835,7 +837,6 @@ class LazyWhale:
                     # Amount should be saved in order to not open an order with
                     # full amount. That could be costly during long range.
                     self.amounts[self.id_list.index(new_open_orders['buy'][0][0])] = new_open_orders['buy'][0][2]
-                # But we never know so this deletion is inside the statement
                 del new_open_orders['buy'][0]
             
             del self.open_orders['buy'][0]
