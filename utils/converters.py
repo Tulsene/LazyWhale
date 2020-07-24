@@ -78,6 +78,9 @@ def multiplier(nb1, nb2, nb3=Decimal('1')):
     """
     return quantizator(nb1 * nb2 * nb3)
 
+def multiplier_fiat(nb1, nb2, nb3=Decimal('1')):
+    return quantizator_fiat(nb1 * nb2 * nb3)
+
 def int_multiplier(nb1, nb2, nb3=1):
     return int(nb1) * int(nb2) * int(nb3)
 
@@ -96,6 +99,23 @@ def quantizator(nb):
             return (Decimal(whole_part) + 
                     Decimal(f'0.{fractional_part}').quantize(
                         Decimal('1E-8'), rounding=ROUND_HALF_EVEN))
+    
+    except Exception as e:
+        if Decimal(str(int(nb))) == nb:
+            return nb
+        raise SystemExit(f'Quantizator error: {e}, nb: {nb}')
+
+def quantizator_fiat(nb):
+    """Format a Decimal object to 8 decimals
+    return: Decimal"""
+    try:
+        if nb < Decimal('1'):
+            return nb.quantize(Decimal('1E-2'), rounding=ROUND_HALF_EVEN)
+        else:
+            whole_part, fractional_part = str(nb).split('.')
+            return (Decimal(whole_part) + 
+                    Decimal(f'0.{fractional_part}').quantize(
+                        Decimal('1E-2'), rounding=ROUND_HALF_EVEN))
     
     except Exception as e:
         if Decimal(str(int(nb))) == nb:

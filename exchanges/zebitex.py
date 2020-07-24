@@ -68,7 +68,7 @@ class Zebitex():
         if r.status_code >= 500:
             raise ZebitexError(status)
         if r.status_code not in status_code_list:
-            raise ZebitexError({**status, **r.json()['error']})
+            raise ZebitexError({**status, **r.json()})
         if r.status_code == 200 or r.status_code == 201:
             return r.json()
         else:

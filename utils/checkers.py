@@ -12,22 +12,30 @@ def is_date(str_date):
     except Exception as e:
         raise ValueError(f'{str_date} is not a valid date: {e}')
 
-def range_bot(range_bot):
+def range_bot(range_bot, is_fiat=False):
     """Verifies the value of the bottom of the channel
     range_bot: decimal"""
-    if range_bot < Decimal('0.00000001'):
-        raise ValueError('The bottom of the range is too low')
-    if range_bot > Decimal('0.99'):
-        raise ValueError('The bottom of the range is too high')
+    if is_fiat:
+        if range_bot < Decimal('0.01'):
+            raise ValueError('The bottom of the range is too low')
+    else:
+        if range_bot < Decimal('0.00000001'):
+            raise ValueError('The bottom of the range is too low')
+        if range_bot > Decimal('0.99'):
+            raise ValueError('The bottom of the range is too high')
     return True
 
-def range_top(range_top, range_bot):
+def range_top(range_top, range_bot, is_fiat=False):
     """Verifies the value of the top of the channel
     range_top: decimal"""
-    if range_bot < Decimal('0.00000001'):
-        raise ValueError('The top of the range is too low')
-    if range_bot > Decimal('0.99'):
-        raise ValueError('The top of the range is too high')
+    if is_fiat:
+        if range_bot < Decimal('0.01'):
+            raise ValueError('The top of the range is too low')
+    else:
+        if range_top < Decimal('0.00000001'):
+            raise ValueError('The top of the range is too low')
+        if range_top > Decimal('0.99'):
+            raise ValueError('The top of the range is too high')
     if range_bot >= range_top:
         raise ValueError(f'range_top ({range_top}) must be superior to range_bot ({range_bot})')
     return True
@@ -40,7 +48,7 @@ def interval(interval):
     return interval
 
 def amount(amount, range_bot):
-    """Verifies the value of each orders
+    """Verifies that the amount value for an order.
     amount: Decimal.
     range_bot: Decimal.
     return: True"""
@@ -48,6 +56,12 @@ def amount(amount, range_bot):
     if amount < minimum_amount or amount > Decimal('10000000'):
         raise ValueError(f'Amount is too low (< {minimum_amount} \
             ) or high (>10000000)')
+    return True
+
+def amounts(range_bot, amounts):
+    for amt in amounts:
+        amount(amt, range_bot)
+
     return True
 
 def profits_alloc(nb):
@@ -68,29 +82,26 @@ def increment_coef_buider(nb):
     except Exception as e:
         raise ValueError(e)
 
-def limitation_to_btc_market(market):
-    """Special limitation to BTC market : only ALT/BTC for now.
-    market: string, market name.
-    return: bool True or bool False + error message
-    """
-    if market[-3:] != 'BTC':
-        return f'LW is limited to ALT/BTC markets : {market}'
-    return True
+def is_fiat_market(market):
+    if market[-3:] == 'EUR':
+        return True
+    return False
 
-def interval_generator(range_bottom, range_top, increment):
+def interval_generator(range_bottom, range_top, increment, is_fiat=False):
     """Generate a list of interval inside a range by incrementing values
     range_bottom: Decimal, bottom of the range
     range_top: Decimal, top of the range
     increment: Decimal, value used to increment from the bottom
     return: list, value from [range_bottom, range_top[
     """
+    multiplier = convert.multiplier_fiat if is_fiat == True else convert.multiplier
     intervals = [range_bottom]
-    intervals.append(convert.multiplier(intervals[-1], increment))
+    intervals.append(multiplier(intervals[-1], increment))
     if range_top <= intervals[1]:
         raise ValueError('Range top value is too low')
     
     while intervals[-1] <= range_top:
-        intervals.append(convert.multiplier(intervals[-1], increment))
+        intervals.append(multiplier(intervals[-1], increment))
     
     # Remove value > to range_top
     del intervals[-1]

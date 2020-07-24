@@ -22,6 +22,7 @@ class UserInterface():
         # TODO need to be improved, like with an automatic selection if there is already a bot running on the same market
         self.safety_buy_value = safety_buy_value
         self.safety_sell_value = safety_sell_value
+        self.is_fiat = False
 
     def set_keys(self, api_keys):
         """Little hack because I'm lazy and I don't want to add another argument to init.
@@ -48,7 +49,7 @@ class UserInterface():
             if choice in ['no', 'nein', 'non', 'n', 'niet']:
                 return False
 
-    def ask_question(self, q, formater_func, control_func=None, control_value=None):
+    def ask_question(self, q, formater_func, control_func=None, control_value=None, control_value_2=None):
         """Ask any question to the user, control the value returned or ask again.
         q: string, question to ask to the user.
         formater_funct: function, format from string to the right datatype.
@@ -65,7 +66,10 @@ class UserInterface():
 
                 if control_func:
                     if control_value:
-                        control_func(choice, control_value)
+                        if control_value_2:
+                            control_func(choice, control_value, control_value_2)
+                        else:
+                            control_func(choice, control_value)
                     else:
                         control_func(choice)
                 return choice
@@ -202,20 +206,19 @@ class UserInterface():
                 raise ValueError(f"{market} not in api_connector.exchange.symbols: "
                                  f"{api_connector.exchange.symbols}")
             
-            limitation = check.limitation_to_btc_market(market)
-            if limitation != True:
-                raise ValueError(limitation)
+            self.is_fiat = check.is_fiat_market(market)
         else:
             while True:
                 self.log(f"Please enter the name of a market: {api_connector.exchange.symbols}",
                          level='info', print_=True)
                 market = input(' >> ').upper()
-                allowed = check.limitation_to_btc_market(market)
-                if allowed == True:
-                    if market in api_connector.exchange.symbols:
-                        return {'market': market}
+                self.is_fiat = check.is_fiat_market(market)
+
+                if market in api_connector.exchange.symbols:
+                    return {'market': market}
                 else:
-                    self.log(allowed, level='info', print_=True)
+                    raise ValueError(f"{market} not in api_connector.exchange.symbols: "
+                                 f"{api_connector.exchange.symbols}")
 
     def ask_range_setup(self):
         """Ask to the user to enter the range and increment parameters.
@@ -227,7 +230,8 @@ class UserInterface():
                 increment = self.ask_param_increment()
                 intervals = check.interval_generator(range_bot,
                                                range_top,
-                                               increment)
+                                               increment,
+                                               self.is_fiat)
                 return {'range_bot': range_bot, 'range_top': range_top,
                         'increment_coef': increment, 'intervals': intervals}
             
@@ -246,14 +250,14 @@ class UserInterface():
         return: decimal."""
         q = ('Enter a value for the bottom of the range. It must be '
             'superior to 1 satoshi (10^-8 btc):')
-        return self.ask_question(q, convert.str_to_decimal, check.range_bot)
+        return self.ask_question(q, convert.str_to_decimal, check.range_bot, self.is_fiat)
 
     def ask_param_range_top(self, range_bot):
         """Ask the user to enter a value for the top of the range.
         return: decimal."""
         q = ('Enter a value for the top of the range. It must be '
             'inferior to 0.99 BTC:')
-        return self.ask_question(q, convert.str_to_decimal, check.range_top, range_bot)
+        return self.ask_question(q, convert.str_to_decimal, check.range_top, range_bot, self.is_fiat)
 
     def ask_params_spread(self, api_connector, selected_market, intervals):
         """Ask to the user to choose between value for spread bot and setup
@@ -279,14 +283,34 @@ class UserInterface():
         selected_market: string.
         range_bot: Decimal.
         return: Decimal."""
-        pair = params['market'].split('/')[0]
-        funds = params['api_connector'].get_balances()[pair]['total']
-        suggestion = convert.divider(funds, 
+        amounts = {}
+        pairs = params['market'].split('/')
+        funds = params['api_connector'].get_balances()
+        q = 'Do you want to set a different amount between buy and sell orders?'
+        if self.simple_question(q):
+            size = params['intervals'].index(params['spread_bot']) - 1
+            suggestion = convert.quantizator(funds[pairs[1]]['total'] / size / params['range_bot'] )
+            q = (f"How much {pairs[1]} do you want to buy "
+                 f'per order? It must be between '
+                 f"{Decimal('0.001') / params['range_bot']} and 10000000."
+                 f"Suggestion:  {suggestion}")
+            
+            while True:
+                try:
+                    amount = self.ask_question(q, convert.str_to_decimal)
+                    check.amount(amount, params['range_bot'])
+                    amounts.update({'buy_amount': amount})
+                    break
+
+                except Exception as e:
+                    self.log(e, level='info', print_=True)
+            
+        suggestion = convert.divider(funds[pairs[0]]['total'], 
                                      (len(params['intervals'])
                                       - params['intervals'].index(params['spread_top'])
                                       - 1))
 
-        q = (f"How much {params['market'][:4]} do you want to sell "
+        q = (f"How much {pairs[0]} do you want to sell "
              f'per order? It must be between '
              f"{Decimal('0.001') / params['range_bot']} and 10000000."
              f"Suggestion:  {suggestion}")
@@ -295,10 +319,16 @@ class UserInterface():
             try:
                 amount = self.ask_question(q, convert.str_to_decimal)
                 check.amount(amount, params['range_bot'])
-                return {'amount': amount}
+                amounts.update({'sell_amount': amount})
+                break
 
             except Exception as e:
                 self.log(e, level='info', print_=True)
+
+        if 'buy_amount' not in amounts.keys():
+            amounts.update({'buy_amount': amounts['sell_amount']})
+
+        return amounts
 
     def ask_nb_to_display(self, intervals):
         """Ask how much buy and sell orders are going to be in the book.
@@ -325,8 +355,8 @@ class UserInterface():
     def ask_profits_alloc(self):
         """Ask for profits allocation.
         return: int."""
-        q = ('How do you want to allocate your profits in %. It must '
-            'be between 0 and 100, both included:')
+        q = ('How much of your profits do you want to re-invest in %?. It must '
+            'be between 0 and 100; both included:')
         return {'profits_alloc': self.ask_question(q, convert.str_to_int,
                                                    check.profits_alloc)}
 
@@ -354,7 +384,8 @@ class UserInterface():
                         editable_params[choice][1]()
                     params['intervals'] = check.interval_generator(
                         params['range_bot'], params['range_top'],
-                        params['increment_coef'])
+                        params['increment_coef'],
+                        self.is_fiat)
                     params = self.change_spread(params)
 
                 elif choice == 3:
@@ -461,16 +492,17 @@ class UserInterface():
             self.select_market(params['api_connector'], params['market'])
             
             check.is_date(params['datetime'])
-            check.range_bot(params['range_bot'])
-            check.range_top(params['range_top'], params['range_bot'])
+            check.range_bot(params['range_bot'], self.is_fiat)
+            check.range_top(params['range_top'], params['range_bot'], self.is_fiat)
             check.interval(params['increment_coef'])
-            check.amount(params['amount'], params['range_bot'])
+            check.amounts(params['range_bot'], (params['buy_amount'], params['sell_amount']))
             check.profits_alloc(params['profits_alloc'])
 
             params.update({'intervals': check.interval_generator(
                                             params['range_bot'],
                                             params['range_top'],
-                                            params['increment_coef'])})
+                                            params['increment_coef'],
+                                            self.is_fiat)})
             
             if params['spread_bot'] not in params['intervals']:
                 raise ValueError('Spread_bot isn\'t properly configured')
@@ -489,7 +521,7 @@ class UserInterface():
     def check_value_presences(self, params):
         params_names = ['datetime', 'marketplace', 'market', 'range_bot',
                         'range_top', 'spread_bot', 'spread_top',
-                        'increment_coef', 'amount', 'stop_at_bot',
+                        'increment_coef', 'buy_amount', 'sell_amount', 'stop_at_bot',
                         'stop_at_top', 'nb_buy_to_display',
                         'nb_sell_to_display', 'profits_alloc']
         
@@ -501,7 +533,8 @@ class UserInterface():
 
     def convert_params(self, params):
         decimal_to_test = ['range_bot', 'range_top', 'spread_bot', 'spread_top',
-                            'increment_coef', 'amount', 'profits_alloc']
+                            'increment_coef', 'buy_amount', 'sell_amount',
+                            'profits_alloc']
         
         for name in decimal_to_test:
             error_message = f"params['{name}'] is not a string:"
@@ -533,12 +566,13 @@ class UserInterface():
             sell_balance = convert.str_to_decimal(balances[pair[0]]['free'])
             buy_balance = convert.str_to_decimal(balances[pair[1]]['free'])
             spread_bot_index = params['intervals'].index(params['spread_bot'])
-            spread_top_index = spread_bot_index + 1
+            spread_top_index = spread_bot_index + 2
+            params.update({'amounts': self.set_amounts(params, spread_bot_index, spread_top_index)})
             try:
-                total_buy_funds_needed = self.calculate_buy_funds(
-                    spread_bot_index, params['amount'], params['intervals'])
-                total_sell_funds_needed = self.calculate_sell_funds(
-                    spread_top_index, params['amount'], params['intervals'])
+                total_buy_funds_needed = self.calculate_buy_funds(params,
+                    spread_bot_index)
+                total_sell_funds_needed = self.calculate_sell_funds(params,
+                    spread_top_index)
 
                 msg = (
                     f'check_for_enough_funds total_buy_funds_needed: '
@@ -585,27 +619,55 @@ class UserInterface():
                          level='info', print_=True)
                 params = self.change_params(params)
 
-    def calculate_buy_funds(self, index, amount, intervals):
+    def set_amounts(self, params, spread_bot_index, spread_top_index):
+        if params['buy_amount'] == params['sell_amount']:
+            return helper.generate_list(len(params['intervals']), params['buy_amount'])
+
+        amounts = helper.generate_list(len(params['intervals']))
+        amounts = self.set_buy_amounts(params, amounts, spread_bot_index)
+        amounts = self.set_sell_amounts(params, amounts, spread_bot_index)
+        
+        return amounts
+
+    def set_buy_amounts(self, params, amounts, spread_bot_index):
+        i = 0
+        while i <= spread_bot_index:
+            amounts[i] = params['buy_amount']
+            i += 1
+        return amounts
+
+    def set_sell_amounts(self, params, amounts, spread_top_index):
+        range_top_index = len(params['intervals']) - 1
+        while spread_top_index <= range_top_index:
+            amounts[range_top_index] = params['sell_amount']
+            range_top_index -= 1
+        return amounts
+
+    def calculate_buy_funds(self, params, index):
         """Calculate the buy funds required to execute the strategy
         amount: Decimal, allocated ALT per order
         return: Decimal, funds needed
         """
         buy_funds_needed = Decimal('0')
         i = 0
+        # The order between the spread could be a sell or a buy so it must be count as both
+        index += 1
         while i <= index:
-            buy_funds_needed += intervals[i] * amount
+            buy_funds_needed += params['intervals'][i] * params['amounts'][i]
             i += 1
         return buy_funds_needed
 
-    def calculate_sell_funds(self, index, amount, intervals):
-        """Calculate the sell funds required to execute the strategy
+    def calculate_sell_funds(self, params, index):
+        """Calculate the sell funds required to execute the strategy.
         amount: Decimal, allocated ALT per order
         return: Decimal, funds needed
         """
         sell_funds_needed = Decimal('0')
-        i = len(intervals) - 1
+        i = len(params['intervals']) - 1
+        # The order between the spread could be a sell or a buy so it must be count as both
+        index -= 1
         while i >= index:
-            sell_funds_needed += amount
+            sell_funds_needed += params['amounts'][i]
             i -= 1
         return sell_funds_needed
 
@@ -616,7 +678,7 @@ class UserInterface():
         if params['range_top'] < price:
             while i < len(params['intervals']):
                 incoming_buy_funds += convert.multiplier(
-                    params['intervals'][i], params['amount'],
+                    params['intervals'][i], params['amounts'][i],
                     self.fees_coef)
                 i += 1
         # When only few sell orders are planned to be under the
@@ -624,7 +686,7 @@ class UserInterface():
         else:
             while params['intervals'][i] <= price:
                 incoming_buy_funds += convert.multiplier(
-                    params['intervals'][i], params['amount'])
+                    params['intervals'][i], params['amounts'][i])
                 i += 1
                 # It crash when price >= range_top
                 if i == len(params['intervals']):
@@ -638,13 +700,13 @@ class UserInterface():
         # When the whole strategy is upper than actual price
         if params['spread_bot'] > price:
             while i >= 0:
-                incoming_sell_funds += params['amount']
+                incoming_sell_funds += params['amounts'][i]
                 i -= 1
         # When only few buy orders are planned to be upper the
         # actual price
         else:
             while params['intervals'][i] >= price:
-                incoming_sell_funds += params['amount']
+                incoming_sell_funds += params['amounts'][i]
                 i -= 1
                 if i < 0:
                     break

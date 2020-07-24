@@ -66,10 +66,10 @@ def simple_file_writer(file_name, text):
 
 def params_writer(file_path, params):
     updated = deepcopy(params)
-    if 'intervals' in updated.keys():
-        del updated['intervals']
-    if 'api_connector' in updated.keys():
-        del updated['api_connector']
+    to_rm = ['intervals', 'api_connector', 'amounts']
+    for item in to_rm:
+        if item in updated.keys():
+            del updated[item]
     simple_file_writer(file_path, convert.dict_to_str(updated))
 
 def append_to_file(file_name, line):
