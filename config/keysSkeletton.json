@@ -1,0 +1,7 @@
+{
+  "marketPlaces": {
+    "marketplaceName": {"apiKey": "YOUR_PUBLIC_API_KEY","secret": "YOUR_SECRET_PRIVATE_KEY"},
+    "anotherMarketplaceName": {"apiKey": "YOUR_PUBLIC_API_KEY","secret": "YOUR_SECRET_PRIVATE_KEY"}
+  },
+  "slack_webhook": "https://hooks.slack.com/services/"
+}

@@ -13,6 +13,9 @@ logs/*
 
 venv/*
 .venv/*
+keys.json
+keys2.json
+params.json
 keys.txt
 keys2.txt
 params.txt

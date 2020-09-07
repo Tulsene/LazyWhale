@@ -17,6 +17,7 @@ from utils.logger import Logger
 class LazyWhale:
     """Core strategy for LW.
     open order = [id, price, amount, value, timestamp, date]"""
+
     def __init__(self, preset_params=False):
         self.logger = Logger('main')
         self.log = self.logger.log
@@ -42,59 +43,60 @@ class LazyWhale:
         self.sides = ('buy', 'sell')
 
     def keys_initialisation(self):
-        """Check if a key.txt file exist and create one if none.
+        """Check if a key.json file exist and create one if none.
         return: dict, with all api keys found.
         """
-        keys_path = f'{self.root_path}config/keys.txt'
+        keys_path = f'{self.root_path}config/keys.json'
         if helper.create_file_when_none(keys_path):
             self.log(('No file was found, an empty one has been created, '
-                 'please fill it as indicated in the documentation'),
-                level='critical')
+                      'please fill it as indicated in the documentation'),
+                     level='critical')
             raise SystemExit
-        
+
         else:
             api_keys = self.keys_file_reader(keys_path)
             if not api_keys:
-                self.log(('Your key.txt file is empty, please '
-                     'fill it as indicated to the documentation'),
-                    level='critical')
+                self.log(('Your keys.json file is empty, please '
+                          'fill it as indicated to the documentation'),
+                         level='critical')
                 raise SystemExit
 
         return api_keys
 
     def keys_file_reader(self, keys_path):
-        """Check the consistence of datas in key.txt.
+        """Check the consistence of datas in keys.json.
         return: dict, api keys
         """
         name_list = ccxt.exchanges + ['zebitex', 'zebitex_testnet', 'slack_webhook']
         api_keys = {}
         with open(keys_path, mode='r', encoding='utf-8') as keys_file:
-            for line in keys_file:
-                line = line.replace('\n', '')
-                line = line.replace("'", '"')
-                try:
-                    line = json.loads(line)
-                    if len(line.keys()) > 1:
-                        raise ValueError(f'{line} is not formatted correctly')
-                    
-                    for k in line.keys():
-                        if k not in name_list:
-                            raise NameError('The marketplace name is invalid!')
+            try:
+                keys_json = json.load(keys_file)
 
-                        if k in list(api_keys.keys()):
-                            raise KeyError(
-                                f'You already have a key for this '
-                                f'marketplace, please RTFM')
+            except Exception as e:
+                self.log(f'keys.json file is not correct : {e}', level='critical')
+                raise SystemExit
 
-                        if k == 'slack_webhook':
-                            self.logger.set_slack(line[k])
-                            self.log = self.logger.log
+            try:
+                if 'marketPlaces' not in keys_json:
+                    raise IndexError("json is not formatted correctly: marketPlaces key not exists")
 
-                except Exception as e:
-                    self.log(f'Something went wrong : {e}', level='critical')
-                    raise SystemExit
+                for market_place_name, market_place_info in keys_json['marketPlaces'].items():
+                    if market_place_name not in name_list:
+                        raise NameError('The marketplace name is invalid!')
 
-                api_keys.update(line)
+                    api_keys[market_place_name] = market_place_info
+
+                if 'slack_webhook' not in keys_json:
+                    raise IndexError("json is not formatted correctly: slack_webhook key not exists")
+
+                self.logger.set_slack(keys_json['slack_webhook'])
+                self.log = self.logger.log
+                api_keys['slack_webhook'] = keys_json['slack_webhook']
+
+            except Exception as e:
+                self.log(f'Something went wrong : {e}', level='critical')
+                raise SystemExit
 
         return api_keys
 
@@ -130,7 +132,7 @@ class LazyWhale:
                     open_orders['buy'][0][4],
                     'buy')
                 del open_orders['buy'][0]
-        
+
         if open_orders['sell']:
             if open_orders['sell'][-1][1] == self.safety_sell_value:
                 self.connector.cancel_order(
@@ -140,7 +142,7 @@ class LazyWhale:
                     open_orders['sell'][-1][4],
                     'sell')
                 del open_orders['sell'][-1]
-        
+
         return open_orders
 
     def strat_init(self, open_orders):
@@ -159,7 +161,7 @@ class LazyWhale:
         remaining_orders_price = {'buy': [], 'sell': []}
 
         lowest_buy, highest_sell = self.init_open_orders_price_target()
-        
+
         self.log(
             f'self.intervals: {self.intervals}, open_orders: {open_orders}, '
             f'self.max_sell_index: {self.max_sell_index}, '
@@ -169,19 +171,20 @@ class LazyWhale:
             level='info', print_=True)
 
         orders_to_remove['buy'] = self.init_remove_orders('buy',
-                                                 open_orders['buy'],
-                                                 lowest_buy,
-                                                 self.params['spread_bot'],
-                                                 orders_to_remove['buy'])
+                                                          open_orders['buy'],
+                                                          lowest_buy,
+                                                          self.params['spread_bot'],
+                                                          orders_to_remove['buy'])
         orders_to_remove['sell'] = self.init_remove_orders('sell',
-                                                 open_orders['sell'],
-                                                 self.params['spread_top'],
-                                                 highest_sell,
-                                                 orders_to_remove['sell'])
-        
+                                                           open_orders['sell'],
+                                                           self.params['spread_top'],
+                                                           highest_sell,
+                                                           orders_to_remove['sell'])
+
         for side in self.sides:
-            open_orders, remaining_orders_price =  self.update_orders(side,
-            open_orders, orders_to_remove, remaining_orders_price)
+            open_orders, remaining_orders_price = self.update_orders(side,
+                                                                     open_orders, orders_to_remove,
+                                                                     remaining_orders_price)
 
         self.log(
             f'orders_to_remove: {orders_to_remove}, open_orders: {open_orders}'
@@ -195,21 +198,21 @@ class LazyWhale:
         in the limit choose with nb_orders_to_display.
         return: Decimals."""
         if self.intervals.index(self.params['spread_bot']) \
-        - self.params['nb_buy_to_display'] + 1 > 1 \
-        and self.params['nb_buy_to_display'] != 0:
+                - self.params['nb_buy_to_display'] + 1 > 1 \
+                and self.params['nb_buy_to_display'] != 0:
             lowest_buy = self.intervals[self.intervals.index(
                 self.params['spread_bot'])
-                - self.params['nb_buy_to_display'] + 1]
-        
+                                        - self.params['nb_buy_to_display'] + 1]
+
         else:
             lowest_buy = self.intervals[1]
 
         if self.intervals.index(self.params['spread_top']) \
-        + self.params['nb_sell_to_display'] - 1 < self.max_sell_index \
-        and self.params['nb_sell_to_display'] != 0:
+                + self.params['nb_sell_to_display'] - 1 < self.max_sell_index \
+                and self.params['nb_sell_to_display'] != 0:
             highest_sell = self.intervals[self.intervals.index(
                 self.params['spread_top'])
-                + self.params['nb_sell_to_display'] - 1]
+                                          + self.params['nb_sell_to_display'] - 1]
         else:
             highest_sell = self.intervals[self.max_sell_index]
 
@@ -231,19 +234,19 @@ class LazyWhale:
                     self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
                     orders_to_remove.append(i)
                     continue
-                
+
                 if order[2] != self.params['amount']:
                     if not self.preset_params:
                         if self.ui.simple_question(f'{order} {q2}'):
                             self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
                             orders_to_remove.append(i)
                             continue
-            
+
             else:
                 if not self.preset_params:
                     if self.ui.simple_question(f'{q} {order}'):
                         self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
-                
+
                 orders_to_remove.append(i)
                 continue
 
@@ -256,21 +259,21 @@ class LazyWhale:
         return orders_to_remove
 
     def remove_one_of_two_orders(self, side, open_orders, order, i, orders_to_remove):
-        q = ('Those two orders have the same price, which one do you want to cancel : ')
+        q = 'Those two orders have the same price, which one do you want to cancel : '
         order_to_select = [order, open_orders[i - 1]]
-        
+
         if self.preset_params:
             rsp = 1
         else:
             rsp = int(self.ui.ask_to_select_in_a_list(q, order_to_select))
-        
+
         if rsp == 1:
             self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
             orders_to_remove.append(i)
         else:
             self.connector.cancel_order(self.params['market'], order_to_select[1][0],
-                                order_to_select[1][1],
-                                order_to_select[1][4], side)
+                                        order_to_select[1][1],
+                                        order_to_select[1][4], side)
             orders_to_remove.append(i - 1)
 
         return orders_to_remove
@@ -288,7 +291,7 @@ class LazyWhale:
         if open_orders[side]:
             for order in open_orders[side]:
                 remaining_orders_price[side].append(order[1])
-        
+
         return open_orders, remaining_orders_price
 
     def set_first_orders(self, remaining_orders_price, open_orders):
@@ -310,11 +313,11 @@ class LazyWhale:
 
         for side in self.sides:
             new_orders[side] = self.open_first_orders(open_orders[side],
-                                            remaining_orders_price[side],
-                                            new_orders[side],
-                                            eval(f'lowest_{side}_index'),
-                                            eval(f'{side}_target'),
-                                            side)
+                                                      remaining_orders_price[side],
+                                                      new_orders[side],
+                                                      eval(f'lowest_{side}_index'),
+                                                      eval(f'{side}_target'),
+                                                      side)
 
         self.log(f'new_orders: {new_orders}')
         return new_orders
@@ -330,7 +333,7 @@ class LazyWhale:
             lowest_buy_index = buy_target - self.params['nb_buy_to_display'] + 1
         else:
             lowest_buy_index = 1
-        
+
         if lowest_sell_index + self.params['nb_sell_to_display'] \
                 < len(self.intervals) - 2:
             sell_target = lowest_sell_index + self.params['nb_sell_to_display'] - 1
@@ -348,19 +351,19 @@ class LazyWhale:
         api_call = self.connector.init_limit_buy_order if side == 'buy' else self.connector.init_limit_sell_order
         while lowest_index <= target_index:
             if self.intervals[lowest_index] \
-            not in remaining_orders_price:
+                    not in remaining_orders_price:
                 order = api_call(self.params['market'],
-                                self.amounts[lowest_index],
-                                self.intervals[lowest_index])
+                                 self.amounts[lowest_index],
+                                 self.intervals[lowest_index])
                 new_orders.append(order)
                 sleep(0.2)
-            
+
             else:
                 for item in open_orders:
                     if item[1] == self.intervals[lowest_index]:
                         new_orders.append(item)
                         break
-            
+
             lowest_index += 1
 
         return new_orders
@@ -372,7 +375,7 @@ class LazyWhale:
         """
         self.log(f'safety_orders_checkpoint()')
         open_orders = self.safety_failsafe(open_orders)
-        
+
         if self.main_loop_abort(open_orders):
             return False
 
@@ -384,7 +387,7 @@ class LazyWhale:
         for side in self.sides:
             if open_orders[side]:
                 open_orders[side] = self.remove_safety_order(open_orders[side], side)
-        
+
         return open_orders
 
     def safety_failsafe(self, open_orders):
@@ -394,21 +397,21 @@ class LazyWhale:
         for side in self.sides:
             index = -1 if side == 'buy' else 0
             create_fake = self.create_fake_buy if side == 'buy' else self.create_fake_sell
-            
+
             if self.open_orders[side]:
                 if not open_orders[side] and not self.open_orders[side][index][2]:
                     open_orders[side].append(create_fake())
 
         return open_orders
 
-    def main_loop_abort(self, open_orders):  
+    def main_loop_abort(self, open_orders):
         """Abort main loop when there is no order fulfilled.
         open_orders: dict.
         return: bool."""
         if open_orders['buy'] and open_orders['sell']:
             if self.open_orders['buy'] and self.open_orders['sell']:
                 if open_orders['buy'][-1][0] == self.open_orders['buy'][-1][0] \
-                and open_orders['sell'][0][0] == self.open_orders['sell'][0][0]:
+                        and open_orders['sell'][0][0] == self.open_orders['sell'][0][0]:
                     return True
 
         return False
@@ -422,10 +425,10 @@ class LazyWhale:
             # The safety order can be a fake order
             if open_orders[index][2]:
                 self.connector.cancel_order(self.params['market'],
-                                    open_orders[index][0],
-                                    open_orders[index][1],
-                                    open_orders[index][4],
-                                    side)
+                                            open_orders[index][0],
+                                            open_orders[index][1],
+                                            open_orders[index][4],
+                                            side)
 
             del open_orders[index]
 
@@ -447,15 +450,14 @@ class LazyWhale:
 
         if lowest_buy_index > 1:
             self.create_safety_buy(lowest_buy_index)
-            
+
         else:
             if self.open_orders['buy'][0][1] != self.safety_buy_value:
                 self.open_orders['buy'].insert(0, self.create_fake_buy())
 
-
         if highest_sell_index < self.max_sell_index:
             self.create_safety_sell(highest_sell_index)
-            
+
         else:
             if self.open_orders['sell'][-1][1] != self.safety_sell_value:
                 self.open_orders['sell'].append(self.create_fake_sell())
@@ -471,10 +473,10 @@ class LazyWhale:
         while lowest_buy_index > 0:
             buy_sum += convert.divider(
                 convert.multiplier(self.amounts[lowest_buy_index],
-                    self.intervals[lowest_buy_index]),
+                                   self.intervals[lowest_buy_index]),
                 self.safety_buy_value)
             lowest_buy_index -= 1
-        
+
         self.log(f'buy_sum: {buy_sum}, lowest_buy_index: {lowest_buy_index}',
                  level='debug')
         self.open_orders['buy'].insert(
@@ -488,10 +490,10 @@ class LazyWhale:
         while highest_sell_index <= self.max_sell_index:
             sell_sum += self.amounts[highest_sell_index]
             highest_sell_index += 1
-        
+
         self.log(f'sell_sum: {sell_sum}, highest_sell_index: '
-            f'{highest_sell_index}, self.max_sell_index: '
-            f'{self.max_sell_index}')
+                 f'{highest_sell_index}, self.max_sell_index: '
+                 f'{self.max_sell_index}')
         self.open_orders['sell'].append(self.connector.init_limit_sell_order(
             self.params['market'], sell_sum, self.intervals[-1]))
 
@@ -546,7 +548,7 @@ class LazyWhale:
             else:
                 new_open_orders = self.add_buy_when_none(target, new_open_orders)
                 order_oppened = True
-                
+
             self.log(f'updated new_buy_orders: {new_open_orders["buy"]}',
                      level='debug')
 
@@ -564,9 +566,9 @@ class LazyWhale:
 
         if order_oppened:
             new_open_orders = self.check_if_no_orders(
-                                self.connector.orders_price_ordering(
-                                    self.connector.get_orders(
-                                        self.params['market'])))
+                self.connector.orders_price_ordering(
+                    self.connector.get_orders(
+                        self.params['market'])))
             # Fake buy Handler when range_bot/top is reached
             self.update_id_list()
 
@@ -591,7 +593,7 @@ class LazyWhale:
         return: dict"""
         if self.params['stop_at_bot']:
             self.log(f'Bottom target reached! target: {target}',
-                        level='critical', slack=True, print_=True)
+                     level='critical', slack=True, print_=True)
 
             self.connector.cancel_all(self.params['market'], self.remove_safety_orders(
                 self.remove_orders_off_strat(
@@ -611,7 +613,7 @@ class LazyWhale:
         new_open_orders: dict.
         return: dict"""
         self.log('Buys side is empty',
-            level='warning', slack=True, print_=True)
+                 level='warning', slack=True, print_=True)
 
         if target - self.params['nb_buy_to_display'] + 1 >= 1:
             start_index = target - self.params['nb_buy_to_display'] + 1
@@ -646,8 +648,8 @@ class LazyWhale:
         return: dict"""
         if self.params['stop_at_top']:
             self.log(f'Top target reached! start_index: {start_index}, '
-                f'self.max_sell_index: {self.max_sell_index}',
-                level='critical', slack=True, print_=True)
+                     f'self.max_sell_index: {self.max_sell_index}',
+                     level='critical', slack=True, print_=True)
 
             self.connector.cancel_all(self.params['market'], self.remove_safety_orders(
                 self.remove_orders_off_strat(self.connector.get_orders(
@@ -667,12 +669,12 @@ class LazyWhale:
         new_open_orders: dict.
         return: dict"""
         self.log('Sell side is empty',
-            level='warning', slack=True, print_=True)
+                 level='warning', slack=True, print_=True)
 
         if start_index + self.params['nb_sell_to_display'] - 1 \
-        <= self.max_sell_index:
+                <= self.max_sell_index:
             target = start_index + self.params['nb_sell_to_display'] - 1
-        
+
         else:
             target = self.max_sell_index
 
@@ -728,8 +730,8 @@ class LazyWhale:
             btc_to_spend = convert.multiplier(self.intervals[self.intervals.index(order[1]) - 2],
                                               self.params['amount'], self.fees_coef)
             return convert.quantizator(((btc_won - btc_to_spend) *
-                    self.params['profits_alloc'] / Decimal('100') + \
-                    btc_to_spend) / self.intervals[self.intervals.index(order[1]) - 2])
+                                        self.params['profits_alloc'] / Decimal('100') +
+                                        btc_to_spend) / self.intervals[self.intervals.index(order[1]) - 2])
         else:
             return self.params['amount']
 
@@ -739,7 +741,7 @@ class LazyWhale:
         opposite_side = 'sell' if side == 'buy' else 'buy'
         api_call = self.connector.set_several_sell if side == 'buy' else self.connector.set_several_buy
         self.log(f'{len(missing_orders[side])} {side}(s) has occurred',
-                level='warning', slack=True, print_=True)
+                 level='warning', slack=True, print_=True)
         start_index = self.id_list.index(new_open_orders[side][list_index][0]) + convert.int_multiplier(2, coef)
         target = start_index + convert.int_multiplier(len(missing_orders[side]), coef) - convert.int_multiplier(1, coef)
         if side == 'sell':
@@ -771,7 +773,7 @@ class LazyWhale:
             index = self.intervals.index(self.open_orders['buy'][-1][1])
             self.params['spread_bot'] = self.intervals[index]
             self.params['spread_top'] = self.intervals[index + 2]
-            helper.params_writer(f'{self.root_path}config/params.txt', self.params)
+            helper.params_writer(f'{self.root_path}config/params.json', self.params)
 
     def limit_nb_orders(self):
         """Cancel open orders if there is too many, open orders if there is
@@ -780,18 +782,18 @@ class LazyWhale:
             self.connector.orders_price_ordering(
                 self.connector.get_orders(
                     self.params['market'])))
-        
+
         nb_orders = self.how_much_buys(new_open_orders)
         if nb_orders > self.params['nb_buy_to_display']:
             self.cancel_some_buys(nb_orders, new_open_orders)
 
         elif nb_orders < self.params['nb_buy_to_display']:
             self.open_some_buys(nb_orders)
-    
+
         nb_orders = self.how_much_sells(new_open_orders)
         if nb_orders > self.params['nb_sell_to_display']:
             self.cancel_some_sells(nb_orders, new_open_orders)
-    
+
         elif nb_orders < self.params['nb_sell_to_display']:
             self.open_some_sells(nb_orders)
 
@@ -805,11 +807,11 @@ class LazyWhale:
                 nb_orders -= 1
         else:
             nb_orders = 0
-        
+
         self.log(
             f'nb_orders: {nb_orders}, params["nb_buy_to_display"]: '
             f"{self.params['nb_buy_to_display']}")
-        
+
         return nb_orders
 
     def cancel_some_buys(self, nb_orders, new_open_orders):
@@ -821,16 +823,16 @@ class LazyWhale:
         # Care of the fake order
         if not self.open_orders['buy'][0][0]:
             del self.open_orders['buy'][0]
-        
+
         nb_orders -= self.params['nb_buy_to_display']
-        
+
         while nb_orders > 0:
             self.connector.cancel_order(self.params['market'],
                                         self.open_orders['buy'][0][0],
                                         self.open_orders['buy'][0][1],
                                         self.open_orders['buy'][0][4],
                                         'buy')
-            
+
             # I consider that if there is a fucked up at this stage LW will crash
             if self.open_orders['buy'][0][0] == new_open_orders['buy'][0][0]:
                 if new_open_orders['buy'][0][2] != self.params['amount']:
@@ -838,7 +840,7 @@ class LazyWhale:
                     # full amount. That could be costly during long range.
                     self.amounts[self.id_list.index(new_open_orders['buy'][0][0])] = new_open_orders['buy'][0][2]
                 del new_open_orders['buy'][0]
-            
+
             del self.open_orders['buy'][0]
             nb_orders -= 1
 
@@ -851,11 +853,11 @@ class LazyWhale:
             # Set the range of buy orders to create
             target = self.intervals.index(self.open_orders['buy'][0][1]) - 1
             start_index = target - self.params['nb_buy_to_display'] \
-                            + len(self.open_orders['buy']) + 1
+                          + len(self.open_orders['buy']) + 1
             if start_index <= 1:
                 start_index = 1
             self.log(f'start_index: {start_index}, target: {target}')
-            
+
             orders = self.connector.set_several_buy(start_index, target, self.amounts)
             for i, order in enumerate(orders):
                 self.open_orders['buy'].insert(i, order)
@@ -866,14 +868,14 @@ class LazyWhale:
             nb_orders = len(new_open_orders['sell'])
             if new_open_orders['sell'][-1][1] == self.safety_sell_value:
                 nb_orders -= 1
-        
+
         else:
             nb_orders = 0
-        
+
         self.log(
             f'nb_orders: {nb_orders}; params["nb_sell_to_display"]: '
             f"{self.params['nb_sell_to_display']}")
-        
+
         return nb_orders
 
     def cancel_some_sells(self, nb_orders, new_open_orders):
@@ -885,10 +887,10 @@ class LazyWhale:
         self.log(f'nb_orders to delete: {nb_orders}')
         while nb_orders > 0:
             self.connector.cancel_order(self.params['market'],
-                                self.open_orders['sell'][-1][0],
-                                self.open_orders['sell'][-1][1],
-                                self.open_orders['sell'][-1][4],
-                                'sell')
+                                        self.open_orders['sell'][-1][0],
+                                        self.open_orders['sell'][-1][1],
+                                        self.open_orders['sell'][-1][4],
+                                        'sell')
 
             if self.open_orders['sell'][-1][0] == new_open_orders['sell'][-1][0]:
                 if new_open_orders['sell'][-1][2] != self.params['amount']:
@@ -907,14 +909,14 @@ class LazyWhale:
             start_index = self.intervals.index(
                 self.open_orders['sell'][-1][1]) + 1
             target = start_index + self.params['nb_sell_to_display'] \
-                        - len(self.open_orders['sell']) - 1
+                     - len(self.open_orders['sell']) - 1
             if target > len(self.intervals) - 2:
                 target = len(self.intervals) - 2
-            
+
             self.log(f'start_index: {start_index}, target: {target}')
             if target > self.max_sell_index:
                 target = self.max_sell_index
-            
+
             orders = self.connector.set_several_sell(start_index, target, self.amounts)
             for order in orders:
                 self.open_orders['sell'].append(order)
@@ -926,14 +928,14 @@ class LazyWhale:
             params = self.ui.check_params(self.preset_params)
             self.params = self.ui.check_for_enough_funds(params)
         else:
-            self.params = self.ui.ask_for_params()#f'{self.root_path}config/params.txt')
+            self.params = self.ui.ask_for_params()  # f'{self.root_path}config/params.txt')
 
         self.connector = self.params['api_connector']
         self.intervals = self.params['intervals']
         self.connector.set_params(self.params)
 
         self.log('LW is starting', slack=True)
-        
+
         open_orders = self.remove_safety_before_init(
             self.connector.orders_price_ordering(
                 self.connector.get_orders(
@@ -947,12 +949,12 @@ class LazyWhale:
         self.lw_initialisation()
         while True:
             self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE START',
-                       level='info', print_=True)
+                     level='info', print_=True)
             orders = self.safety_orders_checkpoint(self.remove_orders_off_strat(
                 self.connector.orders_price_ordering(
                     self.connector.get_orders(
                         self.params['market']))))
-            
+
             if orders:
                 orders = self.check_if_no_orders(orders)
                 self.compare_orders(orders)
@@ -960,10 +962,11 @@ class LazyWhale:
                 self.limit_nb_orders()
                 self.set_safety_orders()
                 self.update_id_list()
-            
+
             self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE STOP',
-                       level='info', print_=True)
+                     level='info', print_=True)
             sleep(5)
+
 
 if __name__ == "__main__":
     LazyWhale().main()

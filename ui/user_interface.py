@@ -110,7 +110,7 @@ class UserInterface():
             # TODO
             return self.check_for_enough_funds(self.params_reader(test_file_path))
 
-        file_path = f'{self.root_path}config/params.txt'
+        file_path = f'{self.root_path}config/params.json'
         params = self.params_reader(file_path)
         self.log(f'Your previous parameters are: {params}', level='info', print_=True)
 
@@ -423,8 +423,8 @@ class UserInterface():
         return nb_of_lines
 
     def params_reader(self, file_path):
-        """Load parameters from params.txt.
-        file_path: string, params.txt relative path.
+        """Load parameters from params.json.
+        file_path: string, params.json relative path.
         return: dict with valid parameters, or False.
         """
         if helper.create_file_when_none(file_path):
