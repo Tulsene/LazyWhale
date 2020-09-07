@@ -6,9 +6,9 @@ The purpose of this script is to automate sells & buys during range or bullish m
 
 LW is a simple script compatible with ccxt marketplaces, as of now only bittrex and zebitex have been tested.
 
-**Diclaimer** : extensives tests have been made by hand. There is no unit tests or functional tests.
+**Disclaimer** : extensive tests have been made by hand. There is no unit tests or functional tests.
 
-## Instalation for linux
+## Installation for linux
 ### Prerequisite
 #### Python >= 3.6 
 
@@ -49,7 +49,7 @@ SyntaxError: invalid syntax
 
 ## API Keys Configuration
 
-Create keys.txt and follow the scheme in `keySkeletton.txt`
+Create keys.json and follow the scheme in `keySkeletton.json`
 
 ## Strategy parameters
 
@@ -65,7 +65,7 @@ Parameters are stored in params.txt, backup it before entering new parameters!
 
 
 ## TODO
-- [ ] keep orders amount list on a file & allow to retart with it
+- [ ] keep orders amount list on a file & allow to restart with it
 - [ ] Unit tests
 - [ ] Functionnal tests
 - [ ] Switch from lists to pandas
