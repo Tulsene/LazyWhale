@@ -359,7 +359,7 @@ class UserInterface():
 
                 elif choice == 3:
                     params[editable_params[choice][0]] = \
-                        editable_params[choice][1](params['range_bot'])
+                        editable_params[choice][1](params)['amount']
 
                 elif choice == 4:
                     params = self.change_spread(params)
