@@ -48,7 +48,7 @@ class LazyWhale:
         """
         keys_path = f'{self.root_path}config/keys.json'
         if helper.create_file_when_none(keys_path):
-            self.log(('No file was found, an empty one has been created, '
+            self.log(('No file keys.json was found, an empty one has been created, '
                       'please fill it as indicated in the documentation'),
                      level='critical')
             raise SystemExit
