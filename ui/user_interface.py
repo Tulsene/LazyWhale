@@ -12,7 +12,7 @@ import exchanges.api_manager as api_manager
 from utils.logger import Logger
 
 
-class UserInterface():
+class UserInterface:
     def __init__(self, api_keys, fees_coef, safety_buy_value, safety_sell_value):
         self.log = Logger('user_interface').log
         self.slack_webhook = None

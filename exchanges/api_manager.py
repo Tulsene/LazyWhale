@@ -7,10 +7,11 @@ from operator import itemgetter
 import utils.helpers as helpers
 import utils.converters as convert
 from exchanges.zebitexFormatted import ZebitexFormatted
+from main.order import Order
 from utils.logger import Logger
 
 
-class APIManager():
+class APIManager:
     def __init__(self, url, safety_buy_value, safety_sell_value):
         self.log = Logger(name='api_manager', slack_webhook=url).log
         self.safety_buy_value = safety_buy_value
@@ -378,7 +379,7 @@ class APIManager():
         return user_balance
 
     def format_order(self, order_id, price, amount, timestamp, date):
-        """Sort the information of an order in a list of 6 items.
+        """Create an Order:
         id: string, order unique identifier.
         price: Decimal or string.
         amount: Decimal.
@@ -386,8 +387,8 @@ class APIManager():
         date: string.
         return: list, containing: id, price, amount, value, timestamp and date.
         """
-        return [str(order_id), Decimal(price), amount, convert.multiplier(
-            Decimal(price), amount, self.fees_coef), timestamp, date]
+        return Order(str(order_id), Decimal(price), amount, convert.multiplier(
+            Decimal(price), amount, self.fees_coef), timestamp, date)
 
     def get_orders(self, market):
         """Get actives orders from a marketplace and organize them.

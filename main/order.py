@@ -2,7 +2,7 @@ from decimal import Decimal
 
 
 class Order:
-    def __init__(self, idx: int, price: Decimal, amount: Decimal, value: Decimal, timestamp: int, date: str):
+    def __init__(self, idx: str, price: Decimal, amount: Decimal, value: Decimal, timestamp: str, date: str):
         self.idx = idx
         self.price = price
         self.amount = amount
