@@ -1,14 +1,26 @@
 from decimal import Decimal
+from utils.converters import multiplier
 
 
 class Order:
-    def __init__(self, idx: str, price: Decimal, amount: Decimal, value: Decimal, timestamp: str, date: str):
-        self.idx = idx
-        self.price = price
-        self.amount = amount
-        self.value = value
+    def __init__(self, idx, price, amount, timestamp: str, date: str, fee=0):
+        self.idx = str(idx)
+        self.price = Decimal(price)
+        self.amount = Decimal(amount)
+        self.value = multiplier(self.price, self.amount, Decimal(fee))
         self.timestamp = timestamp
         self.date = date
 
     def __eq__(self, other):
         return self.price == other.price
+
+    def __str__(self):
+        return f"id: {self.idx}\n" \
+               f"price: {self.price}\n" \
+               f"amount: {self.amount}\n" \
+               f"value: {self.value}\n" \
+               f"timestamp: {self.timestamp}\n" \
+               f"date: {self.date}\n"
+
+    def __repr__(self):
+        return str(self)

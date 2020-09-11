@@ -19,3 +19,5 @@ params.json
 keys.txt
 keys2.txt
 params.txt
+
+tests/config.py

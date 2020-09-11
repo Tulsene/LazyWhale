@@ -2,6 +2,8 @@ from decimal import Decimal
 from datetime import datetime
 
 import utils.converters as convert
+from main.interval import Interval
+
 
 def is_date(str_date):
     """Check if a date have a valid formating.
@@ -12,6 +14,7 @@ def is_date(str_date):
     except Exception as e:
         raise ValueError(f'{str_date} is not a valid date: {e}')
 
+
 def range_bot(range_bot):
     """Verifies the value of the bottom of the channel
     range_bot: decimal"""
@@ -20,6 +23,7 @@ def range_bot(range_bot):
     if range_bot > Decimal('0.99'):
         raise ValueError('The bottom of the range is too high')
     return True
+
 
 def range_top(range_top, range_bot):
     """Verifies the value of the top of the channel
@@ -32,12 +36,14 @@ def range_top(range_top, range_bot):
         raise ValueError(f'range_top ({range_top}) must be superior to range_bot ({range_bot})')
     return True
 
+
 def interval(interval):
     """Verifies the value of interval between orders
     interval: decimal"""
     if Decimal('1.01') > interval or interval > Decimal('1.50'):
         raise ValueError('Increment is too low (<=1%) or high (>=50%)')
     return interval
+
 
 def amount(amount, range_bot):
     """Verifies the value of each orders
@@ -50,6 +56,7 @@ def amount(amount, range_bot):
             ) or high (>10000000)')
     return True
 
+
 def profits_alloc(nb):
     """Verifie the nb for benefice allocation
     nb: int"""
@@ -57,6 +64,7 @@ def profits_alloc(nb):
         raise ValueError(f'The benefice allocation too low (<0) or high ' \
                             f'(>100) {nb}')
     return nb
+
 
 def increment_coef_buider(nb):
     """Formating increment_coef.
@@ -68,6 +76,7 @@ def increment_coef_buider(nb):
     except Exception as e:
         raise ValueError(e)
 
+
 def limitation_to_btc_market(market):
     """Special limitation to BTC market : only ALT/BTC for now.
     market: string, market name.
@@ -77,6 +86,7 @@ def limitation_to_btc_market(market):
         return f'LW is limited to ALT/BTC markets : {market}'
     return True
 
+
 def interval_generator(range_bottom, range_top, increment):
     """Generate a list of interval inside a range by incrementing values
     range_bottom: Decimal, bottom of the range
@@ -84,22 +94,31 @@ def interval_generator(range_bottom, range_top, increment):
     increment: Decimal, value used to increment from the bottom
     return: list, value from [range_bottom, range_top[
     """
-    intervals = [range_bottom]
-    intervals.append(convert.multiplier(intervals[-1], increment))
-    if range_top <= intervals[1]:
+    intervals_int = [range_bottom, convert.multiplier(range_bottom, increment)]
+    if range_top <= intervals_int[1]:
         raise ValueError('Range top value is too low')
-    
-    while intervals[-1] <= range_top:
-        intervals.append(convert.multiplier(intervals[-1], increment))
-    
-    # Remove value > to range_top
-    del intervals[-1]
 
-    if len(intervals) < 6:
+    while intervals_int[-1] <= range_top:
+        intervals_int.append(convert.multiplier(intervals_int[-1], increment))
+
+    # Remove value > to range_top
+    del intervals_int[-1]
+
+    if len(intervals_int) < 6:
         raise ValueError('Range top value is too low, or increment too '
             'high: need to generate at lease 6 intervals. Try again!')
-    
+
+    # Creating [Interval] without top interval:
+    intervals = []
+    for idx in range(len(intervals_int) - 1):
+        if idx < len(intervals_int):
+            intervals.append(Interval(intervals_int[idx], intervals_int[idx + 1]))
+
+    # Inserting top Interval
+    intervals.append(Interval(intervals_int[-1], range_top))
+
     return intervals
+
 
 def nb_to_display(nb, max_size):
     """Verifie the nb of order to display

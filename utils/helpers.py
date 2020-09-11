@@ -7,9 +7,11 @@ from time import time
 
 import utils.converters as convert
 
+
 def set_root_path():
     root_path = os.path.dirname(sys.argv[0])
     return f'{root_path}/' if root_path else ''
+
 
 def create_empty_file(file_path):
     """Warning : no erase safety.
@@ -18,17 +20,20 @@ def create_empty_file(file_path):
     open(file_path, 'w').close()
     return True
 
+
 def create_file_when_none(file_path):
     if os.path.isfile(file_path):
         return False
     
     return create_empty_file(file_path)
 
+
 def read_one_line(file_name, line_nb=0):
     """Read and return a specific line in a file.
     return: string."""
     with open(file_name) as f:
         return f.readlines()[line_nb].replace('\n', '').replace("'", '"')
+
 
 def create_dir_when_none(dir_name):
     """Check if a directory exist or create one.
@@ -38,6 +43,7 @@ def create_dir_when_none(dir_name):
         return False
     else:
         return True
+
 
 def file_line_counter(file_name):
     """Line counter for any file.
@@ -64,6 +70,7 @@ def simple_file_writer(file_name, text):
     except Exception as e:
         return f'File writer error: {e}'
 
+
 def params_writer(file_path, params):
     updated = deepcopy(params)
     if 'intervals' in updated.keys():
@@ -72,10 +79,12 @@ def params_writer(file_path, params):
         del updated['api_connector']
     simple_file_writer(file_path, convert.dict_to_str(updated))
 
+
 def append_to_file(file_name, line):
     with open(file_name, mode='a', encoding='utf-8') as a_file:
         a_file.write(line)
     return True
+
 
 def read_file(file_name):
     if os.path.getsize(file_name) > 0:
@@ -83,6 +92,7 @@ def read_file(file_name):
             lines = a_file.read().splitlines()
         return lines
     return False
+
 
 def generate_list(size, value=None):
     """List generator.
