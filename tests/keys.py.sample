@@ -1,0 +1,5 @@
+# Here we will be storing credentials for all tests
+
+API_KEY = "YOUR API KEY"
+SECRET = "YOUR SECRET"
+SLACK_WEBHOOK = "https://hooks.slack.com/services///"

@@ -8,7 +8,6 @@
 
 logfiles/*
 logger/*
-tests/*
 logs/*
 
 venv/*
