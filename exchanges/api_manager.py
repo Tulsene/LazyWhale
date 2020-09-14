@@ -1,4 +1,5 @@
 import sys
+from copy import deepcopy
 from time import sleep
 from datetime import datetime
 from decimal import Decimal
@@ -22,6 +23,7 @@ class APIManager:
         self.now = 0
         self.fees_coef = 0
         self.intervals = []
+        self.empty_intervals = []
         self.market = ''
         self.profits_alloc = 0
 
@@ -37,6 +39,7 @@ class APIManager:
 
     def set_params(self, params):
         self.intervals = params['intervals']
+        self.empty_intervals = deepcopy(self.intervals)
         self.market = params['market']
         self.profits_alloc = params['profits_alloc']
 
@@ -201,8 +204,7 @@ class APIManager:
         side: string, buy or sell
         return: list, in a formatted order"""
         sleep(0.5)
-        intervals = self.get_intervals(market)
-        is_open = self.check_an_order_is_open(price, intervals, side)
+        is_open = self.check_an_order_is_open(price, side)
         if is_open:
             return is_open
         else:
@@ -224,12 +226,12 @@ class APIManager:
 
         return interval_idx
 
-    def check_an_order_is_open(self, target, intervals, side):
+    def check_an_order_is_open(self, target, side):
         """Verify if an order is contained in a list
         target: decimal, price of an order.
         a_list: list, user trade history.
         return: boolean."""
-
+        intervals = self.get_intervals(self.market)
         idx = self.find_interval_for_price(target)
         if idx is None:
             return False
@@ -299,8 +301,7 @@ class APIManager:
             self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
             self.api_fail_message_handler()
-            intervals = self.get_intervals(self.market)[side]
-            is_open = self.check_an_order_is_open(price, intervals, side)
+            is_open = self.check_an_order_is_open(price, side)
 
             if is_open:
                 rsp = self.exchange.cancel_order(order_id)
@@ -416,6 +417,8 @@ class APIManager:
         """Get actives orders from a marketplace and organize them.
         return: dict, containing list of buys & sells.
         """
+        self.intervals = deepcopy(self.empty_intervals)
+
         open_orders = self.fetch_open_orders(market)
         self.populate_intervals(open_orders)
         return self.intervals

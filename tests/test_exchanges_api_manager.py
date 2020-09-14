@@ -1,5 +1,7 @@
+from copy import deepcopy
 from decimal import Decimal
 import unittest
+import time
 from unittest import TestCase
 
 from exchanges.api_manager import APIManager
@@ -10,10 +12,6 @@ from main.interval import Interval
 from utils import helpers
 from utils.checkers import interval_generator
 from utils.logger import Logger
-
-
-def patch_log(*args, **kwargs):
-    pass
 
 
 def patch_log_formatter(*args, **kwargs):
@@ -45,6 +43,7 @@ class APIManagerTests(TestCase):
             self.api_manager.now = 0
             self.api_manager.fees_coef = 0
             self.api_manager.intervals = interval_generator(Decimal(0.01), Decimal(0.015), Decimal(1 + (1.02 / 100)))
+            self.api_manager.empty_intervals = deepcopy(self.api_manager.intervals)
             self.api_manager.market = ''
             self.api_manager.profits_alloc = 0
             keys = {
@@ -208,15 +207,14 @@ class APIManagerTests(TestCase):
         count_orders = len(self.api_manager.fetch_open_orders(self.market))
         self.api_manager.create_limit_buy_order(self.market, Decimal(0.017), price)
         self.assertEqual(len(self.api_manager.fetch_open_orders(self.market)), count_orders + 1)
-        self.assertTrue(self.api_manager.check_an_order_is_open(price,
-                                                                self.api_manager.get_intervals(self.market), 'buy'))
+        self.assertTrue(self.api_manager.check_an_order_is_open(price, 'buy'))
 
     def test_get_order_book(self):
         """Tests response from user order_book"""
         order_book = self.api_manager.get_order_book(self.market)
         self.assertTrue('asks' in order_book and 'bids' in order_book)
 
-    def test_cancel_order(self):
+    def test_cancel_all(self):
         """Tests that cancel_order cancel all orders from order_book"""
         self.api_manager.cancel_all(self.market)
         orders = self.api_manager.fetch_open_orders(self.market)
@@ -243,6 +241,13 @@ class APIManagerTests(TestCase):
 
         intervals = self.api_manager.get_intervals(self.market)
         self.assertEqual(intervals[self.interval_index], self.interval)
+
+    def test_cancel_order(self):
+        order = self.api_manager.create_limit_buy_order(self.market, Decimal(1), Decimal(0.01))
+        self.assertTrue(self.api_manager.check_an_order_is_open(order.price, 'buy'))
+
+        self.api_manager.cancel_order(self.market, order.idx, order.price, order.timestamp, 'buy')
+        self.assertFalse(self.api_manager.check_an_order_is_open(order.price, 'buy'))
 
 
 if __name__ == "__main__":

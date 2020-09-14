@@ -3,7 +3,7 @@ from utils.converters import multiplier
 
 
 class Order:
-    def __init__(self, idx, price, amount, timestamp, date: str, fee=0):
+    def __init__(self, idx, price, amount, timestamp, date: str, fee=Decimal('0.9975')):
         self.idx = str(idx)
         self.price = Decimal(price)
         self.amount = Decimal(amount)
@@ -12,7 +12,7 @@ class Order:
         self.date = date
 
     def __eq__(self, other):
-        return self.price == other.price
+        return self.price == other.price or self.idx == other.idx
 
     def __str__(self):
         return f"id: {self.idx}\n" \
