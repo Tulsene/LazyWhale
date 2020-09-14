@@ -15,9 +15,9 @@ class IntervalTests(TestCase):
         self.assertEqual(len(self.interval.get_buy_orders()), 0)
         self.assertEqual(len(self.interval.get_buy_orders()), 0)
 
-        order1 = Order('1', Decimal(0.011), Decimal(0.01), "_", "_")
-        order2 = Order('2', Decimal(0.014), Decimal(0.014), "_", "_")
-        order3 = Order('3', Decimal(0.012), Decimal(0.012), "_", "_")
+        order1 = Order('1', Decimal(0.011), Decimal(0.01), "1", "_")
+        order2 = Order('2', Decimal(0.014), Decimal(0.014), "1", "_")
+        order3 = Order('3', Decimal(0.012), Decimal(0.012), "1", "_")
 
         self.interval.insert_buy_order(order1)
         self.interval.insert_buy_order(order2)
@@ -34,9 +34,16 @@ class IntervalTests(TestCase):
         self.assertEqual(self.interval.get_sell_orders()[2], order2)
 
     def test_get_random_price(self):
+        """Tests that price is generated in the correct interval"""
         price = self.interval.get_random_price_in_interval()
         self.assertTrue(price >= self.interval.get_bottom())
         self.assertTrue(price <= self.interval.get_top())
+
+    def test_equal_interval(self):
+        """Tests that the interval with all same attributes are the same"""
+        same_interval = Interval(self.interval.get_bottom(), self.interval.get_top(),
+                                 self.interval.get_buy_sum_amount(), self.interval.get_sell_sum_amount())
+        self.assertEqual(same_interval, self.interval)
 
 
 if __name__ == "__main__":

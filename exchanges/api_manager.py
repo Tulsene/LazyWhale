@@ -463,3 +463,6 @@ class APIManager:
         self.log(msg, level='info', slack=slack, print_=True)
 
         return timestamp, date_time
+
+    def get_order_book(self, market):
+        return self.exchange.get_order_book(market)

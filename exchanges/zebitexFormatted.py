@@ -4,6 +4,7 @@ from datetime import datetime, date, timedelta
 import time
 from utils.converters import multiplier
 
+
 class ZebitexFormatted:
     """"Zebittex api formatter to get almost same outputs as ccxt."""
 
@@ -11,7 +12,7 @@ class ZebitexFormatted:
         self.ze = Zebitex(access_key, secret_key, is_staging)
         self.fees = Decimal('0.0015')
         self.symbols = self.load_markets()
-    
+
     def fetch_balance(self):
         """balance = {'COIN': {'isFiat': bool,
             'depositFee': int,
@@ -30,15 +31,15 @@ class ZebitexFormatted:
             locked = Decimal(value['lockedBalance'])
             if balance == Decimal('0') or balance == Decimal('1E-8'):
                 value['balance'] = '0.0'
-            
+
             if locked == Decimal('0') or locked == Decimal('1E-8'):
                 value['lockedBalance'] = '0.0'
-            
+
             fetched_balance.update(
                 {key: {'free': value['balance'],
-                       'used': value ['lockedBalance'],
+                       'used': value['lockedBalance'],
                        'total': str(balance + locked)}})
-        
+
         return fetched_balance
 
     def fetch_open_orders(self, market=None):
@@ -76,13 +77,13 @@ class ZebitexFormatted:
                 'side': side,
                 'price': float(order['price']),
                 'cost': float(self.calculate_filled_cost(order['filled'],
-                    order['price'])),
+                                                         order['price'])),
                 'amount': float(order['amount']),
                 'filled': float(order['filled']),
                 'remaining': float(Decimal(order['amount']) - Decimal(
                     order['filled'])),
                 'trades': None if float(order['filled']) != 0 else True,
-                'fee': float(self.calcultate_paid_fees(order['filled']))
+                'fee': float(self.calculate_paid_fees(order['filled']))
                 }
 
     def load_markets(self):
@@ -109,24 +110,24 @@ class ZebitexFormatted:
             'isUpTrend': '1',
             'percent': '0.00000000',
             'change': '0.10000000'}"""
-        return {'symbol': market, 
-                'timestamp': ticker['at'], 
-                'datetime': self.epoch_to_str(ticker['at']), 
-                'high': float(ticker['high']), 
-                'low': float(ticker['low']), 
-                'bid': None, 
-                'bidVolume': None, 
-                'ask': None, 
-                'askVolume': None, 
-                'vwap': None, 
-                'open': float(ticker['open']), 
+        return {'symbol': market,
+                'timestamp': ticker['at'],
+                'datetime': self.epoch_to_str(ticker['at']),
+                'high': float(ticker['high']),
+                'low': float(ticker['low']),
+                'bid': None,
+                'bidVolume': None,
+                'ask': None,
+                'askVolume': None,
+                'vwap': None,
+                'open': float(ticker['open']),
                 'close': None,
-                'last': float(ticker['last']), 
-                'previousClose': None, 
-                'change': float(ticker['change']), 
-                'percentage': float(ticker['percent']), 
-                'average': None, 
-                'baseVolume': float(ticker['volume']), 
+                'last': float(ticker['last']),
+                'previousClose': None,
+                'change': float(ticker['change']),
+                'percentage': float(ticker['percent']),
+                'average': None,
+                'baseVolume': float(ticker['volume']),
                 'quoteVolume': None}
 
     def fetch_trades(self, market=None):
@@ -137,9 +138,9 @@ class ZebitexFormatted:
             market_name = self.from_zebitex_market_name(trade['baseCurrency'], trade['quoteCurrency'])
             if market and market_name != market:
                 continue
-        
+
             my_trades.append(self.trade_formatted(trade, market_name))
-        
+
         return my_trades
 
     def trade_formatted(self, trade, market_name):
@@ -160,29 +161,31 @@ class ZebitexFormatted:
                 'side': trade['side'],
                 'price': float(trade['price']),
                 'amount': float(trade['baseAmount']),
-                'cost':  float(trade['quoteAmount']),
+                'cost': float(trade['quoteAmount']),
                 'fee': {'type': None,
                         'rate': 0.0015,
-                        'cost': float(self.calcultate_paid_fees(
+                        'cost': float(self.calculate_paid_fees(
                             trade['quoteAmount'])),
                         'currency': trade['quoteCurrency']}}
 
-    def from_ccxt_market_name(self, market):
+    @staticmethod
+    def from_ccxt_market_name(market):
         market = market.split('/')
-        return (f'{market[0]}{market[1]}').lower()
+        return f'{market[0]}{market[1]}'.lower()
 
-    def from_zebitex_market_name(self, base_name, quote_name):
+    @staticmethod
+    def from_zebitex_market_name(base_name, quote_name):
         return f"{base_name}/{quote_name}".upper()
 
     def create_limit_buy_order(self, symbol, amount, price):
         symbol = symbol.lower().split('/')
         return self.ze.new_order(symbol[0], symbol[1], 'bid', price, amount,
-            f'{symbol[0]}{symbol[1]}', 'limit')
+                                 f'{symbol[0]}{symbol[1]}', 'limit')
 
     def create_limit_sell_order(self, symbol, amount, price):
         symbol = symbol.lower().split('/')
         return self.ze.new_order(symbol[0], symbol[1], 'ask', price, amount,
-            f'{symbol[0]}{symbol[1]}', 'limit')
+                                 f'{symbol[0]}{symbol[1]}', 'limit')
 
     def cancel_order(self, order_id):
         return self.ze.cancel_order(int(order_id))
@@ -190,17 +193,22 @@ class ZebitexFormatted:
     def cancel_all_orders(self):
         return self.ze.cancel_all_orders()
 
-    def str_to_epoch(self, date_string):
-        return int(str(time.mktime(datetime.strptime(date_string,
-            '%Y-%m-%d %H:%M:%S').timetuple())).split('.')[0] + '000')
+    def get_order_book(self, market):
+        market = ''.join(market.lower().split('/'))
+        return self.ze.orderbook(market)
 
-    def epoch_to_str(self, epoch):
+    @staticmethod
+    def str_to_epoch(date_string):
+        return int(str(time.mktime(datetime.strptime(date_string,
+                                                     '%Y-%m-%d %H:%M:%S').timetuple())).split('.')[0] + '000')
+
+    @staticmethod
+    def epoch_to_str(epoch):
         return datetime.fromtimestamp(epoch).isoformat() + '.000Z'
 
     def calculate_filled_cost(self, amt_filled, price):
-        return multiplier(Decimal(amt_filled), Decimal(price), 
-                         ((Decimal('1') - self.fees)))
-    
-    def calcultate_paid_fees(self, amt_filled):
-        return multiplier(Decimal(amt_filled), self.fees)
+        return multiplier(Decimal(amt_filled), Decimal(price),
+                          (Decimal('1') - self.fees))
 
+    def calculate_paid_fees(self, amt_filled):
+        return multiplier(Decimal(amt_filled), self.fees)

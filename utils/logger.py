@@ -29,7 +29,7 @@ class Logger:
                  console_level=logging.DEBUG,
                  file_level=logging.DEBUG,
                  logging_level=logging.DEBUG,
-                 slack_webhook=''):
+                 slack_webhook='', common_path=None):
         self.name = name
         self.log_file = self.set_log_file(log_file)
         self.log_formatter = log_formatter
@@ -37,7 +37,7 @@ class Logger:
         self.file_level = file_level
         self.logging_level = logging_level
         self.slack = self.set_slack(slack_webhook)
-        self.root_path = helper.set_root_path()
+        self.root_path = common_path if common_path else helper.set_root_path()
         self.logger = self.create_logger(separate_file=(True if log_file else False))
 
     def set_log_file(self, log_file):
@@ -106,8 +106,7 @@ class Logger:
             else:
                 self.logger.critical(f'Wrong logger level: {level}, from: '
                 f'{inspect.stack()[1].function}, log message: {log}')
-            
-        
+
         if print_:
             print(msg)
         
@@ -123,4 +122,3 @@ class Logger:
                 msg = "Slack isn't connected"
                 self.logger.warning(msg)
                 print(msg)
-            

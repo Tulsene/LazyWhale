@@ -3,12 +3,12 @@ from utils.converters import multiplier
 
 
 class Order:
-    def __init__(self, idx, price, amount, timestamp: str, date: str, fee=0):
+    def __init__(self, idx, price, amount, timestamp, date: str, fee=0):
         self.idx = str(idx)
         self.price = Decimal(price)
         self.amount = Decimal(amount)
         self.value = multiplier(self.price, self.amount, Decimal(fee))
-        self.timestamp = timestamp
+        self.timestamp = int(timestamp)
         self.date = date
 
     def __eq__(self, other):

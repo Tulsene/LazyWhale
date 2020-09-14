@@ -37,6 +37,21 @@ class Interval:
         orders_filtered = [order for order in self.__sell_orders if order.price == price]
         return len(orders_filtered) > 0
 
+    def place_buy_order_random_price(self, manager, market, total_amount: Decimal, count_order: int = 2):
+        rand_max = total_amount / (count_order - 1)
+        for _ in range(count_order):
+            order_amount = Decimal(uniform(float(rand_max / 2), float(rand_max)))
+            price = self.get_random_price_in_interval()
+            new_order = manager.create_limit_buy_order(market, order_amount, price)
+            self.insert_buy_order(new_order)
+
+    def place_sell_order_random_price(self, manager, market, total_amount: Decimal, count_order: int = 2):
+        rand_max = total_amount / (count_order - 1)
+        for _ in range(count_order):
+            order_amount = Decimal(uniform(float(rand_max / 2), float(rand_max)))
+            new_order = manager.create_limit_sell_order(market, order_amount, self.get_random_price_in_interval())
+            self.insert_buy_order(new_order)
+
     def get_random_price_in_interval(self):
         return Decimal(uniform(float(self.__bottom), float(self.__top)))
 
@@ -58,10 +73,18 @@ class Interval:
     def get_sell_orders(self) -> [Order]:
         return self.__sell_orders
 
+    def __eq__(self, other):
+        return self.__bottom == other.__bottom and self.__top == other.__top \
+               and self.__buy_orders == other.get_buy_orders() \
+               and self.__sell_orders == other.get_sell_orders() \
+               and self.__buy_sum_amount == other.get_buy_sum_amount() \
+               and self.__sell_sum_amount == other.get_sell_sum_amount()
+
     def __str__(self):
-        return f"Interval({self.__bottom}, {self.__top})" \
-               + f"\nbuy_orders:\n{self.__buy_orders}" if self.__buy_orders else "" \
-               + f"\nsell_orders:\n{self.__sell_orders}\n" if self.__sell_orders else ""
+        str_interval = f"Interval({self.__bottom}, {self.__top})"
+        str_interval += f"\nbuy_orders:\n{self.__buy_orders}" if self.__buy_orders else ""
+        str_interval += f"\nsell_orders:\n{self.__sell_orders}\n" if self.__sell_orders else ""
+        return str_interval
 
     def __repr__(self):
         return str(self)
