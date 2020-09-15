@@ -1,14 +1,12 @@
 from copy import deepcopy
 from decimal import Decimal
 import unittest
-import time
 from unittest import TestCase
 
 from exchanges.api_manager import APIManager
 import tests.keys as keys_config
 from mock import patch
 
-from main.interval import Interval
 from utils import helpers
 from utils.helpers import interval_generator, populate_intervals
 from utils.logger import Logger
@@ -21,7 +19,6 @@ def patch_log_formatter(*args, **kwargs):
 
 
 class APIManagerTests(TestCase):
-
     def setUp(self) -> None:
         # cause an error with read-only file system
         # self.api_manager = \
@@ -33,8 +30,8 @@ class APIManagerTests(TestCase):
                                           slack_webhook=keys_config.SLACK_WEBHOOK,
                                           common_path=keys_config.PATH_TO_PROJECT_ROOT).log
             self.api_manager.order_logger_formatter = patch_log_formatter
-            self.api_manager.safety_buy_value = 1
-            self.api_manager.safety_sell_value = 1e-8
+            self.api_manager.safety_buy_value = Decimal('1E-8')
+            self.api_manager.safety_sell_value = Decimal('1')
             self.api_manager.root_path = helpers.set_root_path()
             self.api_manager.exchange = None
             self.api_manager.err_counter = 0
@@ -177,6 +174,9 @@ class APIManagerTests(TestCase):
             self.interval = self.api_manager.intervals[self.interval_index]
             self.api_manager.cancel_all(self.market)
 
+    def tearDown(self) -> None:
+        self.api_manager.cancel_all(self.market)
+
     def test_format_open_orders(self):
         orders = self.api_manager.format_open_orders(self.raw_orders)
         self.assertEqual(len(orders), len(self.raw_orders))
@@ -253,6 +253,15 @@ class APIManagerTests(TestCase):
 
         self.api_manager.cancel_order(order)
         self.assertFalse(self.api_manager.check_an_order_is_open(order.price, 'buy'))
+
+    def test_get_safety_orders(self):
+        self.assertEqual(len(self.api_manager.get_safety_orders()), 0)
+
+        self.api_manager.create_limit_buy_order(self.market, Decimal(1), self.api_manager.safety_buy_value)
+        self.assertEqual(len(self.api_manager.get_safety_orders()), 1)
+
+        self.api_manager.create_limit_sell_order(self.market, Decimal(1), self.api_manager.safety_sell_value)
+        self.assertEqual(len(self.api_manager.get_safety_orders()), 2)
 
 
 if __name__ == "__main__":

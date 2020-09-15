@@ -10,6 +10,7 @@ import ccxt
 
 import utils.helpers as helper
 import utils.converters as convert
+from main.interval import Interval
 from ui.user_interface import UserInterface
 from utils.logger import Logger
 import config.config as config
@@ -37,7 +38,7 @@ class LazyWhale:
         self.open_orders = {'sell': [], 'buy': []}
         self.params = {}
         self.connector = None
-        self.intervals = []
+        self.intervals: [Interval] = []
         self.amounts = []
         self.id_list = []
         self.max_sell_index = 0
@@ -686,6 +687,53 @@ class LazyWhale:
             self.id_list[self.intervals.index(order[1])] = order[0]
 
         return new_open_orders
+
+    def compare_intervals(self, new_intervals: [Interval]):
+        """Compares intervals and opens new orders and saves them in self.intervals"""
+        interval_index = 0
+        # check length of intervals are same
+        assert len(self.intervals) == len(new_intervals)
+        while interval_index < len(new_intervals):
+            if self.intervals[interval_index] != new_intervals[interval_index]:
+                missing_buy_orders = helper.get_missing_buy_orders(self.intervals[interval_index],
+                                                                   new_intervals[interval_index])
+
+                missing_sell_orders = helper.get_missing_sell_orders(self.intervals[interval_index],
+                                                                     new_intervals[interval_index])
+
+                if missing_buy_orders:
+                    if interval_index + 2 >= len(new_intervals):
+                        # TODO: top is reached
+                        assert 1 == 0
+
+                    # sell orders to open (by the strategy - open 2 intervals higher)
+                    sell_orders_to_open = [{"amount": order.amount,
+                                            "price": self.intervals[interval_index + 2].get_random_price_in_interval()}
+                                           for order in missing_buy_orders]
+
+                    if sell_orders_to_open:
+                        sell_orders = self.connector.set_several_sell(sell_orders_to_open)
+
+                        if sell_orders:
+                            new_intervals = helper.populate_intervals(new_intervals, sell_orders)
+
+                if missing_sell_orders:
+                    if interval_index - 2 < 0:
+                        # TODO: bottom is reached
+                        assert 1 == 0
+
+                    # buy orders to open (by the strategy - open 2 intervals lower)
+                    buy_orders_to_open = [{"amount": order.amount,
+                                           "price": self.intervals[interval_index - 2].get_random_price_in_interval()}
+                                          for order in missing_sell_orders]
+
+                    if buy_orders_to_open:
+                        buy_orders = self.connector.set_several_buy(buy_orders_to_open)
+
+                        if buy_orders:
+                            new_intervals = helper.populate_intervals(new_intervals, buy_orders)
+
+                self.intervals = new_intervals
 
     def compare_orders(self, new_open_orders):
         """Compare between open order know by LW and buy order from the

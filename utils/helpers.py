@@ -4,6 +4,7 @@ from decimal import Decimal, ROUND_HALF_EVEN
 from copy import deepcopy
 from datetime import datetime
 from time import time
+import config.config as config
 
 import utils.converters as convert
 from main.interval import Interval
@@ -154,3 +155,25 @@ def populate_intervals(intervals: [Interval], orders: [Order]):
             intervals[interval_idx].insert_sell_order(order)
 
     return intervals
+
+
+def get_missing_buy_orders(first: Interval, second: Interval) -> [Order]:
+    missing_orders = deepcopy(first.get_buy_orders())
+
+    for order in first.get_buy_orders():
+        rsp = any(new_order == order for new_order in second.get_buy_orders())
+        if rsp:
+            missing_orders.remove(order)
+
+    return missing_orders
+
+
+def get_missing_sell_orders(first: Interval, second: Interval) -> [Order]:
+    missing_orders = deepcopy(first.get_sell_orders())
+
+    for order in first.get_sell_orders():
+        rsp = any(new_order == order for new_order in second.get_sell_orders())
+        if rsp:
+            missing_orders.remove(order)
+
+    return missing_orders

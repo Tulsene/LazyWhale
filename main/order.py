@@ -17,7 +17,7 @@ class Order:
 
     # TODO: apply not fulfilled orders (cannot compare by index)
     def __eq__(self, other):
-        return self.price == other.price or self.id == other.id
+        return (self.price == other.price or self.id == other.id) and self.side == other.side
 
     def __str__(self):
         return f"id: {self.idx}\n" \

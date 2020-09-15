@@ -2,6 +2,7 @@ from decimal import Decimal
 from datetime import datetime
 
 import utils.converters as convert
+from config import config
 
 
 def is_date(str_date):
@@ -93,3 +94,9 @@ def nb_to_display(nb, max_size):
         raise ValueError('The number of order to display is too low (<0) '
                          f'or high {max_size}')
     return True
+
+
+def is_equal_decimal(first: Decimal, second: Decimal):
+    eps = Decimal(10 ** (-config.DECIMAL_PRECISION))
+    return (first - second).copy_abs() < eps
+

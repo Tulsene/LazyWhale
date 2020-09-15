@@ -5,11 +5,13 @@ from datetime import datetime
 from decimal import Decimal
 
 import utils.helpers as helpers
+from utils.checkers import is_equal_decimal
 import utils.converters as convert
 from exchanges.zebitexFormatted import ZebitexFormatted
 from main.interval import Interval
 from main.order import Order
 from utils.logger import Logger
+import config.config as config
 
 
 class APIManager:
@@ -22,7 +24,7 @@ class APIManager:
         self.err_counter = 0
         self.is_kraken = False
         self.now = 0
-        self.fees_coef = 0
+        self.fees_coef = config.FEES_COEFFICIENT
         self.intervals = []
         self.empty_intervals = []
         self.market = ''
@@ -155,20 +157,10 @@ class APIManager:
             else:
                 return rsp
 
-    def set_several_buy(self, start_index, target, amounts):
-        """Loop for opening buy orders. It generate amount to split benef
-        following benef alloc.
-        start_index: int, from where the loop start in self.intervals.
-        target: int, from where the loop start in self.intervals.
-        amounts: list, orders amount per intervals.
-        return: list, of executed orders.
-        """
+    def set_several_buy(self, orders_to_open: [dict]) -> [Order]:
         buy_orders = []
-        while start_index <= target:
-            order = self.init_limit_buy_order(self.market, amounts[start_index],
-                                              self.intervals[start_index].get_random_price_in_interval())
-            buy_orders.append(order)
-            start_index += 1
+        for order in orders_to_open:
+            buy_orders.append(self.init_limit_buy_order(self.market, order['amount'], order['price']))
         return buy_orders
 
     def init_limit_sell_order(self, market, amount, price):
@@ -190,7 +182,7 @@ class APIManager:
                                                           price)
             date = self.order_logger_formatter('sell', order['id'], price,
                                                amount)
-            return Order(order['id'], price, amount, date[0], date[1], 'sell', self.fees_coef)
+            return Order(order['id'], price, amount, 'sell', date[0], date[1], self.fees_coef)
         except Exception as e:
             self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
@@ -201,20 +193,10 @@ class APIManager:
             else:
                 return rsp
 
-    def set_several_sell(self, start_index, target, amounts):
-        """Loop for opening sell orders.
-        start_index: int, from where the loop start in self.intervals.
-        target: int, from where the loop start in self.intervals.
-        amounts: list, orders amount per intervals.
-        return: list, of executed orders.
-        """
+    def set_several_sell(self, orders_to_open: [dict]) -> [Order]:
         sell_orders = []
-        while start_index <= target:
-            order = self.init_limit_sell_order(self.market,
-                                               amounts[start_index],
-                                               self.intervals[start_index].get_random_price_in_interval())
-            sell_orders.append(order)
-            start_index += 1
+        for order in orders_to_open:
+            sell_orders.append(self.init_limit_sell_order(self.market, order['amount'], order['price']))
         return sell_orders
 
     def check_limit_order(self, market, price, side):
@@ -246,20 +228,20 @@ class APIManager:
 
         return interval_idx
 
-    def check_an_order_is_open(self, target, side):
+    def check_an_order_is_open(self, price, side):
         """Verify if an order is contained in a list
         target: decimal, price of an order.
         a_list: list, user trade history.
         return: boolean."""
         intervals = self.get_intervals(self.market)
-        idx = self.find_interval_for_price(target)
+        idx = self.find_interval_for_price(price)
         if idx is None:
             return False
 
         if side == 'buy':
-            return intervals[idx].find_buy_order_by_price(target)
+            return intervals[idx].find_buy_order_by_price(price)
         else:
-            return intervals[idx].find_sell_order_by_price(target)
+            return intervals[idx].find_buy_order_by_price(price)
 
     def order_in_history(self, market, target, a_list, side, timestamp):
         """Verify that an order is in user history.
@@ -415,6 +397,13 @@ class APIManager:
         helpers.populate_intervals(self.intervals, open_orders)
         return self.intervals
 
+    def get_safety_orders(self):
+        orders = self.get_open_orders(self.market)
+        safety_orders = [order for order in orders
+                         if is_equal_decimal(order.price, self.safety_sell_value)
+                         or is_equal_decimal(order.price, self.safety_buy_value)]
+        return safety_orders
+
     def get_user_history(self, market):
         """Get orders history from a marketplace and organize them.
         return: dict, containing list of buy & list of sell.
@@ -422,7 +411,7 @@ class APIManager:
         orders = {'sell': [], 'buy': []}
         raw_orders = self.fetch_trades(market)
         for order in raw_orders:
-            formated_order = Order(
+            formatted_order = Order(
                 order['id'],
                 Decimal(str(order['price'])),
                 Decimal(str(order['amount'])),
@@ -431,9 +420,9 @@ class APIManager:
                 order['datetime'],
                 self.fees_coef)
             if order['side'] == 'buy':
-                orders['buy'].append(formated_order)
+                orders['buy'].append(formatted_order)
             if order['side'] == 'sell':
-                orders['sell'].append(formated_order)
+                orders['sell'].append(formatted_order)
         return orders
 
     def order_logger_formatter(self, side, order_id, price, amount):

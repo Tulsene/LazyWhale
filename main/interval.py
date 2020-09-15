@@ -2,6 +2,7 @@ from random import uniform
 from decimal import Decimal
 
 from main.order import Order
+from utils.checkers import is_equal_decimal
 
 
 class Interval:
@@ -30,11 +31,11 @@ class Interval:
         self.__sell_orders.insert(idx_to_insert, order)
 
     def find_buy_order_by_price(self, price):
-        orders_filtered = [order for order in self.__buy_orders if order.price == price]
+        orders_filtered = [order for order in self.__buy_orders if is_equal_decimal(order.price, price)]
         return len(orders_filtered) > 0
 
     def find_sell_order_by_price(self, price):
-        orders_filtered = [order for order in self.__sell_orders if order.price == price]
+        orders_filtered = [order for order in self.__sell_orders if is_equal_decimal(order.price, price)]
         return len(orders_filtered) > 0
 
     def place_buy_order_random_price(self, manager, market, total_amount: Decimal, count_order: int = 2):
