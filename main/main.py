@@ -12,6 +12,7 @@ import utils.helpers as helper
 import utils.converters as convert
 from ui.user_interface import UserInterface
 from utils.logger import Logger
+import config.config as config
 
 
 class LazyWhale:
@@ -24,11 +25,11 @@ class LazyWhale:
         self.preset_params = preset_params
         self.root_path = helper.set_root_path()
         self.keys = self.keys_initialisation()
-        # Concervative value, need to be modified when it's more than 0.25% of fees
-        self.fees_coef = Decimal('0.9975')
-        # Change those value if you want to launch several instance on the same market
-        self.safety_buy_value = Decimal('1E-8')
-        self.safety_sell_value = Decimal('1')
+
+        self.fees_coef = config.FEES_COEFFICIENT
+
+        self.safety_buy_value = config.SAFETY_BUY_VALUE
+        self.safety_sell_value = config.SAFETY_SELL_VALUE
         self.ui = UserInterface(self.keys,
                                 self.fees_coef,
                                 self.safety_buy_value,

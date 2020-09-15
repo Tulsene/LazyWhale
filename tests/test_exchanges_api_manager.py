@@ -10,7 +10,7 @@ from mock import patch
 
 from main.interval import Interval
 from utils import helpers
-from utils.checkers import interval_generator
+from utils.helpers import interval_generator, populate_intervals
 from utils.logger import Logger
 
 
@@ -25,14 +25,13 @@ class APIManagerTests(TestCase):
     def setUp(self) -> None:
         # cause an error with read-only file system
         # self.api_manager = \
-        # APIManager("https://hooks.slack.com/services/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", 1, 0.0001)
+        # APIManager(keys_config.SLACK_WEBHOOK, 1, 0.0001)
         with patch.object(APIManager, "__init__", lambda x, y, z, a: None):
             # patch APIManager because Logger cant be created in test mode
             self.api_manager = APIManager(None, None, None)
             self.api_manager.log = Logger(name='api_manager',
-                                          slack_webhook="https://hooks.slack.com/services/T01A73QEHKL/B01AD9CJHEY"
-                                                        "/6XSxLP9SC5U5nEokvvIQoIWJ",
-                                          common_path="/home/springs/Projects/op_return/").log
+                                          slack_webhook=keys_config.SLACK_WEBHOOK,
+                                          common_path=keys_config.PATH_TO_PROJECT_ROOT).log
             self.api_manager.order_logger_formatter = patch_log_formatter
             self.api_manager.safety_buy_value = 1
             self.api_manager.safety_sell_value = 1e-8
@@ -53,7 +52,7 @@ class APIManagerTests(TestCase):
             self.api_manager.set_zebitex(keys, "zebitex_testnet")
 
             self.market = "DASH/BTC"
-            self.orders_to_populate = [
+            self.raw_orders = [
                 {
                     'id': '1',
                     'timestamp': 1,
@@ -178,6 +177,10 @@ class APIManagerTests(TestCase):
             self.interval = self.api_manager.intervals[self.interval_index]
             self.api_manager.cancel_all(self.market)
 
+    def test_format_open_orders(self):
+        orders = self.api_manager.format_open_orders(self.raw_orders)
+        self.assertEqual(len(orders), len(self.raw_orders))
+
     def test_populate_intervals(self):
         """Testing part of get_intervals function that transform fetch_open_orders response to intervals interface"""
         self.assertEqual(len(self.api_manager.intervals[1].get_buy_orders()), 0)
@@ -185,15 +188,17 @@ class APIManagerTests(TestCase):
         self.assertEqual(len(self.api_manager.intervals[5].get_buy_orders()), 0)
         self.assertEqual(len(self.api_manager.intervals[4].get_buy_orders()), 0)
 
-        self.api_manager.populate_intervals(self.orders_to_populate)
+        orders = self.api_manager.format_open_orders(self.raw_orders)
+        intervals = populate_intervals(self.api_manager.intervals, orders)
 
-        self.assertEqual(len(self.api_manager.intervals[1].get_buy_orders()), 2)
-        self.assertEqual(len(self.api_manager.intervals[2].get_buy_orders()), 1)
-        self.assertEqual(len(self.api_manager.intervals[5].get_buy_orders()), 1)
-        self.assertEqual(len(self.api_manager.intervals[4].get_sell_orders()), 1)
+        self.assertEqual(len(intervals[1].get_buy_orders()), 2)
+        self.assertEqual(len(intervals[2].get_buy_orders()), 1)
+        self.assertEqual(len(intervals[5].get_buy_orders()), 1)
+        self.assertEqual(len(intervals[4].get_sell_orders()), 1)
 
     def test_get_intervals(self):
-        self.api_manager.populate_intervals(self.orders_to_populate)
+        orders = self.api_manager.format_open_orders(self.raw_orders)
+        self.assertEqual(len(orders), len(self.raw_orders))
 
         intervals = self.api_manager.get_intervals(self.market)
         self.assertEqual(self.api_manager.intervals[1], intervals[1])
@@ -246,7 +251,7 @@ class APIManagerTests(TestCase):
         order = self.api_manager.create_limit_buy_order(self.market, Decimal(1), Decimal(0.01))
         self.assertTrue(self.api_manager.check_an_order_is_open(order.price, 'buy'))
 
-        self.api_manager.cancel_order(self.market, order.idx, order.price, order.timestamp, 'buy')
+        self.api_manager.cancel_order(order)
         self.assertFalse(self.api_manager.check_an_order_is_open(order.price, 'buy'))
 
 

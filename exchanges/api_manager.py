@@ -7,6 +7,7 @@ from decimal import Decimal
 import utils.helpers as helpers
 import utils.converters as convert
 from exchanges.zebitexFormatted import ZebitexFormatted
+from main.interval import Interval
 from main.order import Order
 from utils.logger import Logger
 
@@ -80,6 +81,25 @@ class APIManager:
             self.api_fail_message_handler()
             return self.fetch_open_orders(market)
 
+    def format_open_orders(self, raw_orders):
+        """Format orders from fetch_open_orders in the correct way: [Order]"""
+        orders = [Order(
+            order['id'],
+            order['price'],
+            order['amount'],
+            order['side'],
+            order['timestamp'],
+            date=order['datetime'],
+            fee=self.fees_coef,
+            filled=order['filled']
+        ) for order in raw_orders]
+        return sorted(orders, key=lambda x: x.price)
+
+    def get_open_orders(self, market=None):
+        """Format orders from fetch_open_orders in the correct way and sort by price: [Order]"""
+        raw_orders = self.exchange.fetch_open_orders(market)
+        return self.format_open_orders(raw_orders)
+
     def fetch_trades(self, market):
         """Get trading history of a market from a marketplace.
         Retry 1000 times when error and send message on slack each 10 tries.
@@ -124,7 +144,7 @@ class APIManager:
             order = self.exchange.create_limit_buy_order(market, amount, price)
             date = self.order_logger_formatter('buy', order['id'], price,
                                                amount)
-            return Order(order['id'], price, amount, date[0], date[1], self.fees_coef)
+            return Order(order['id'], price, amount, 'buy', date[0], date[1], self.fees_coef)
         except Exception as e:
             self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
@@ -170,7 +190,7 @@ class APIManager:
                                                           price)
             date = self.order_logger_formatter('sell', order['id'], price,
                                                amount)
-            return Order(order['id'], price, amount, date[0], date[1], self.fees_coef)
+            return Order(order['id'], price, amount, date[0], date[1], 'sell', self.fees_coef)
         except Exception as e:
             self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
@@ -273,7 +293,7 @@ class APIManager:
         except Exception as e:
             self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
 
-    def cancel_order(self, market, order_id, price, timestamp, side):
+    def cancel_order(self, order):
         """Cancel an order with it's id.
         Retry 1000 times, send message on slack each 10 tries.
         Warning : Not connard proofed!
@@ -283,16 +303,16 @@ class APIManager:
         side: string, buy or sell.
         return: boolean, True if the order is canceled correctly, False when the
         order have been filled before it's cancellation"""
-        cancel_side = 'cancel_buy' if side == 'buy' else 'cancel_sell'
+        cancel_side = 'cancel_buy' if order.side == 'buy' else 'cancel_sell'
         try:
-            self.log(f'Init cancel {side} order {order_id} {price}')
-            rsp = self.exchange.cancel_order(order_id)
+            self.log(f'Init cancel {order.side} order {order.id} {order.price}')
+            rsp = self.exchange.cancel_order(order.id)
             if rsp:
-                self.order_logger_formatter(cancel_side, order_id, price, 0)
+                self.order_logger_formatter(cancel_side, order.id, order.price, 0)
                 return True
 
             else:
-                msg = (f'The {side} {order_id} have been filled '
+                msg = (f'The {order.side} {order.id} have been filled '
                        f'before being canceled')
                 self.log(msg, level='warning')
 
@@ -301,39 +321,32 @@ class APIManager:
             self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
             sleep(0.5)
             self.api_fail_message_handler()
-            is_open = self.check_an_order_is_open(price, side)
+            is_open = self.check_an_order_is_open(order.price, order.side)
 
             if is_open:
-                rsp = self.exchange.cancel_order(order_id)
+                rsp = self.exchange.cancel_order(order.id)
                 if rsp:
                     self.err_counter = 0
                     return rsp
 
-            trades = self.get_user_history(self.market)[side]
-            is_traded = self.order_in_history(market, price, trades, side, timestamp)
+            trades = self.get_user_history(self.market)[order.side]
+            is_traded = self.order_in_history(self.market, order.price, trades, order.side, order.timestamp)
 
             if is_traded:
-                msg = (f'The {side} {order_id} have been filled '
+                msg = (f'The {order.side} {order.id} have been filled '
                        f'before being canceled')
                 self.log(msg, level='warning')
                 return False
 
             else:
-                self.order_logger_formatter(cancel_side, order_id, price, 0)
+                self.order_logger_formatter(cancel_side, order.id, order.price, 0)
                 return True
 
     def cancel_all(self, market, open_orders=None):
-        if open_orders:
-            if open_orders['buy']:
-                for item in open_orders['buy']:
-                    self.cancel_order(market, item.id, item.price, item.timestamp, 'buy')
-            if open_orders['sell']:
-                for item in open_orders['sell']:
-                    self.cancel_order(market, item.id, item.price, item.timestamp, 'sell')
-        else:
-            open_orders = self.fetch_open_orders(market)
-            for item in open_orders:
-                self.cancel_order(market, item['id'], item['price'], item['timestamp'], item['side'])
+        if not open_orders:
+            open_orders = self.get_open_orders(market)
+        for order in open_orders:
+            self.cancel_order(order)
 
     def api_fail_message_handler(self):
         """Send an alert where ther eis too much fail with the exchange API"""
@@ -392,35 +405,14 @@ class APIManager:
 
         return user_balance
 
-    def populate_intervals(self, orders) -> None:
-        """Populating intervals with incoming orders (store them in correct Interval way in self.intervals)"""
-        # sort orders by price
-        orders = sorted(orders, key=lambda x: x['price'])
-        interval_idx = 0
-        for order in orders:
-            if order['price'] < self.intervals[0].get_bottom() or order['price'] >= self.intervals[-1].get_top():
-                continue
-
-            while not (self.intervals[interval_idx].get_bottom() <=
-                       order['price'] < self.intervals[interval_idx].get_top()):
-                interval_idx += 1
-
-            order_object = Order(order['id'], order['price'], order['amount'],
-                                 order['timestamp'], order['datetime'], self.fees_coef)
-
-            if order['side'] == 'buy':
-                self.intervals[interval_idx].insert_buy_order(order_object)
-            else:
-                self.intervals[interval_idx].insert_sell_order(order_object)
-
-    def get_intervals(self, market):
+    def get_intervals(self, market=None):
         """Get actives orders from a marketplace and organize them.
         return: dict, containing list of buys & sells.
         """
         self.intervals = deepcopy(self.empty_intervals)
 
-        open_orders = self.fetch_open_orders(market)
-        self.populate_intervals(open_orders)
+        open_orders = self.get_open_orders(market)
+        helpers.populate_intervals(self.intervals, open_orders)
         return self.intervals
 
     def get_user_history(self, market):
@@ -434,6 +426,7 @@ class APIManager:
                 order['id'],
                 Decimal(str(order['price'])),
                 Decimal(str(order['amount'])),
+                order['side'],
                 str(order['timestamp']),
                 order['datetime'],
                 self.fees_coef)

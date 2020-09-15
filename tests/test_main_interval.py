@@ -15,9 +15,9 @@ class IntervalTests(TestCase):
         self.assertEqual(len(self.interval.get_buy_orders()), 0)
         self.assertEqual(len(self.interval.get_buy_orders()), 0)
 
-        order1 = Order('1', Decimal(0.011), Decimal(0.01), "1", "_")
-        order2 = Order('2', Decimal(0.014), Decimal(0.014), "1", "_")
-        order3 = Order('3', Decimal(0.012), Decimal(0.012), "1", "_")
+        order1 = Order('1', Decimal(0.011), Decimal(0.01), 'buy/sell', "1", "_")
+        order2 = Order('2', Decimal(0.014), Decimal(0.014), 'buy/sell', "1", "_")
+        order3 = Order('3', Decimal(0.012), Decimal(0.012), 'buy/sell', "1", "_")
 
         self.interval.insert_buy_order(order1)
         self.interval.insert_buy_order(order2)

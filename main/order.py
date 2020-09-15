@@ -1,18 +1,23 @@
 from decimal import Decimal
 from utils.converters import multiplier
+import config.config as config
 
 
 class Order:
-    def __init__(self, idx, price, amount, timestamp, date: str, fee=Decimal('0.9975')):
-        self.idx = str(idx)
+    def __init__(self, idx, price, amount, side: str, timestamp, date: str,
+                 fee=config.FEES_COEFFICIENT, filled=Decimal(0)):
+        self.id = str(idx)
         self.price = Decimal(price)
         self.amount = Decimal(amount)
         self.value = multiplier(self.price, self.amount, Decimal(fee))
         self.timestamp = int(timestamp)
         self.date = date
+        self.filled = filled
+        self.side = side
 
+    # TODO: apply not fulfilled orders (cannot compare by index)
     def __eq__(self, other):
-        return self.price == other.price or self.idx == other.idx
+        return self.price == other.price or self.id == other.id
 
     def __str__(self):
         return f"id: {self.idx}\n" \

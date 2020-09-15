@@ -3,3 +3,4 @@
 API_KEY = "YOUR API KEY"
 SECRET = "YOUR SECRET"
 SLACK_WEBHOOK = "https://hooks.slack.com/services///"
+PATH_TO_PROJECT_ROOT = "/home/user/projects/project_root/"

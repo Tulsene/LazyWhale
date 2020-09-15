@@ -6,6 +6,8 @@ from datetime import datetime
 from time import time
 
 import utils.converters as convert
+from main.interval import Interval
+from main.order import Order
 
 
 def set_root_path():
@@ -24,7 +26,7 @@ def create_empty_file(file_path):
 def create_file_when_none(file_path):
     if os.path.isfile(file_path):
         return False
-    
+
     return create_empty_file(file_path)
 
 
@@ -55,7 +57,7 @@ def file_line_counter(file_name):
         return i
     except NameError:
         return f'{file_name} is empty'
-        
+
 
 def simple_file_writer(file_name, text):
     """Write a text in a file.
@@ -99,3 +101,56 @@ def generate_list(size, value=None):
     size: int.
     return: list."""
     return [value for _ in range(size)]
+
+
+def interval_generator(range_bottom, range_top, increment):
+    """Generate a list of interval inside a range by incrementing values
+    range_bottom: Decimal, bottom of the range
+    range_top: Decimal, top of the range
+    increment: Decimal, value used to increment from the bottom
+    return: list, value from [range_bottom, range_top[
+    """
+    intervals_int = [range_bottom, convert.multiplier(range_bottom, increment)]
+    if range_top <= intervals_int[1]:
+        raise ValueError('Range top value is too low')
+
+    while intervals_int[-1] <= range_top:
+        intervals_int.append(convert.multiplier(intervals_int[-1], increment))
+
+    # Remove value > to range_top
+    del intervals_int[-1]
+
+    if len(intervals_int) < 6:
+        raise ValueError('Range top value is too low, or increment too '
+                         'high: need to generate at lease 6 intervals. Try again!')
+
+    # Creating [Interval] without top interval:
+    intervals = []
+    for idx in range(len(intervals_int) - 1):
+        if idx < len(intervals_int):
+            intervals.append(Interval(intervals_int[idx], intervals_int[idx + 1]))
+
+    # Inserting top Interval
+    intervals.append(Interval(intervals_int[-1], range_top))
+
+    return intervals
+
+
+def populate_intervals(intervals: [Interval], orders: [Order]):
+    """Populating intervals with incoming orders (store them in correct Interval way in self.intervals)"""
+    # sort orders by price
+    interval_idx = 0
+    for order in orders:
+        if order.price < intervals[0].get_bottom() or order.price >= intervals[-1].get_top():
+            continue
+
+        while not (intervals[interval_idx].get_bottom() <=
+                   order.price < intervals[interval_idx].get_top()):
+            interval_idx += 1
+
+        if order.side == 'buy':
+            intervals[interval_idx].insert_buy_order(order)
+        else:
+            intervals[interval_idx].insert_sell_order(order)
+
+    return intervals

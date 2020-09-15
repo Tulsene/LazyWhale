@@ -3,7 +3,7 @@ import unittest
 from unittest import TestCase
 
 from main.interval import Interval
-from utils.checkers import interval_generator
+from utils.helpers import interval_generator
 
 
 class CheckersTests(TestCase):
