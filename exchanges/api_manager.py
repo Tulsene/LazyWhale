@@ -76,6 +76,8 @@ class APIManager:
         market: string, market name.
         return: list, formatted open orders by ccxt."""
         try:
+            if market is None:
+                market = self.market
             return self.exchange.fetch_open_orders(market)
         except Exception as e:
             self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
@@ -98,16 +100,20 @@ class APIManager:
         return sorted(orders, key=lambda x: x.price)
 
     def get_open_orders(self, market=None):
+        if market is None:
+            market = self.market
         """Format orders from fetch_open_orders in the correct way and sort by price: [Order]"""
         raw_orders = self.exchange.fetch_open_orders(market)
         return self.format_open_orders(raw_orders)
 
-    def fetch_trades(self, market):
+    def fetch_trades(self, market=None):
         """Get trading history of a market from a marketplace.
         Retry 1000 times when error and send message on slack each 10 tries.
         market: string, market name.
         return: list, formatted trade history by ccxt."""
         try:
+            if market is None:
+                market = self.market
             return self.exchange.fetch_trades(market)
         except Exception as e:
             self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
@@ -391,23 +397,31 @@ class APIManager:
         """Get actives orders from a marketplace and organize them.
         return: dict, containing list of buys & sells.
         """
+        if market is None:
+            market = self.market
         self.intervals = deepcopy(self.empty_intervals)
 
         open_orders = self.get_open_orders(market)
         helpers.populate_intervals(self.intervals, open_orders)
         return self.intervals
 
-    def get_safety_orders(self):
-        orders = self.get_open_orders(self.market)
+    def get_safety_orders(self, market=None):
+        if market is None:
+            market = self.market
+
+        orders = self.get_open_orders(market)
         safety_orders = [order for order in orders
                          if is_equal_decimal(order.price, self.safety_sell_value)
                          or is_equal_decimal(order.price, self.safety_buy_value)]
         return safety_orders
 
-    def get_user_history(self, market):
+    def get_user_history(self, market=None):
         """Get orders history from a marketplace and organize them.
         return: dict, containing list of buy & list of sell.
         """
+        if market is None:
+            market = self.market
+
         orders = {'sell': [], 'buy': []}
         raw_orders = self.fetch_trades(market)
         for order in raw_orders:
@@ -449,5 +463,8 @@ class APIManager:
 
         return timestamp, date_time
 
-    def get_order_book(self, market):
+    def get_order_book(self, market=None):
+        if market is None:
+            market = self.market
+
         return self.exchange.get_order_book(market)

@@ -1,4 +1,6 @@
 from decimal import Decimal
+
+from utils.checkers import is_equal_decimal
 from utils.converters import multiplier
 import config.config as config
 
@@ -17,10 +19,10 @@ class Order:
 
     # TODO: apply not fulfilled orders (cannot compare by index)
     def __eq__(self, other):
-        return (self.price == other.price or self.id == other.id) and self.side == other.side
+        return is_equal_decimal(self.price, other.price) and self.id == other.id and self.side == other.side
 
     def __str__(self):
-        return f"id: {self.idx}\n" \
+        return f"id: {self.id}\n" \
                f"price: {self.price}\n" \
                f"amount: {self.amount}\n" \
                f"value: {self.value}\n" \

@@ -172,6 +172,7 @@ class APIManagerTests(TestCase):
             ]
             self.interval_index = 1
             self.interval = self.api_manager.intervals[self.interval_index]
+            self.api_manager.market = self.market
             self.api_manager.cancel_all(self.market)
 
     def tearDown(self) -> None:
