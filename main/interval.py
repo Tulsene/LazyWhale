@@ -3,6 +3,11 @@ from decimal import Decimal
 
 from main.order import Order
 from utils.checkers import is_equal_decimal
+import config.config as config
+
+
+def get_random_decimal(bot, top):
+    return Decimal(str(round(uniform(float(bot), float(top)), config.DECIMAL_PRECISION)))
 
 
 class Interval:
@@ -41,7 +46,7 @@ class Interval:
     def place_buy_order_random_price(self, manager, market, total_amount: Decimal, count_order: int = 2):
         rand_max = total_amount / (count_order - 1)
         for _ in range(count_order):
-            order_amount = Decimal(uniform(float(rand_max / 2), float(rand_max)))
+            order_amount = get_random_decimal(rand_max / 2, rand_max)
             price = self.get_random_price_in_interval()
             new_order = manager.create_limit_buy_order(market, order_amount, price)
             self.insert_buy_order(new_order)
@@ -49,12 +54,12 @@ class Interval:
     def place_sell_order_random_price(self, manager, market, total_amount: Decimal, count_order: int = 2):
         rand_max = total_amount / (count_order - 1)
         for _ in range(count_order):
-            order_amount = Decimal(uniform(float(rand_max / 2), float(rand_max)))
+            order_amount = get_random_decimal(rand_max / 2, rand_max)
             new_order = manager.create_limit_sell_order(market, order_amount, self.get_random_price_in_interval())
             self.insert_buy_order(new_order)
 
     def get_random_price_in_interval(self):
-        return Decimal(uniform(float(self.__bottom), float(self.__top)))
+        return get_random_decimal(self.__bottom, self.__top)
 
     def get_bottom(self) -> Decimal:
         return self.__bottom

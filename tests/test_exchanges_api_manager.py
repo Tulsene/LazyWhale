@@ -7,8 +7,9 @@ from exchanges.api_manager import APIManager
 import tests.keys as keys_config
 from mock import patch
 
+from main.order import Order
 from utils import helpers
-from utils.helpers import interval_generator, populate_intervals
+from utils.helpers import interval_generator, populate_intervals, get_missing_buy_orders, get_missing_sell_orders
 from utils.logger import Logger
 
 
@@ -38,7 +39,8 @@ class APIManagerTests(TestCase):
             self.api_manager.is_kraken = False
             self.api_manager.now = 0
             self.api_manager.fees_coef = 0
-            self.api_manager.intervals = interval_generator(Decimal(0.01), Decimal(0.015), Decimal(1 + (1.02 / 100)))
+            self.api_manager.intervals = interval_generator(Decimal('0.01'), Decimal('0.015'),
+                                                            Decimal('1') + Decimal('1.02') / Decimal('100'))
             self.api_manager.empty_intervals = deepcopy(self.api_manager.intervals)
             self.api_manager.market = ''
             self.api_manager.profits_alloc = 0
@@ -226,7 +228,7 @@ class APIManagerTests(TestCase):
         orders = self.api_manager.fetch_open_orders(self.market)
         self.assertEqual(len(orders), 0)
 
-        self.api_manager.create_limit_buy_order(self.market, Decimal(1), Decimal(0.001))
+        self.api_manager.create_limit_buy_order(self.market, Decimal('1'), Decimal(0.001))
         orders = self.api_manager.fetch_open_orders(self.market)
         self.assertEqual(len(orders), 1)
 
@@ -249,7 +251,7 @@ class APIManagerTests(TestCase):
         self.assertEqual(intervals[self.interval_index], self.interval)
 
     def test_cancel_order(self):
-        order = self.api_manager.create_limit_buy_order(self.market, Decimal(1), Decimal(0.01))
+        order = self.api_manager.create_limit_buy_order(self.market, Decimal('1'), Decimal(0.01))
         self.assertTrue(self.api_manager.check_an_order_is_open(order.price, 'buy'))
 
         self.api_manager.cancel_order(order)
@@ -258,11 +260,35 @@ class APIManagerTests(TestCase):
     def test_get_safety_orders(self):
         self.assertEqual(len(self.api_manager.get_safety_orders()), 0)
 
-        self.api_manager.create_limit_buy_order(self.market, Decimal(1), self.api_manager.safety_buy_value)
+        self.api_manager.create_limit_buy_order(self.market, Decimal('1'), self.api_manager.safety_buy_value)
         self.assertEqual(len(self.api_manager.get_safety_orders()), 1)
 
         self.api_manager.create_limit_sell_order(self.market, Decimal(1), self.api_manager.safety_sell_value)
         self.assertEqual(len(self.api_manager.get_safety_orders()), 2)
+
+    def test_get_missing_buy_orders(self):
+        """Tests that missing orders are finding correctly"""
+        first = deepcopy(self.interval)
+        second = deepcopy(self.interval)
+
+        order = Order(idx=1, amount=Decimal('0.0101'), price=Decimal('0.0101'), side='buy',
+                      date='123', timestamp=123)
+
+        first.insert_buy_order(order)
+
+        self.assertEqual(get_missing_buy_orders(first, second), [order])
+
+    def test_get_missing_sell_orders(self):
+        """Tests that missing orders are finding correctly"""
+        first = deepcopy(self.interval)
+        second = deepcopy(self.interval)
+
+        order = Order(idx=1, amount=Decimal('0.0101'), price=Decimal('0.0101'), side='sell',
+                      date='123', timestamp=123)
+
+        first.insert_sell_order(order)
+
+        self.assertEqual(get_missing_sell_orders(first, second), [order])
 
 
 if __name__ == "__main__":

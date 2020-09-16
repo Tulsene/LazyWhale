@@ -24,7 +24,8 @@ def patch_log_formatter(*args, **kwargs):
 class LazyWhaleTests(TestCase):
     def setUp(self) -> None:
         self.market = "DASH/BTC"
-        self.intervals = interval_generator(Decimal(0.01), Decimal(0.015), Decimal(1 + (1.02 / 100)))
+        self.intervals = interval_generator(Decimal('0.01'), Decimal('0.015'),
+                                            Decimal('1') + Decimal('1.02') / Decimal('100'))
 
         with patch.object(APIManager, "__init__", lambda x, y, z, a: None):
             # patch APIManager because Logger cant be created in test mode

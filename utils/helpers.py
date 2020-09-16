@@ -3,6 +3,7 @@ from pathlib import Path
 from decimal import Decimal, ROUND_HALF_EVEN
 from copy import deepcopy
 from datetime import datetime
+from random import uniform
 from time import time
 import config.config as config
 
@@ -158,6 +159,7 @@ def populate_intervals(intervals: [Interval], orders: [Order]):
 
 
 def get_missing_buy_orders(first: Interval, second: Interval) -> [Order]:
+    """Get orders, that exists in first but not exists in second"""
     missing_orders = deepcopy(first.get_buy_orders())
 
     for order in first.get_buy_orders():
@@ -169,6 +171,7 @@ def get_missing_buy_orders(first: Interval, second: Interval) -> [Order]:
 
 
 def get_missing_sell_orders(first: Interval, second: Interval) -> [Order]:
+    """Get orders, that exists in first but not exists in second"""
     missing_orders = deepcopy(first.get_sell_orders())
 
     for order in first.get_sell_orders():
