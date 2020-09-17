@@ -45,6 +45,17 @@ class IntervalTests(TestCase):
                                  self.interval.get_buy_sum_amount(), self.interval.get_sell_sum_amount())
         self.assertEqual(same_interval, self.interval)
 
+    def test_generate_orders_by_amount(self):
+        """Tests that generates correct number of orders with correct sum amount"""
+        total_amount = Decimal('1')
+        count_of_orders = 5
+        min_amount = Decimal('0.1')
+        orders = self.interval.generate_orders_by_amount(total_amount, min_amount, count_of_orders)
+
+        self.assertEqual(len(orders), 5)
+        sum_amount = sum([order['amount'] for order in orders])
+        self.assertEqual(sum_amount, total_amount)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@ from copy import deepcopy
 from decimal import Decimal, ROUND_HALF_EVEN
 from datetime import datetime
 
+
 def str_to_decimal(value, error_message=None):
     """Convert a string to Decimal or raise an error.
     s: string, element to convert
@@ -12,6 +13,7 @@ def str_to_decimal(value, error_message=None):
         return Decimal(str(value).replace(',', '.'))
     except Exception as e:
         raise ValueError(f'{error_message} {e}')
+
 
 def str_to_datetime(str_date):
     """Convert a date in string format to a datetime format.
@@ -23,10 +25,12 @@ def str_to_datetime(str_date):
     except Exception as e:
         raise ValueError(f'{str_date} is not a valid date: {e}')
 
+
 def datetime_to_string(dt):
     """dt: datetime object.
     return: string."""
     return dt.strftime("%m/%d/%Y, %H:%M:%S")
+
 
 def str_to_bool(s, error_message=None):
     """Convert a string to boolean or rise an error
@@ -42,6 +46,7 @@ def str_to_bool(s, error_message=None):
     else:
         raise ValueError(f'{error_message} {s}')
 
+
 def str_to_int(s, error_message=None):
     """Convert a string to an int or rise an error.
     s: string.
@@ -53,6 +58,7 @@ def str_to_int(s, error_message=None):
     except Exception as e:
         raise ValueError(f'{error_message} {e}')
 
+
 def dict_to_str(a_dict):
     """Format dict into a string.
     return: string, formated string for logfile."""
@@ -62,12 +68,14 @@ def dict_to_str(a_dict):
     b_dict = str(b_dict)
     return b_dict.replace("'", '"')
 
+
 def timestamp_formater():
     """Format time.time() into the same format as timestamp.
     used in ccxt: 13 numbers.
     return: string, formated timestamp"""
     timestamp = str(time()).split('.')
     return f'{timestamp[0]}{timestamp[1][:3]}'
+
 
 def multiplier(nb1, nb2, nb3=Decimal('1')):
     """Do a simple multiplication between Decimal.
@@ -78,12 +86,15 @@ def multiplier(nb1, nb2, nb3=Decimal('1')):
     """
     return quantizator(nb1 * nb2 * nb3)
 
+
 def int_multiplier(nb1, nb2, nb3=1):
     return int(nb1) * int(nb2) * int(nb3)
+
 
 def divider(nb1, nb2):
     """Simple divider."""
     return quantizator(nb1 / nb2)
+
 
 def quantizator(nb):
     """Format a Decimal object to 8 decimals

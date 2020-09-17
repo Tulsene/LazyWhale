@@ -176,6 +176,7 @@ class APIManagerTests(TestCase):
             self.interval = self.api_manager.intervals[self.interval_index]
             self.api_manager.market = self.market
             self.api_manager.cancel_all(self.market)
+            self.api_manager.fees_coef = Decimal('0.9975')
 
     def tearDown(self) -> None:
         self.api_manager.cancel_all(self.market)
@@ -235,20 +236,6 @@ class APIManagerTests(TestCase):
         self.api_manager.cancel_all(self.market)
         orders = self.api_manager.fetch_open_orders(self.market)
         self.assertEqual(len(orders), 0)
-
-    def test_interval_place_buy_order_random_price(self):
-        """Tests that orders are placed correctly in the interval and exists in order_book"""
-        count_order = 3
-        self.interval.place_buy_order_random_price(self.api_manager, self.market, Decimal(0.02),
-                                                   count_order=count_order)
-
-        self.assertEqual(len(self.interval.get_buy_orders()), count_order)
-
-        orders = self.api_manager.fetch_open_orders(self.market)
-        self.assertEqual(len(orders), count_order)
-
-        intervals = self.api_manager.get_intervals(self.market)
-        self.assertEqual(intervals[self.interval_index], self.interval)
 
     def test_cancel_order(self):
         order = self.api_manager.create_limit_buy_order(self.market, Decimal('1'), Decimal(0.01))

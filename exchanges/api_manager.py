@@ -281,6 +281,11 @@ class APIManager:
         except Exception as e:
             self.log(f'WARNING: {sys._getframe().f_code.co_name}: {e}', level='warning')
 
+    def cancel_orders(self, orders):
+        """Cancel multiple orders"""
+        for order in orders:
+            self.cancel_order(order)
+
     def cancel_order(self, order):
         """Cancel an order with it's id.
         Retry 1000 times, send message on slack each 10 tries.

@@ -8,3 +8,6 @@ FEES_COEFFICIENT = Decimal('0.9975')
 SAFETY_BUY_VALUE = Decimal('1E-8')
 SAFETY_SELL_VALUE = Decimal('1')
 DECIMAL_PRECISION = 8
+
+# Use Decimal('0.001') for deploy purpose, but Decimal('1E-9') less for testing
+MIN_VALUE_ORDER = Decimal('1E-9')

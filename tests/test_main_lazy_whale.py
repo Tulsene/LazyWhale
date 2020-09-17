@@ -52,6 +52,7 @@ class LazyWhaleTests(TestCase):
             }
             self.api_manager.set_zebitex(keys, "zebitex_testnet")
             self.api_manager.market = self.market
+            self.api_manager.fees_coef = Decimal('0.9975')
 
         with patch.object(LazyWhale, "__init__", lambda x, y: None):
             self.lazy_whale = LazyWhale(False)
@@ -64,6 +65,7 @@ class LazyWhaleTests(TestCase):
             self.lazy_whale.connector = self.api_manager
 
             self.api_manager.cancel_all(self.market)
+            self.lazy_whale.fees_coef = Decimal('0.9975')
 
     def tearDown(self) -> None:
         self.api_manager.cancel_all(self.market)

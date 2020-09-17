@@ -43,20 +43,37 @@ class Interval:
         orders_filtered = [order for order in self.__sell_orders if is_equal_decimal(order.price, price)]
         return len(orders_filtered) > 0
 
-    def place_buy_order_random_price(self, manager, market, total_amount: Decimal, count_order: int = 2):
-        rand_max = total_amount / (count_order - 1)
-        for _ in range(count_order):
-            order_amount = get_random_decimal(rand_max / 2, rand_max)
-            price = self.get_random_price_in_interval()
-            new_order = manager.create_limit_buy_order(market, order_amount, price)
-            self.insert_buy_order(new_order)
+    def generate_orders_by_amount(self, total_amount: Decimal, min_amount, count_order: int = 2) -> [dict]:
+        """Returns orders(dict) with random price inside interval and with amount sum = total_amount
+        Does not store this orders in Interval (cause they are not opened yet)
+        """
+        # TODO: redo this assert
+        assert min_amount * count_order < total_amount
 
-    def place_sell_order_random_price(self, manager, market, total_amount: Decimal, count_order: int = 2):
-        rand_max = total_amount / (count_order - 1)
-        for _ in range(count_order):
-            order_amount = get_random_decimal(rand_max / 2, rand_max)
-            new_order = manager.create_limit_sell_order(market, order_amount, self.get_random_price_in_interval())
-            self.insert_buy_order(new_order)
+        random_amount = total_amount - min_amount * count_order
+        rand_max = random_amount / Decimal(str(count_order))
+        current_amount = Decimal('0')
+
+        orders_to_open = []
+
+        # populate with `count_order - 1` order
+        for _ in range(count_order - 1):
+            order_amount = min_amount + get_random_decimal(rand_max / Decimal('2'), rand_max)
+            current_amount += order_amount
+            price = self.get_random_price_in_interval()
+            orders_to_open.append({
+                "price": price,
+                "amount": order_amount,
+            })
+
+        assert total_amount >= min_amount + current_amount
+        # Add last order to have the sum of total_amount
+        orders_to_open.append({
+            "price": self.get_random_price_in_interval(),
+            "amount": total_amount - current_amount,
+        })
+
+        return orders_to_open
 
     def get_random_price_in_interval(self):
         return get_random_decimal(self.__bottom, self.__top)
@@ -72,6 +89,16 @@ class Interval:
 
     def get_sell_sum_amount(self) -> Decimal:
         return self.__buy_sum_amount
+
+    def get_buy_orders_amount(self) -> Decimal:
+        if not self.__buy_orders:
+            return Decimal('0')
+        return sum([order.amount for order in self.__buy_orders])
+
+    def get_sell_orders_amount(self) -> Decimal:
+        if not self.__sell_orders:
+            return Decimal('0')
+        return sum([order.amount for order in self.__sell_orders])
 
     def get_buy_orders(self) -> [Order]:
         return self.__buy_orders
