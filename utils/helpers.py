@@ -158,25 +158,17 @@ def populate_intervals(intervals: [Interval], orders: [Order]):
     return intervals
 
 
-def get_missing_buy_orders(first: Interval, second: Interval) -> [Order]:
-    """Get orders, that exists in first but not exists in second"""
-    missing_orders = deepcopy(first.get_buy_orders())
+def get_amount_to_open(prev_orders: [Order], new_orders: [Order]) -> Decimal:
+    """Get amount of orders, that have been consumed or not fully consumed"""
+    amount_to_open = Decimal('0')
 
-    for order in first.get_buy_orders():
-        rsp = any(new_order == order for new_order in second.get_buy_orders())
-        if rsp:
-            missing_orders.remove(order)
+    new_orders_id_list = [order.id for order in new_orders]
+    consumed_orders = [order for order in prev_orders if order.id not in new_orders_id_list]
+    amount_to_open += sum([order.amount for order in consumed_orders])
 
-    return missing_orders
+    for new_order in new_orders:
+        prev_order = [pr_order for pr_order in prev_orders if pr_order.id == new_order.id][0]
+        if prev_order.filled != new_order.filled:
+            amount_to_open += convert.multiplier(new_order.amount, new_order.filled - prev_order.filled)
 
-
-def get_missing_sell_orders(first: Interval, second: Interval) -> [Order]:
-    """Get orders, that exists in first but not exists in second"""
-    missing_orders = deepcopy(first.get_sell_orders())
-
-    for order in first.get_sell_orders():
-        rsp = any(new_order == order for new_order in second.get_sell_orders())
-        if rsp:
-            missing_orders.remove(order)
-
-    return missing_orders
+    return amount_to_open

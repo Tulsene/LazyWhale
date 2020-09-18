@@ -43,6 +43,8 @@ class LazyWhale:
         self.id_list = []
         self.max_sell_index = 0
         self.sides = ('buy', 'sell')
+        # TODO: calculate min_amount correctly
+        self.min_amount = Decimal('0')
 
     def keys_initialisation(self):
         """Check if a key.json file exist and create one if none.
@@ -716,33 +718,39 @@ class LazyWhale:
 
         while interval_index < len(new_intervals):
             if self.intervals[interval_index] != new_intervals[interval_index]:
-                missing_buy_orders = helper.get_missing_buy_orders(self.intervals[interval_index],
-                                                                   new_intervals[interval_index])
+                amount_to_open_sell = helper.get_amount_to_open(self.intervals[interval_index].get_buy_orders(),
+                                                                new_intervals[interval_index].get_buy_orders(),)
 
-                missing_sell_orders = helper.get_missing_sell_orders(self.intervals[interval_index],
-                                                                     new_intervals[interval_index])
+                amount_to_open_buy = helper.get_amount_to_open(self.intervals[interval_index].get_sell_orders(),
+                                                               new_intervals[interval_index].get_sell_orders())
 
-                if missing_buy_orders:
+                if amount_to_open_sell > Decimal('0'):
                     if interval_index + 2 >= len(new_intervals):
                         # TODO: top is reached
                         assert 1 == 0
 
+                    # TODO: close orders in interval before opening new one
                     # sell orders to open (by the strategy - open 2 intervals higher)
-                    sell_orders_to_open.extend([{"amount": order.amount,
-                                                 "price": self.intervals[
-                                                     interval_index + 2].get_random_price_in_interval()}
-                                                for order in missing_buy_orders])
+                    sell_orders_to_open.extend(
+                        self.intervals[interval_index + 2].generate_orders_by_amount(amount_to_open_sell,
+                                                                                     self.min_amount,
+                                                                                     self.params['order_per_interval'])
+                    )
 
-                if missing_sell_orders:
+                if amount_to_open_buy > Decimal('0'):
                     if interval_index - 2 < 0:
                         # TODO: bottom is reached
                         assert 1 == 0
 
                     # buy orders to open (by the strategy - open 2 intervals lower)
-                    buy_orders_to_open.extend([{"amount": order.amount,
-                                                "price": self.intervals[
-                                                    interval_index - 2].get_random_price_in_interval()}
-                                               for order in missing_sell_orders])
+                    # TODO: close orders in interval before opening new one
+                    # sell orders to open (by the strategy - open 2 intervals higher)
+                    buy_orders_to_open.extend(
+                        self.intervals[interval_index - 2].generate_orders_by_amount(amount_to_open_buy,
+                                                                                     self.min_amount,
+                                                                                     self.params[
+                                                                                         'order_per_interval'])
+                    )
 
             interval_index += 1
 

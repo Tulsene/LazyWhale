@@ -9,7 +9,7 @@ from mock import patch
 
 from main.order import Order
 from utils import helpers
-from utils.helpers import interval_generator, populate_intervals, get_missing_buy_orders, get_missing_sell_orders
+from utils.helpers import interval_generator, populate_intervals
 from utils.logger import Logger
 
 
@@ -178,6 +178,21 @@ class APIManagerTests(TestCase):
             self.api_manager.cancel_all(self.market)
             self.api_manager.fees_coef = Decimal('0.9975')
 
+            self.orders_to_open = orders_to_open = [
+                {
+                    "price": Decimal('0.0101'),
+                    "amount": Decimal('0.1')
+                },
+                {
+                    "price": Decimal('0.0102'),
+                    "amount": Decimal('0.1')
+                },
+                {
+                    "price": Decimal('0.0103'),
+                    "amount": Decimal('0.1')
+                }
+            ]
+
     def tearDown(self) -> None:
         self.api_manager.cancel_all(self.market)
 
@@ -212,7 +227,7 @@ class APIManagerTests(TestCase):
 
     def test_create_limit_order(self):
         """Tests that creating order is completed and order is open"""
-        price = Decimal(0.01010101)
+        price = Decimal('0.01010101')
         count_orders = len(self.api_manager.fetch_open_orders(self.market))
         self.api_manager.create_limit_buy_order(self.market, Decimal(0.017), price)
         self.assertEqual(len(self.api_manager.fetch_open_orders(self.market)), count_orders + 1)
@@ -250,32 +265,32 @@ class APIManagerTests(TestCase):
         self.api_manager.create_limit_buy_order(self.market, Decimal('1'), self.api_manager.safety_buy_value)
         self.assertEqual(len(self.api_manager.get_safety_orders()), 1)
 
-        self.api_manager.create_limit_sell_order(self.market, Decimal(1), self.api_manager.safety_sell_value)
+        self.api_manager.create_limit_sell_order(self.market, Decimal('1'), self.api_manager.safety_sell_value)
         self.assertEqual(len(self.api_manager.get_safety_orders()), 2)
 
-    def test_get_missing_buy_orders(self):
-        """Tests that missing orders are finding correctly"""
-        first = deepcopy(self.interval)
-        second = deepcopy(self.interval)
+    def test_set_several_buy(self):
+        """Tests that orders are opened in correct way"""
+        self.api_manager.set_several_buy(self.orders_to_open)
+        self.assertEqual(len(self.api_manager.get_open_orders()), 3)
+        self.assertEqual(len(self.api_manager.get_intervals()[0].get_buy_orders()), 1)
+        self.assertEqual(len(self.api_manager.get_intervals()[1].get_buy_orders()), 1)
 
-        order = Order(idx=1, amount=Decimal('0.0101'), price=Decimal('0.0101'), side='buy',
-                      date='123', timestamp=123)
+    def test_set_several_sell(self):
+        """Tests that sell orders are opened in correct way"""
+        self.api_manager.set_several_sell(self.orders_to_open)
+        self.assertEqual(len(self.api_manager.get_open_orders()), 3)
+        self.assertEqual(len(self.api_manager.get_intervals()[0].get_sell_orders()), 1)
+        self.assertEqual(len(self.api_manager.get_intervals()[1].get_sell_orders()), 1)
 
-        first.insert_buy_order(order)
+    def test_cancel_orders(self):
+        self.assertEqual(len(self.api_manager.get_open_orders()), 0)
 
-        self.assertEqual(get_missing_buy_orders(first, second), [order])
+        orders = self.api_manager.set_several_buy(self.orders_to_open)
+        self.assertEqual(len(self.api_manager.get_open_orders()), len(self.orders_to_open))
 
-    def test_get_missing_sell_orders(self):
-        """Tests that missing orders are finding correctly"""
-        first = deepcopy(self.interval)
-        second = deepcopy(self.interval)
+        self.api_manager.cancel_orders(orders)
 
-        order = Order(idx=1, amount=Decimal('0.0101'), price=Decimal('0.0101'), side='sell',
-                      date='123', timestamp=123)
-
-        first.insert_sell_order(order)
-
-        self.assertEqual(get_missing_sell_orders(first, second), [order])
+        self.assertEqual(len(self.api_manager.get_open_orders()), 0)
 
 
 if __name__ == "__main__":
