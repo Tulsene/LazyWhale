@@ -74,7 +74,7 @@ def timestamp_formater():
     used in ccxt: 13 numbers.
     return: string, formated timestamp"""
     timestamp = str(time()).split('.')
-    return f'{timestamp[0]}{timestamp[1][:3]}'
+    return int(f'{timestamp[0]}{timestamp[1][:3]}')
 
 
 def multiplier(nb1, nb2, nb3=Decimal('1')):

@@ -39,7 +39,7 @@ class UtilsTests(TestCase):
         new_orders = [
             Order(idx=1, amount=Decimal('0.1'), price=Decimal('0.1'),
                   side="buy", timestamp='1', date='1234', filled=Decimal('0')),
-            Order(idx=2, amount=Decimal('1'), price=Decimal('0.125'),
+            Order(idx=2, amount=Decimal('0.5'), price=Decimal('0.125'),
                   side="buy", timestamp='1', date='1234', filled=Decimal('0.5')),
         ]
 

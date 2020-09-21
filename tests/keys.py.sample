@@ -1,6 +1,12 @@
 # Here we will be storing credentials for all tests
+# In tests it is obliged to have enough funds (not automatically checked)
 
-API_KEY = "YOUR API KEY"
-SECRET = "YOUR SECRET"
+BOT_API_KEY = "YOUR API KEY FOR LAZYWHALE"
+BOT_SECRET = "YOUR SECRET FOR LAZYWHALE"
+
+# Another user will consume some orders from LW for testing purpose
+ANOTHER_USER_API_KEY = "API KEY FOR ANOTHER USER"
+ANOTHER_USER_SECRET = "SECRET FOR ANOTHER USER"
+
 SLACK_WEBHOOK = "https://hooks.slack.com/services///"
 PATH_TO_PROJECT_ROOT = "/home/user/projects/project_root/"

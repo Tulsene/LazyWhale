@@ -690,9 +690,82 @@ class LazyWhale:
 
         return new_open_orders
 
-    def execute_new_orders(self, new_intervals, sell_orders_to_open, buy_orders_to_open):
-        """Created order and saved them in new_intervals and return new_intervals"""
+    def amount_compare_intervals(self, new_intervals: [Interval]) -> [dict]:
+        """Compare intervals and return amount of orders to open on correct interval with correct side"""
+        interval_index = 0
+        # check length of intervals are same
 
+        amounts_to_open = []
+
+        while interval_index < len(new_intervals):
+            if self.intervals[interval_index] != new_intervals[interval_index]:
+                amount_to_open_sell = helper.get_amount_to_open(self.intervals[interval_index].get_buy_orders(),
+                                                                new_intervals[interval_index].get_buy_orders(), )
+
+                amount_to_open_buy = helper.get_amount_to_open(self.intervals[interval_index].get_sell_orders(),
+                                                               new_intervals[interval_index].get_sell_orders())
+
+                if amount_to_open_sell > Decimal('0'):
+                    if interval_index + 2 >= len(new_intervals):
+                        # TODO: top is reached
+                        assert 1 == 0
+
+                    amounts_to_open.append({
+                        "interval_idx": interval_index + 2,
+                        "side": 'sell',
+                        "amount": amount_to_open_sell
+                    })
+
+                if amount_to_open_buy > Decimal('0'):
+                    if interval_index - 2 < 0:
+                        # TODO: bottom is reached
+                        assert 1 == 0
+
+                    amounts_to_open.append({
+                        "interval_idx": interval_index - 2,
+                        "side": 'buy',
+                        "amount": amount_to_open_buy
+                    })
+
+            interval_index += 1
+
+        return amounts_to_open
+
+    def prepare_new_orders(self, amounts_to_open):
+        """Generate orders based on interval index and amount to open
+        and return them"""
+        sell_orders_to_open = []
+        buy_orders_to_open = []
+
+        for amount_to_open in amounts_to_open:
+            if amount_to_open['side'] == 'buy':
+                # get existing amount of orders in interval
+                existing_amount = self.intervals[amount_to_open['interval_idx']].get_buy_orders_amount(use_filled=True)
+                # cancel existing orders
+                self.connector.cancel_orders(self.intervals[amount_to_open['interval_idx']].get_buy_orders())
+
+                # prepare new orders for opening
+                buy_orders_to_open.extend(
+                    self.intervals[amount_to_open['interval_idx']]
+                        .generate_orders_by_amount(amount_to_open['amount'] + existing_amount,
+                                                   self.min_amount,
+                                                   self.params['orders_per_interval'])
+                )
+            else:
+                existing_amount = self.intervals[amount_to_open['interval_idx']].get_sell_orders_amount(use_filled=True)
+                self.connector.cancel_orders(self.intervals[amount_to_open['interval_idx']].get_sell_orders())
+
+                sell_orders_to_open.extend(
+                    self.intervals[amount_to_open['interval_idx']]
+                        .generate_orders_by_amount(amount_to_open['amount'] + existing_amount,
+                                                   self.min_amount,
+                                                   self.params['orders_per_interval'])
+                )
+
+        return sell_orders_to_open, buy_orders_to_open
+
+    def execute_new_orders(self, new_intervals, sell_orders_to_open, buy_orders_to_open):
+        """Open orders saved them in new_intervals and return new_intervals"""
         if sell_orders_to_open:
             sell_orders = self.connector.set_several_sell(sell_orders_to_open)
 
@@ -707,52 +780,11 @@ class LazyWhale:
 
         return new_intervals
 
-    def compare_intervals(self, new_intervals: [Interval]):
+    def compare_intervals(self, new_intervals: [Interval]) -> None:
         """Compares intervals and opens new orders and saves them in self.intervals"""
-        interval_index = 0
-        # check length of intervals are same
         assert len(self.intervals) == len(new_intervals)
-
-        buy_orders_to_open = []
-        sell_orders_to_open = []
-
-        while interval_index < len(new_intervals):
-            if self.intervals[interval_index] != new_intervals[interval_index]:
-                amount_to_open_sell = helper.get_amount_to_open(self.intervals[interval_index].get_buy_orders(),
-                                                                new_intervals[interval_index].get_buy_orders(),)
-
-                amount_to_open_buy = helper.get_amount_to_open(self.intervals[interval_index].get_sell_orders(),
-                                                               new_intervals[interval_index].get_sell_orders())
-
-                if amount_to_open_sell > Decimal('0'):
-                    if interval_index + 2 >= len(new_intervals):
-                        # TODO: top is reached
-                        assert 1 == 0
-
-                    # TODO: close orders in interval before opening new one
-                    # sell orders to open (by the strategy - open 2 intervals higher)
-                    sell_orders_to_open.extend(
-                        self.intervals[interval_index + 2].generate_orders_by_amount(amount_to_open_sell,
-                                                                                     self.min_amount,
-                                                                                     self.params['order_per_interval'])
-                    )
-
-                if amount_to_open_buy > Decimal('0'):
-                    if interval_index - 2 < 0:
-                        # TODO: bottom is reached
-                        assert 1 == 0
-
-                    # buy orders to open (by the strategy - open 2 intervals lower)
-                    # TODO: close orders in interval before opening new one
-                    # sell orders to open (by the strategy - open 2 intervals higher)
-                    buy_orders_to_open.extend(
-                        self.intervals[interval_index - 2].generate_orders_by_amount(amount_to_open_buy,
-                                                                                     self.min_amount,
-                                                                                     self.params[
-                                                                                         'order_per_interval'])
-                    )
-
-            interval_index += 1
+        amounts_to_open = self.amount_compare_intervals(new_intervals)
+        sell_orders_to_open, buy_orders_to_open = self.prepare_new_orders(amounts_to_open)
 
         self.intervals = self.execute_new_orders(new_intervals, sell_orders_to_open, buy_orders_to_open)
 

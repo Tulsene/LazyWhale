@@ -45,8 +45,8 @@ class APIManagerTests(TestCase):
             self.api_manager.market = ''
             self.api_manager.profits_alloc = 0
             keys = {
-                "apiKey": keys_config.API_KEY,
-                "secret": keys_config.SECRET,
+                "apiKey": keys_config.BOT_API_KEY,
+                "secret": keys_config.BOT_SECRET,
             }
             self.api_manager.set_zebitex(keys, "zebitex_testnet")
 

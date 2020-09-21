@@ -5,6 +5,7 @@ from unittest import TestCase
 from mock import patch
 
 from exchanges.api_manager import APIManager
+from exchanges.zebitexFormatted import ZebitexFormatted
 from main.interval import Interval
 from main.main import LazyWhale
 from main.order import Order
@@ -16,8 +17,8 @@ import tests.keys as keys_config
 
 
 def patch_log_formatter(*args, **kwargs):
-    timestamp = 2134
-    date = '_'
+    timestamp = 12345
+    date = 'test'
     return timestamp, date
 
 
@@ -26,6 +27,9 @@ class LazyWhaleTests(TestCase):
         self.market = "DASH/BTC"
         self.intervals = interval_generator(Decimal('0.01'), Decimal('0.015'),
                                             Decimal('1') + Decimal('1.02') / Decimal('100'))
+
+        # Another user for testing purpose
+        self.user = ZebitexFormatted(keys_config.ANOTHER_USER_API_KEY, keys_config.ANOTHER_USER_SECRET, True)
 
         with patch.object(APIManager, "__init__", lambda x, y, z, a: None):
             # patch APIManager because Logger cant be created in test mode
@@ -47,8 +51,8 @@ class LazyWhaleTests(TestCase):
             self.api_manager.market = ''
             self.api_manager.profits_alloc = 0
             keys = {
-                "apiKey": keys_config.API_KEY,
-                "secret": keys_config.SECRET,
+                "apiKey": keys_config.BOT_API_KEY,
+                "secret": keys_config.BOT_SECRET,
             }
             self.api_manager.set_zebitex(keys, "zebitex_testnet")
             self.api_manager.market = self.market
@@ -66,32 +70,120 @@ class LazyWhaleTests(TestCase):
 
             self.api_manager.cancel_all(self.market)
             self.lazy_whale.fees_coef = Decimal('0.9975')
+            self.lazy_whale.min_amount = Decimal('0')
+            self.lazy_whale.params = {
+                "orders_per_interval": 2,
+            }
 
     def tearDown(self) -> None:
         self.api_manager.cancel_all(self.market)
 
-    # def test_compare_intervals_1(self):
-    #     """Tests that comparing intervals is correct and is doing by the strategy
-    #     When order, known by LW, have been consumed,
-    #     LW should open a new opposite order +2/-2 intervals higher/lower
-    #     """
-    #     # Easy test
-    #     self.assertEqual(len(self.api_manager.get_open_orders()), 0)
-    #
-    #     amount = Decimal(1)
-    #     buy_order = Order(idx=1, amount=amount, price=Decimal('0.0101'), side='buy', timestamp='123', date='123')
-    #
-    #     self.lazy_whale.intervals[0].insert_buy_order(buy_order)
-    #
-    #     self.lazy_whale.compare_intervals(self.intervals)
-    #     self.assertEqual(len(self.api_manager.get_open_orders()), 1)
-    #     self.assertEqual(len(self.lazy_whale.intervals[0].get_buy_orders()), 0)
-    #     self.assertEqual(len(self.lazy_whale.intervals[2].get_sell_orders()), 1)
-    #
-    #     order = self.api_manager.get_open_orders()[0]
-    #     self.assertEqual(order.amount, amount)
-    #     self.assertEqual(order.side, 'sell')
-    #
+    def test_amount_compare_intervals(self):
+        """Testing amount compare intervals with only fully consumed orders and in range"""
+        old_interval = deepcopy(self.intervals[3])
+        new_interval = deepcopy(self.intervals[3])
+        order1 = self.api_manager.create_limit_buy_order(self.market, Decimal('1'), Decimal('0.010324'))
+        order2 = self.api_manager.create_limit_buy_order(self.market, Decimal('0.5'), Decimal('0.010364'))
+        order3 = self.api_manager.create_limit_buy_order(self.market, Decimal('1'), Decimal('0.010394'))
+
+        order4 = self.api_manager.create_limit_sell_order(self.market, Decimal('1'), Decimal('0.0104014'))
+        order5 = self.api_manager.create_limit_sell_order(self.market, Decimal('1'), Decimal('0.0104094'))
+
+        self.assertEqual(len(self.api_manager.get_open_orders()), 5)
+
+        old_interval.insert_buy_order(order1)
+        old_interval.insert_buy_order(order2)
+        old_interval.insert_buy_order(order3)
+        old_interval.insert_sell_order(order4)
+        old_interval.insert_sell_order(order5)
+
+        new_interval.insert_buy_order(order1)
+        new_interval.insert_sell_order(order4)
+
+        intervals = deepcopy(self.lazy_whale.intervals)
+
+        self.lazy_whale.intervals[3] = old_interval
+        intervals[3] = new_interval
+
+        amounts_to_open = self.lazy_whale.amount_compare_intervals(intervals)
+
+        correct_amounts_to_open = [
+            {
+                "interval_idx": 5,
+                "side": 'sell',
+                "amount": Decimal('1.5'),
+            },
+            {
+                "interval_idx": 1,
+                "side": 'buy',
+                "amount": Decimal('1'),
+            },
+        ]
+
+        self.assertEqual(amounts_to_open, correct_amounts_to_open)
+
+    def test_compare_intervals(self):
+        """Tests that comparing intervals is correct and is doing by the strategy
+        When order, known by LW, have been consumed or not fully consumed,
+        LW should open a new opposite order +2/-2 intervals higher/lower
+        """
+        initial_buy_orders = [
+            {
+                "price": Decimal("0.01022234"),
+                "amount": Decimal("1"),
+            },
+            {
+                "price": Decimal("0.01022345"),
+                "amount": Decimal("2"),
+            },
+            {
+                "price": Decimal("0.0102244"),
+                "amount": Decimal("1"),
+            },
+        ]
+
+        initial_sell_orders = [
+            {
+                "price": Decimal("0.01023234"),
+                "amount": Decimal("1"),
+            },
+            {
+                "price": Decimal("0.01023345"),
+                "amount": Decimal("2"),
+            },
+            {
+                "price": Decimal("0.01023534"),
+                "amount": Decimal("1"),
+            },
+        ]
+
+        buy_orders = self.api_manager.set_several_buy(initial_buy_orders)
+        sell_orders = self.api_manager.set_several_sell(initial_sell_orders)
+        self.assertEqual(len(self.api_manager.get_open_orders()), 6)
+
+        self.lazy_whale.intervals = self.api_manager.get_intervals(self.market)
+
+        # Set buy order by another user to consume LW order
+        self.user.create_limit_buy_order(self.market, price=Decimal("0.01023234"), amount=Decimal("1"))
+        self.assertEqual(len(self.api_manager.get_open_orders()), 5)
+
+        self.lazy_whale.compare_intervals(self.api_manager.get_intervals(self.market))
+        self.assertEqual(self.lazy_whale.intervals, self.api_manager.get_intervals(self.market))
+
+        self.assertEqual(len(self.api_manager.get_open_orders()), 7)
+        self.assertEqual(len(self.lazy_whale.intervals[0].get_buy_orders()), 2)
+        self.assertEqual(self.lazy_whale.intervals[0].get_buy_orders_amount(), sell_orders[0].amount)
+
+        # Set sell order by another user to consume the half of LW order
+        self.user.create_limit_sell_order(self.market, price=Decimal("0.0102244"), amount=Decimal("0.4"))
+        self.assertEqual(len(self.api_manager.get_open_orders()), 7)
+
+        self.lazy_whale.compare_intervals(self.api_manager.get_intervals(self.market))
+
+        self.assertEqual(len(self.api_manager.get_open_orders()), 9)
+        self.assertEqual(len(self.lazy_whale.intervals[4].get_sell_orders()), 2)
+        self.assertEqual(self.lazy_whale.intervals[4].get_sell_orders_amount(), Decimal('0.4'))
+
     # def test_compare_intervals_2(self):
     #     """More powerful test to check compare_intervals"""
     #     self.assertEqual(len(self.api_manager.get_open_orders()), 0)

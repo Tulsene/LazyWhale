@@ -89,13 +89,13 @@ class APIManager:
         """Format orders from fetch_open_orders in the correct way: [Order]"""
         orders = [Order(
             order['id'],
-            order['price'],
-            order['amount'],
+            convert.quantizator(Decimal(order['price'])),
+            convert.quantizator(Decimal(order['amount'])),
             order['side'],
-            order['timestamp'],
+            int(order['timestamp']),
             date=order['datetime'],
             fee=self.fees_coef,
-            filled=order['filled']
+            filled=convert.quantizator(Decimal(order['filled']) / Decimal('100'))
         ) for order in raw_orders]
         return sorted(orders, key=lambda x: x.price)
 

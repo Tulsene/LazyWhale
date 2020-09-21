@@ -4,6 +4,7 @@ from decimal import Decimal
 from main.order import Order
 from utils.checkers import is_equal_decimal
 import config.config as config
+from utils.converters import multiplier
 
 
 def get_random_decimal(bot, top):
@@ -90,15 +91,27 @@ class Interval:
     def get_sell_sum_amount(self) -> Decimal:
         return self.__buy_sum_amount
 
-    def get_buy_orders_amount(self) -> Decimal:
+    def get_buy_orders_amount(self, use_filled=False) -> Decimal:
+        """Calculate amount of existing orders in interval
+         use_filled - with calculating part of filled orders or with all orders"""
         if not self.__buy_orders:
             return Decimal('0')
-        return sum([order.amount for order in self.__buy_orders])
 
-    def get_sell_orders_amount(self) -> Decimal:
+        if not use_filled:
+            return sum([order.amount for order in self.__buy_orders])
+
+        return sum([multiplier(order.amount, Decimal('1') - order.filled) for order in self.__buy_orders])
+
+    def get_sell_orders_amount(self, use_filled=False) -> Decimal:
+        """Calculate amount of existing orders in interval
+         use_filled - with calculating part of filled orders or with all orders"""
         if not self.__sell_orders:
             return Decimal('0')
-        return sum([order.amount for order in self.__sell_orders])
+
+        if not use_filled:
+            return sum([order.amount for order in self.__sell_orders])
+
+        return sum([multiplier(order.amount, Decimal('1') - order.filled) for order in self.__sell_orders])
 
     def get_buy_orders(self) -> [Order]:
         return self.__buy_orders
