@@ -91,27 +91,21 @@ class Interval:
     def get_sell_sum_amount(self) -> Decimal:
         return self.__buy_sum_amount
 
-    def get_buy_orders_amount(self, use_filled=False) -> Decimal:
+    def get_buy_orders_amount(self) -> Decimal:
         """Calculate amount of existing orders in interval
          use_filled - with calculating part of filled orders or with all orders"""
         if not self.__buy_orders:
             return Decimal('0')
 
-        if not use_filled:
-            return sum([order.amount for order in self.__buy_orders])
+        return sum([order.amount for order in self.__buy_orders])
 
-        return sum([multiplier(order.amount, Decimal('1') - order.filled) for order in self.__buy_orders])
-
-    def get_sell_orders_amount(self, use_filled=False) -> Decimal:
+    def get_sell_orders_amount(self) -> Decimal:
         """Calculate amount of existing orders in interval
          use_filled - with calculating part of filled orders or with all orders"""
         if not self.__sell_orders:
             return Decimal('0')
 
-        if not use_filled:
-            return sum([order.amount for order in self.__sell_orders])
-
-        return sum([multiplier(order.amount, Decimal('1') - order.filled) for order in self.__sell_orders])
+        return sum([order.amount for order in self.__sell_orders])
 
     def get_buy_orders(self) -> [Order]:
         return self.__buy_orders

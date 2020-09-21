@@ -9,9 +9,9 @@ from main.order import Order
 class IntervalTests(TestCase):
     def setUp(self):
         self.interval = Interval(Decimal(0.01), Decimal(0.015), Decimal(0.1), Decimal(0.1))
-        self.order1 = Order('1', Decimal('0.011'), Decimal('0.01'), 'buy/sell', "1", "_", filled=Decimal('0'))
-        self.order2 = Order('2', Decimal('0.014'), Decimal('0.014'), 'buy/sell', "1", "_", filled=Decimal('0.5'))
-        self.order3 = Order('3', Decimal('0.012'), Decimal('0.012'), 'buy/sell', "1", "_", filled=Decimal('0.75'))
+        self.order1 = Order('1', Decimal('0.011'), Decimal('0.01'), 'buy/sell', "1", "_")
+        self.order2 = Order('2', Decimal('0.014'), Decimal('0.014'), 'buy/sell', "1", "_")
+        self.order3 = Order('3', Decimal('0.012'), Decimal('0.012'), 'buy/sell', "1", "_")
 
     def test_insert_order(self):
         """Tests that inserted order in the interval are always ordered by 'order.price'"""
@@ -63,15 +63,11 @@ class IntervalTests(TestCase):
         self.interval.insert_sell_order(self.order1)
         self.interval.insert_sell_order(self.order2)
 
-        amount_all_buy = self.interval.get_buy_orders_amount(use_filled=False)
-        amount_all_sell = self.interval.get_sell_orders_amount(use_filled=False)
-        amount_filled_buy = self.interval.get_buy_orders_amount(use_filled=True)
-        amount_filled_sell = self.interval.get_sell_orders_amount(use_filled=True)
+        amount_all_buy = self.interval.get_buy_orders_amount()
+        amount_all_sell = self.interval.get_sell_orders_amount()
 
         self.assertEqual(amount_all_buy, Decimal('0.036'))
         self.assertEqual(amount_all_sell, Decimal('0.024'))
-        self.assertEqual(amount_filled_buy, Decimal('0.02'))
-        self.assertEqual(amount_filled_sell, Decimal('0.017'))
 
 
 if __name__ == "__main__":

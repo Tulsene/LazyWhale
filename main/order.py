@@ -20,7 +20,7 @@ class Order:
         self.side = side
 
     def __eq__(self, other):
-        return is_equal_decimal(self.price, other.price) and self.filled == other.filled \
+        return is_equal_decimal(self.price, other.price) and is_equal_decimal(self.amount, other.amount) \
                and self.id == other.id and self.side == other.side
 
     def __str__(self):

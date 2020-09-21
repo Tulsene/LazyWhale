@@ -740,8 +740,9 @@ class LazyWhale:
         for amount_to_open in amounts_to_open:
             if amount_to_open['side'] == 'buy':
                 # get existing amount of orders in interval
-                existing_amount = self.intervals[amount_to_open['interval_idx']].get_buy_orders_amount(use_filled=True)
+                existing_amount = self.intervals[amount_to_open['interval_idx']].get_buy_orders_amount()
                 # cancel existing orders
+                # TODO: cancel not working - cancel buy orders
                 self.connector.cancel_orders(self.intervals[amount_to_open['interval_idx']].get_buy_orders())
 
                 # prepare new orders for opening
@@ -752,7 +753,7 @@ class LazyWhale:
                                                    self.params['orders_per_interval'])
                 )
             else:
-                existing_amount = self.intervals[amount_to_open['interval_idx']].get_sell_orders_amount(use_filled=True)
+                existing_amount = self.intervals[amount_to_open['interval_idx']].get_sell_orders_amount()
                 self.connector.cancel_orders(self.intervals[amount_to_open['interval_idx']].get_sell_orders())
 
                 sell_orders_to_open.extend(
