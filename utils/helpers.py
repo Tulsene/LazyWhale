@@ -141,6 +141,8 @@ def interval_generator(range_bottom, range_top, increment):
 def populate_intervals(intervals: [Interval], orders: [Order]):
     """Populating intervals with incoming orders (store them in correct Interval way in self.intervals)"""
     # sort orders by price
+    orders = sorted(orders, key=lambda x: x.price)
+
     interval_idx = 0
     for order in orders:
         if order.price < intervals[0].get_bottom() or order.price >= intervals[-1].get_top():

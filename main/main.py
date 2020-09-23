@@ -298,6 +298,54 @@ class LazyWhale:
 
         return open_orders, remaining_orders_price
 
+    def set_first_intervals(self):
+        """Open intervals due to parameters:
+        spread_bot - index of bottom interval
+        spread_top - index of top interval
+        nb_buy_to_display - number intervals to buy
+        nb_sell_to_display - number intervals to sell
+        amount - total amount of MANA in each interval (except not fulfilled)
+        orders_per_interval - amount of orders in each intervals (except not fully)
+        """
+        lowest_interval = max(0, self.params['spread_bot'] - self.params['nb_buy_to_display'] + 1)
+        highest_interval = min(len(self.intervals), self.params['spread_top'] + self.params['nb_sell_to_display'] - 1)
+
+        existing_intervals = self.connector.get_intervals()
+
+        opened_buy = []
+        opened_sell = []
+
+        for interval_idx in range(lowest_interval, self.params['spread_bot'] + 1):
+            if existing_intervals[interval_idx].get_buy_orders_amount() \
+                    + existing_intervals[interval_idx + 2].get_sell_orders_amount() != self.params['amount']:
+
+                # TODO: redo here canceling all orders
+                if existing_intervals[interval_idx].get_buy_orders():
+                    self.connector.cancel_orders(existing_intervals[interval_idx].get_buy_orders())
+
+                opened_buy.extend(self.connector.set_several_buy(
+                    self.intervals[interval_idx]
+                        .generate_orders_by_amount(self.params['amount'], self.min_amount,
+                                                   self.params['orders_per_interval'])
+                ))
+
+        for interval_idx in range(self.params['spread_top'], highest_interval + 1):
+            if existing_intervals[interval_idx].get_sell_orders_amount() \
+                    + existing_intervals[interval_idx - 2].get_buy_orders_amount() != self.params['amount']:
+
+                # TODO: redo here canceling all orders
+                if existing_intervals[interval_idx].get_sell_orders():
+                    self.connector.cancel_orders(existing_intervals[interval_idx].get_sell_orders())
+
+                opened_sell.extend(self.connector.set_several_sell(
+                    self.intervals[interval_idx]
+                        .generate_orders_by_amount(self.params['amount'], self.min_amount,
+                                                   self.params['orders_per_interval'])
+                ))
+
+        helper.populate_intervals(self.intervals, opened_buy)
+        helper.populate_intervals(self.intervals, opened_sell)
+
     def set_first_orders(self, remaining_orders_price, open_orders):
         """Open orders for the strategy.
         remaining_orders_price: dict.

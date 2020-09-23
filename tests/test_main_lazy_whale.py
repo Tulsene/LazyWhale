@@ -196,37 +196,38 @@ class LazyWhaleTests(TestCase):
         self.assertEqual(len(self.lazy_whale.intervals[0].get_buy_orders()), 2)
         self.assertEqual(self.lazy_whale.intervals[0].get_buy_orders_amount(), Decimal('0.02'))
 
-    # def test_compare_intervals_2(self):
-    #     """More powerful test to check compare_intervals"""
-    #     self.assertEqual(len(self.api_manager.get_open_orders()), 0)
-    #     new_intervals = deepcopy(self.intervals)
-    #
-    #     count_orders = 10
-    #     interval_len = len(self.intervals)
-    #     for i in range(count_orders):
-    #         buy_order = Order(idx=i, price=self.intervals[i].get_random_price_in_interval(),
-    #                           amount=Decimal(i + 1) / Decimal(100),
-    #                           side='buy', timestamp=i, date="1234")
-    #
-    #         self.lazy_whale.intervals[i].insert_buy_order(buy_order)
-    #         new_intervals[i].insert_buy_order(buy_order)
-    #
-    #         sell_order = Order(idx=i, price=self.intervals[interval_len - i - 1].get_random_price_in_interval(),
-    #                            amount=Decimal(i + 1) / Decimal(100),
-    #                            side='sell', timestamp=i, date="1234")
-    #
-    #         self.lazy_whale.intervals[interval_len - i - 1].insert_sell_order(sell_order)
-    #
-    #     self.lazy_whale.compare_intervals(new_intervals)
-    #     self.assertEqual(len(self.api_manager.get_open_orders()), count_orders)
-    #     self.assertEqual(len(self.lazy_whale.intervals[interval_len - 1].get_sell_orders()), 0)
-    #     self.assertEqual(len(self.lazy_whale.intervals[interval_len - count_orders].get_sell_orders()), 0)
-    #     self.assertEqual(len(self.lazy_whale.intervals[interval_len - 1 - 2].get_buy_orders()), 1)
-    #     self.assertEqual(len(self.lazy_whale.intervals[interval_len - count_orders - 2].get_buy_orders()), 1)
-    #     self.assertEqual(len(self.lazy_whale.intervals[0].get_buy_orders()), 1)
-    #     self.assertEqual(len(self.lazy_whale.intervals[count_orders - 1].get_buy_orders()), 1)
-    #
-    #     orders = self.api_manager.get_open_orders()
-    #     order_amounts = sorted([order.amount for order in orders])
-    #     for idx, amount in enumerate(order_amounts):
-    #         self.assertTrue(amount, Decimal(idx + 1) / Decimal(100))
+    def test_set_first_intervals(self):
+        """Tests that first intervals are set using params"""
+        spread_bot = 4
+        spread_top = 7
+        buy_display = 3
+        sell_display = 3
+        amount = Decimal('0.01')
+        orders_per_interval = 2
+
+        self.lazy_whale.params['spread_bot'] = spread_bot  # index of interval
+        self.lazy_whale.params['spread_top'] = spread_top  # index of interval
+
+        self.lazy_whale.params['nb_buy_to_display'] = buy_display  # number intervals to buy
+        self.lazy_whale.params['nb_sell_to_display'] = sell_display  # number intervals to sell
+
+        self.lazy_whale.params['amount'] = amount  # total amount to open in each interval (except not fully)
+        self.lazy_whale.params['orders_per_interval'] = orders_per_interval  # amount of orders in each intervals (
+        # except not fully)
+
+        self.lazy_whale.set_first_intervals()
+
+        intervals = self.api_manager.get_intervals(self.market)
+
+        self.assertEqual(
+            len(self.api_manager.get_open_orders(self.market)),
+            (buy_display + sell_display) * orders_per_interval
+        )
+
+        for i in range(spread_bot - buy_display + 1, spread_bot + 1):
+            self.assertEqual(len(intervals[i].get_buy_orders()), orders_per_interval)
+            self.assertEqual(intervals[i].get_buy_orders_amount(), amount)
+
+        for i in range(spread_top, spread_top + sell_display):
+            self.assertEqual(len(intervals[i].get_sell_orders()), orders_per_interval)
+            self.assertEqual(intervals[i].get_sell_orders_amount(), amount)

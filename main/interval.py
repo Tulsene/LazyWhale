@@ -119,6 +119,9 @@ class Interval:
     def remove_sell_orders(self) -> None:
         self.__sell_orders = []
 
+    def check_empty(self) -> bool:
+        return len(self.__buy_orders) == 0 and len(self.__sell_orders) == 0
+
     def __eq__(self, other):
         return self.__bottom == other.__bottom and self.__top == other.__top \
                and self.__buy_orders == other.get_buy_orders() \
