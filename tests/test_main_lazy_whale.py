@@ -193,8 +193,8 @@ class LazyWhaleTests(TestCase):
         self.assertEqual(self.lazy_whale.intervals, self.api_manager.get_intervals(self.market))
 
         self.assertEqual(len(self.api_manager.get_open_orders()), 9)
-        self.assertEqual(len(self.lazy_whale.intervals[0].get_sell_orders()), 2)
-        self.assertEqual(self.lazy_whale.intervals[0].get_sell_orders_amount(), Decimal('0.02'))
+        self.assertEqual(len(self.lazy_whale.intervals[0].get_buy_orders()), 2)
+        self.assertEqual(self.lazy_whale.intervals[0].get_buy_orders_amount(), Decimal('0.02'))
 
     # def test_compare_intervals_2(self):
     #     """More powerful test to check compare_intervals"""

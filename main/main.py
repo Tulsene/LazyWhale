@@ -731,7 +731,7 @@ class LazyWhale:
 
         return amounts_to_open
 
-    def prepare_new_orders(self, amounts_to_open):
+    def prepare_new_orders(self, new_intervals, amounts_to_open):
         """Generate orders based on interval index and amount to open
         and return them"""
         sell_orders_to_open = []
@@ -742,8 +742,8 @@ class LazyWhale:
                 # get existing amount of orders in interval
                 existing_amount = self.intervals[amount_to_open['interval_idx']].get_buy_orders_amount()
                 # cancel existing orders
-                # TODO: cancel not working - cancel buy orders
                 self.connector.cancel_orders(self.intervals[amount_to_open['interval_idx']].get_buy_orders())
+                new_intervals[amount_to_open['interval_idx']].remove_buy_orders()
 
                 # prepare new orders for opening
                 buy_orders_to_open.extend(
@@ -755,6 +755,7 @@ class LazyWhale:
             else:
                 existing_amount = self.intervals[amount_to_open['interval_idx']].get_sell_orders_amount()
                 self.connector.cancel_orders(self.intervals[amount_to_open['interval_idx']].get_sell_orders())
+                new_intervals[amount_to_open['interval_idx']].remove_sell_orders()
 
                 sell_orders_to_open.extend(
                     self.intervals[amount_to_open['interval_idx']]
@@ -785,7 +786,7 @@ class LazyWhale:
         """Compares intervals and opens new orders and saves them in self.intervals"""
         assert len(self.intervals) == len(new_intervals)
         amounts_to_open = self.amount_compare_intervals(new_intervals)
-        sell_orders_to_open, buy_orders_to_open = self.prepare_new_orders(amounts_to_open)
+        sell_orders_to_open, buy_orders_to_open = self.prepare_new_orders(new_intervals, amounts_to_open)
 
         self.intervals = self.execute_new_orders(new_intervals, sell_orders_to_open, buy_orders_to_open)
 

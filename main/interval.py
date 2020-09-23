@@ -113,6 +113,12 @@ class Interval:
     def get_sell_orders(self) -> [Order]:
         return self.__sell_orders
 
+    def remove_buy_orders(self) -> None:
+        self.__buy_orders = []
+
+    def remove_sell_orders(self) -> None:
+        self.__sell_orders = []
+
     def __eq__(self, other):
         return self.__bottom == other.__bottom and self.__top == other.__top \
                and self.__buy_orders == other.get_buy_orders() \
