@@ -264,15 +264,15 @@ class UserInterface:
         msg = f'The actual price of {selected_market} is {price}'
         self.log(msg, level='info', print_=True)
         
-        q = ('Please select the price of your highest buy order '
+        q = ('Please select the price of your highest buy interval '
              f"(spread_bot) in the list. {intervals[-2]} can't be selected")
         position = self.ask_to_select_in_a_list(q, intervals[:-2])
 
-        self.log(f'The price of your lowest sell order is {intervals[position + 2]}',
+        self.log(f'The price of your lowest sell interval is {intervals[position + 2]}',
                  level='info', print_=True)
         
-        return {'spread_bot': intervals[position],
-                'spread_top': intervals[position + 2]}
+        return {'spread_bot': position,
+                'spread_top': position + 2}
 
     def ask_param_amount(self, params):
         """Ask the user to enter a value of ALT to sell at each order.
@@ -283,7 +283,7 @@ class UserInterface:
         funds = params['api_connector'].get_balances()[pair]['total']
         suggestion = convert.divider(funds, 
                                      (len(params['intervals'])
-                                      - params['intervals'].index(params['spread_top'])
+                                      - params['spread_top']
                                       - 1))
 
         q = (f"How much {params['market'][:4]} do you want to sell "
@@ -474,9 +474,8 @@ class UserInterface:
             
             if params['spread_bot'] not in params['intervals']:
                 raise ValueError('Spread_bot isn\'t properly configured')
-            
-            spread_bot_index = params['intervals'].index(params['spread_bot'])
-            if params['spread_top'] != params['intervals'][spread_bot_index + 2]:
+
+            if params['spread_top'] != params['spread_bot'] + 3:
                 raise ValueError('Spread_top isn\'t properly configured')
 
         except Exception as e:
@@ -532,7 +531,7 @@ class UserInterface:
             pair = params['market'].split('/')
             sell_balance = convert.str_to_decimal(balances[pair[0]]['free'])
             buy_balance = convert.str_to_decimal(balances[pair[1]]['free'])
-            spread_bot_index = params['intervals'].index(params['spread_bot'])
+            spread_bot_index = params['spread_bot']
             spread_top_index = spread_bot_index + 1
             try:
                 total_buy_funds_needed = self.calculate_buy_funds(
@@ -550,7 +549,7 @@ class UserInterface:
 
                 # When the strategy start with spread bot inferior or
                 # equal to the actual market price
-                if params['spread_bot'] <= price:
+                if params['intervals'][params['spread_bot']].get_top() <= price:
                     total_buy_funds_needed = self.sum_buy_needs(params,
                                                                 spread_top_index,
                                                                 total_buy_funds_needed,
@@ -616,15 +615,15 @@ class UserInterface:
         if params['range_top'] < price:
             while i < len(params['intervals']):
                 incoming_buy_funds += convert.multiplier(
-                    params['intervals'][i], params['amount'],
+                    params['intervals'][i].get_top(), params['amount'],
                     self.fees_coef)
                 i += 1
         # When only few sell orders are planned to be under the
         # actual price
         else:
-            while params['intervals'][i] <= price:
+            while params['intervals'][i].get_top() <= price:
                 incoming_buy_funds += convert.multiplier(
-                    params['intervals'][i], params['amount'])
+                    params['intervals'][i].get_top(), params['amount'])
                 i += 1
                 # It crash when price >= range_top
                 if i == len(params['intervals']):
@@ -643,7 +642,7 @@ class UserInterface:
         # When only few buy orders are planned to be upper the
         # actual price
         else:
-            while params['intervals'][i] >= price:
+            while params['intervals'][i].get_bottom() >= price:
                 incoming_sell_funds += params['amount']
                 i -= 1
                 if i < 0:
