@@ -225,9 +225,9 @@ class UserInterface:
                 range_bot = self.ask_param_range_bot()
                 range_top = self.ask_param_range_top(range_bot)
                 increment = self.ask_param_increment()
-                intervals = check.interval_generator(range_bot,
-                                               range_top,
-                                               increment)
+                intervals = helper.interval_generator(range_bot,
+                                                      range_top,
+                                                      increment)
                 return {'range_bot': range_bot, 'range_top': range_top,
                         'increment_coef': increment, 'intervals': intervals}
             
@@ -352,7 +352,7 @@ class UserInterface:
                 if choice < 3:
                     params[editable_params[choice][0]] = \
                         editable_params[choice][1]()
-                    params['intervals'] = check.interval_generator(
+                    params['intervals'] = helper.interval_generator(
                         params['range_bot'], params['range_top'],
                         params['increment_coef'])
                     params = self.change_spread(params)
@@ -467,7 +467,7 @@ class UserInterface:
             check.amount(params['amount'], params['range_bot'])
             check.profits_alloc(params['profits_alloc'])
 
-            params.update({'intervals': check.interval_generator(
+            params.update({'intervals': helper.interval_generator(
                                             params['range_bot'],
                                             params['range_top'],
                                             params['increment_coef'])})
@@ -593,7 +593,7 @@ class UserInterface:
         buy_funds_needed = Decimal('0')
         i = 0
         while i <= index:
-            buy_funds_needed += intervals[i] * amount
+            buy_funds_needed += intervals[i].get_top() * amount
             i += 1
         return buy_funds_needed
 

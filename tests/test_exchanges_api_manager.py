@@ -260,13 +260,14 @@ class APIManagerTests(TestCase):
         self.assertFalse(self.api_manager.check_an_order_is_open(order.price, 'buy'))
 
     def test_get_safety_orders(self):
-        self.assertEqual(len(self.api_manager.get_safety_orders()), 0)
+        self.assertIsNone(self.api_manager.get_safety_buy())
+        self.assertIsNone(self.api_manager.get_safety_sell())
 
         self.api_manager.create_limit_buy_order(self.market, Decimal('1'), self.api_manager.safety_buy_value)
-        self.assertEqual(len(self.api_manager.get_safety_orders()), 1)
+        self.assertEqual(self.api_manager.get_safety_buy().price, self.api_manager.safety_buy_value)
 
         self.api_manager.create_limit_sell_order(self.market, Decimal('1'), self.api_manager.safety_sell_value)
-        self.assertEqual(len(self.api_manager.get_safety_orders()), 2)
+        self.assertEqual(self.api_manager.get_safety_sell().price, self.api_manager.safety_sell_value)
 
     def test_set_several_buy(self):
         """Tests that orders are opened in correct way"""

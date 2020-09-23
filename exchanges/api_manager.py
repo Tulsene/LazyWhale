@@ -410,15 +410,25 @@ class APIManager:
         helpers.populate_intervals(self.intervals, open_orders)
         return self.intervals
 
-    def get_safety_orders(self, market=None):
+    def get_safety_buy(self, market=None):
         if market is None:
             market = self.market
 
         orders = self.get_open_orders(market)
-        safety_orders = [order for order in orders
-                         if is_equal_decimal(order.price, self.safety_sell_value)
-                         or is_equal_decimal(order.price, self.safety_buy_value)]
-        return safety_orders
+        safety_buys = [order for order in orders if is_equal_decimal(order.price, self.safety_buy_value)]
+        if len(safety_buys) > 0:
+            return safety_buys[0]
+        return None
+
+    def get_safety_sell(self, market=None):
+        if market is None:
+            market = self.market
+
+        orders = self.get_open_orders(market)
+        safety_sells = [order for order in orders if is_equal_decimal(order.price, self.safety_sell_value)]
+        if len(safety_sells) > 0:
+            return safety_sells[0]
+        return None
 
     def get_user_history(self, market=None):
         """Get orders history from a marketplace and organize them.

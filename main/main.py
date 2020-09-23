@@ -149,78 +149,49 @@ class LazyWhale:
 
         return open_orders
 
-    def strat_init(self, open_orders):
+    def strat_init(self):
         """Prepare open orders on the market by asking to the user if he want
         to remove some outside the strategy or remove those that don't have
         the right amount of alts.
         return: dict, of open orders used for the strategy.
         """
         self.log('strat_init()')
-        self.intervals = [self.safety_buy_value] + self.intervals + \
-                         [self.safety_sell_value]
-        self.amounts = helper.generate_list(len(self.intervals), self.params['amount'])
         self.connector.intervals = self.intervals
-        self.max_sell_index = len(self.intervals) - 2
         orders_to_remove = {'sell': [], 'buy': []}
         remaining_orders_price = {'buy': [], 'sell': []}
 
-        lowest_buy, highest_sell = self.init_open_orders_price_target()
+        lowest_buy, highest_sell = self.get_lowest_highest_interval_index()
 
         self.log(
-            f'self.intervals: {self.intervals}, open_orders: {open_orders}, '
-            f'self.max_sell_index: {self.max_sell_index}, '
+            f'self.intervals: {self.intervals}, '
             f'lowest_buy: {lowest_buy}, self.params["spread_bot"]: '
             f"{self.params['spread_bot']}, self.params['spread_top']: "
             f"{self.params['spread_top']}, highest_sell: {highest_sell}",
             level='info', print_=True)
 
-        orders_to_remove['buy'] = self.init_remove_orders('buy',
-                                                          open_orders['buy'],
-                                                          lowest_buy,
-                                                          self.params['spread_bot'],
-                                                          orders_to_remove['buy'])
-        orders_to_remove['sell'] = self.init_remove_orders('sell',
-                                                           open_orders['sell'],
-                                                           self.params['spread_top'],
-                                                           highest_sell,
-                                                           orders_to_remove['sell'])
+        # TODO: understand, what this code does
+        # orders_to_remove['buy'] = self.init_remove_orders('buy',
+        #                                                   open_orders['buy'],
+        #                                                   lowest_buy,
+        #                                                   self.params['spread_bot'],
+        #                                                   orders_to_remove['buy'])
+        # orders_to_remove['sell'] = self.init_remove_orders('sell',
+        #                                                    open_orders['sell'],
+        #                                                    self.params['spread_top'],
+        #                                                    highest_sell,
+        #                                                    orders_to_remove['sell'])
+        #
+        # for side in self.sides:
+        #     open_orders, remaining_orders_price = self.update_orders(side,
+        #                                                              open_orders, orders_to_remove,
+        #                                                              remaining_orders_price)
+        #
+        # self.log(
+        #     f'orders_to_remove: {orders_to_remove}, open_orders: {open_orders}'
+        #     f', remaining_orders_price: {remaining_orders_price}',
+        #     level='debug')
 
-        for side in self.sides:
-            open_orders, remaining_orders_price = self.update_orders(side,
-                                                                     open_orders, orders_to_remove,
-                                                                     remaining_orders_price)
-
-        self.log(
-            f'orders_to_remove: {orders_to_remove}, open_orders: {open_orders}'
-            f', remaining_orders_price: {remaining_orders_price}',
-            level='debug')
-
-        return self.set_first_orders(remaining_orders_price, open_orders)
-
-    def init_open_orders_price_target(self):
-        """Get price at the edge of open orders during strategy initialization,
-        in the limit choose with nb_orders_to_display.
-        return: Decimals."""
-        if self.intervals.index(self.params['spread_bot']) \
-                - self.params['nb_buy_to_display'] + 1 > 1 \
-                and self.params['nb_buy_to_display'] != 0:
-            lowest_buy = self.intervals[self.intervals.index(
-                self.params['spread_bot'])
-                                        - self.params['nb_buy_to_display'] + 1]
-
-        else:
-            lowest_buy = self.intervals[1]
-
-        if self.intervals.index(self.params['spread_top']) \
-                + self.params['nb_sell_to_display'] - 1 < self.max_sell_index \
-                and self.params['nb_sell_to_display'] != 0:
-            highest_sell = self.intervals[self.intervals.index(
-                self.params['spread_top'])
-                                          + self.params['nb_sell_to_display'] - 1]
-        else:
-            highest_sell = self.intervals[self.max_sell_index]
-
-        return lowest_buy, highest_sell
+        self.set_first_intervals()
 
     def init_remove_orders(self, side, open_orders, lowest_price, highest_price, orders_to_remove):
         """Remove unwanted buys orders for the strategy.
@@ -298,8 +269,13 @@ class LazyWhale:
 
         return open_orders, remaining_orders_price
 
-    def set_first_intervals(self):
-        """Open intervals due to parameters:
+    def get_lowest_highest_interval_index(self):
+        lowest_interval = max(0, self.params['spread_bot'] - self.params['nb_buy_to_display'] + 1)
+        highest_interval = min(len(self.intervals), self.params['spread_top'] + self.params['nb_sell_to_display'] - 1)
+        return lowest_interval, highest_interval
+
+    def set_first_intervals(self) -> None:
+        """Open intervals due to parameters and store in the self.intervals:
         spread_bot - index of bottom interval
         spread_top - index of top interval
         nb_buy_to_display - number intervals to buy
@@ -307,9 +283,7 @@ class LazyWhale:
         amount - total amount of MANA in each interval (except not fulfilled)
         orders_per_interval - amount of orders in each intervals (except not fully)
         """
-        lowest_interval = max(0, self.params['spread_bot'] - self.params['nb_buy_to_display'] + 1)
-        highest_interval = min(len(self.intervals), self.params['spread_top'] + self.params['nb_sell_to_display'] - 1)
-
+        lowest_interval, highest_interval = self.get_lowest_highest_interval_index()
         existing_intervals = self.connector.get_intervals()
 
         opened_buy = []
@@ -420,21 +394,6 @@ class LazyWhale:
 
         return new_orders
 
-    def safety_orders_checkpoint(self, open_orders):
-        """Main function of remove safety orders strategy.
-        open_orders: dict.
-        return: dict.
-        """
-        self.log(f'safety_orders_checkpoint()')
-        open_orders = self.safety_failsafe(open_orders)
-
-        if self.main_loop_abort(open_orders):
-            return False
-
-        open_orders = self.remove_safety_orders(open_orders)
-
-        return open_orders
-
     def remove_safety_orders(self, open_orders):
         for side in self.sides:
             if open_orders[side]:
@@ -494,74 +453,49 @@ class LazyWhale:
         """Add safety orders to lock funds for the strategy.
         lowest_buy_index: int.
         highest_sell_index: int."""
-        lowest_buy_index = self.intervals.index(self.open_orders['buy'][0][1])
-        highest_sell_index = self.intervals.index(self.open_orders['sell'][-1][1])
+        lowest_interval, highest_interval = self.get_lowest_highest_interval_index()
         self.log(
-            f'set_safety_orders(), lowest_buy_index: {lowest_buy_index}, '
-            f'highest_sell_index: {highest_sell_index}')
+            f'set_safety_orders(), lowest_buy_index: {lowest_interval}, '
+            f'highest_sell_index: {highest_interval}')
 
-        if lowest_buy_index > 1:
-            self.create_safety_buy(lowest_buy_index)
+        if lowest_interval > 0:
+            self.create_safety_buy(lowest_interval)
 
-        else:
-            if self.open_orders['buy'][0][1] != self.safety_buy_value:
-                self.open_orders['buy'].insert(0, self.create_fake_buy())
-
-        if highest_sell_index < self.max_sell_index:
-            self.create_safety_sell(highest_sell_index)
-
-        else:
-            if self.open_orders['sell'][-1][1] != self.safety_sell_value:
-                self.open_orders['sell'].append(self.create_fake_sell())
+        if highest_interval < len(self.intervals) - 1:
+            self.create_safety_sell(highest_interval)
 
         self.log(
-            f'safety buy: {self.open_orders["buy"][0]} , '
-            f'safety sell: {self.open_orders["sell"][-1]}')
+            f'safety buy: {self.connector.get_safety_buy()} , '
+            f'safety sell: {self.connector.get_safety_sell()}')
 
     def create_safety_buy(self, lowest_buy_index):
         buy_sum = Decimal('0')
-        lowest_buy_index -= 1
-        self.log(f'lowest_buy_index: {lowest_buy_index}')
-        while lowest_buy_index > 0:
+        index = lowest_buy_index - 1
+        while lowest_buy_index >= 0:
             buy_sum += convert.divider(
-                convert.multiplier(self.amounts[lowest_buy_index],
-                                   self.intervals[lowest_buy_index]),
+                convert.multiplier(self.params['amount'],
+                                   self.intervals[index].get_top()),
                 self.safety_buy_value)
-            lowest_buy_index -= 1
+            index -= 1
 
         self.log(f'buy_sum: {buy_sum}, lowest_buy_index: {lowest_buy_index}',
                  level='debug')
-        self.open_orders['buy'].insert(
-            0, self.connector.init_limit_buy_order(
-                self.params['market'], buy_sum, f'{self.intervals[0]:8f}'))
+
+        self.connector.init_limit_buy_order(self.params['market'], buy_sum, self.safety_buy_value)
 
     def create_safety_sell(self, highest_sell_index):
         sell_sum = Decimal('0')
-        highest_sell_index += 1
-        self.log(f'highest_sell_index: {highest_sell_index}')
-        while highest_sell_index <= self.max_sell_index:
-            sell_sum += self.amounts[highest_sell_index]
-            highest_sell_index += 1
+        index = highest_sell_index + 1
+
+        while index < len(self.intervals):
+            sell_sum += self.params['amount']
+            index += 1
 
         self.log(f'sell_sum: {sell_sum}, highest_sell_index: '
-                 f'{highest_sell_index}, self.max_sell_index: '
-                 f'{self.max_sell_index}')
-        self.open_orders['sell'].append(self.connector.init_limit_sell_order(
-            self.params['market'], sell_sum, self.intervals[-1]))
+                 f'{highest_sell_index}, max_index: '
+                 f'{index}')
 
-    def create_fake_buy(self):
-        """Create a fake buy order.
-        return: list"""
-        return ['FB', self.safety_buy_value, None, None,
-                convert.timestamp_formater(),
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')]
-
-    def create_fake_sell(self):
-        """Create a fake sell order.
-        return: list"""
-        return ['FS', self.safety_sell_value, None, None,
-                convert.timestamp_formater(),
-                datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')]
+        self.connector.init_limit_buy_order(self.params['market'], sell_sum, self.safety_sell_value)
 
     def remove_orders_off_strat(self, new_open_orders):
         """Remove all orders that are not included in the strategy
@@ -1088,32 +1022,24 @@ class LazyWhale:
 
         self.log('LW is starting', slack=True)
 
-        open_orders = self.remove_safety_before_init(
-            self.connector.orders_price_ordering(
-                self.connector.get_orders(
-                    self.params['market'])))
-        self.open_orders = self.strat_init(open_orders)
+        self.strat_init()
         self.set_safety_orders()
-        self.id_list = helper.generate_list(len(self.intervals))
-        self.update_id_list()
 
     def main(self):
         self.lw_initialisation()
         while True:
             self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE START',
                      level='info', print_=True)
-            orders = self.safety_orders_checkpoint(self.remove_orders_off_strat(
-                self.connector.orders_price_ordering(
-                    self.connector.get_orders(
-                        self.params['market']))))
+            # orders = self.safety_orders_checkpoint(self.remove_orders_off_strat(
+            #     self.connector.orders_price_ordering(
+            #         self.connector.get_orders(
+            #             self.params['market']))))
 
-            if orders:
-                orders = self.check_if_no_orders(orders)
-                self.compare_orders(orders)
-                self.update_id_list()
-                self.limit_nb_orders()
-                self.set_safety_orders()
-                self.update_id_list()
+            self.compare_intervals(self.connector.get_intervals())
+            # TODO: implement this function
+            # self.limit_nb_orders()
+            self.set_safety_orders()
+            # self.update_id_list()
 
             self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE STOP',
                      level='info', print_=True)
