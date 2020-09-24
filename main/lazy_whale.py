@@ -471,7 +471,7 @@ class LazyWhale:
     def create_safety_buy(self, lowest_buy_index):
         buy_sum = Decimal('0')
         index = lowest_buy_index - 1
-        while lowest_buy_index >= 0:
+        while index >= 0:
             buy_sum += convert.divider(
                 convert.multiplier(self.params['amount'],
                                    self.intervals[index].get_top()),
@@ -495,7 +495,21 @@ class LazyWhale:
                  f'{highest_sell_index}, max_index: '
                  f'{index}')
 
-        self.connector.init_limit_buy_order(self.params['market'], sell_sum, self.safety_sell_value)
+        self.connector.init_limit_sell_order(self.params['market'], sell_sum, self.safety_sell_value)
+
+    def cancel_safety_orders(self):
+        self.cancel_safety_buy()
+        self.cancel_safety_sell()
+
+    def cancel_safety_buy(self):
+        safety_buy = self.connector.get_safety_buy()
+        if safety_buy:
+            self.connector.cancel_order(safety_buy)
+
+    def cancel_safety_sell(self):
+        safety_sell = self.connector.get_safety_sell()
+        if safety_sell:
+            self.connector.cancel_order(safety_sell)
 
     def remove_orders_off_strat(self, new_open_orders):
         """Remove all orders that are not included in the strategy
@@ -764,13 +778,18 @@ class LazyWhale:
 
         return new_intervals
 
-    def compare_intervals(self, new_intervals: [Interval]) -> None:
+    def compare_intervals(self, new_intervals: [Interval]):
         """Compares intervals and opens new orders and saves them in self.intervals"""
         assert len(self.intervals) == len(new_intervals)
         amounts_to_open = self.amount_compare_intervals(new_intervals)
+
+        if len(amounts_to_open) == 0:
+            return False
+
         sell_orders_to_open, buy_orders_to_open = self.prepare_new_orders(new_intervals, amounts_to_open)
 
         self.intervals = self.execute_new_orders(new_intervals, sell_orders_to_open, buy_orders_to_open)
+        return True
 
     def compare_orders(self, new_open_orders):
         """Compare between open order know by LW and buy order from the
@@ -900,6 +919,22 @@ class LazyWhale:
 
         return nb_orders
 
+    def cancel_extra_buy_intervals(self):
+        """When there is more than nb_buy_to_display + 1 buy intervals are active - close them"""
+        pass
+
+    def cancel_extra_sell_intervals(self):
+        """When there is more than nb_sell_to_display + 1 sell intervals are active - close them"""
+        pass
+
+    def open_deficit_buy_intervals(self):
+        """When there is less than nb_buy_to_display buy intervals are active - open them"""
+        pass
+
+    def open_deficit_sell_intervals(self):
+        """When there is more than nb_buy_to_display sell intervals are active - open them"""
+        pass
+
     def cancel_some_buys(self, nb_orders, new_open_orders):
         """When there is too much buy orders in the order book
         nb_orders: int.
@@ -1007,6 +1042,9 @@ class LazyWhale:
             for order in orders:
                 self.open_orders['sell'].append(order)
 
+    def check_intervals_equal(self, new_intervals):
+        return self.intervals == new_intervals
+
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.
         """
@@ -1014,11 +1052,17 @@ class LazyWhale:
             params = self.ui.check_params(self.preset_params)
             self.params = self.ui.check_for_enough_funds(params)
         else:
-            self.params = self.ui.ask_for_params()  # f'{self.root_path}config/params.txt')
+            self.params = self.ui.ask_for_params()  # f'{self.root_path}config/params.json')
+
+        # TODO: move this to ui with user choice
+        self.params['orders_per_interval'] = 2
 
         self.connector = self.params['api_connector']
         self.intervals = self.params['intervals']
         self.connector.set_params(self.params)
+
+        # TODO: do not cancel all existing orders
+        self.connector.cancel_all(self.params['market'])
 
         self.log('LW is starting', slack=True)
 
@@ -1035,16 +1079,17 @@ class LazyWhale:
             #         self.connector.get_orders(
             #             self.params['market']))))
 
-            self.compare_intervals(self.connector.get_intervals())
-            # TODO: implement this function
-            # self.limit_nb_orders()
-            self.set_safety_orders()
-            # self.update_id_list()
+            new_intervals = self.connector.get_intervals()
+            is_equal = self.check_intervals_equal(new_intervals)
+            if not is_equal:
+                self.cancel_safety_orders()
+                self.compare_intervals(new_intervals)
+
+                # TODO: implement this function
+                # self.limit_nb_orders()
+
+                self.set_safety_orders()
 
             self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE STOP',
                      level='info', print_=True)
             sleep(5)
-
-
-if __name__ == "__main__":
-    LazyWhale().main()

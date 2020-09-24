@@ -6,10 +6,9 @@ from mock import patch
 
 from exchanges.api_manager import APIManager
 from exchanges.zebitexFormatted import ZebitexFormatted
-from main.interval import Interval
-from main.main import LazyWhale
-from main.order import Order
+from main.lazy_whale import LazyWhale
 from utils import helpers
+from utils.converters import multiplier, divider
 from utils.helpers import interval_generator
 from utils.logger import Logger
 
@@ -231,3 +230,47 @@ class LazyWhaleTests(TestCase):
         for i in range(spread_top, spread_top + sell_display):
             self.assertEqual(len(intervals[i].get_sell_orders()), orders_per_interval)
             self.assertEqual(intervals[i].get_sell_orders_amount(), amount)
+
+    def test_create_safety_buy(self):
+        lowest_buy_index = 3
+        amount = Decimal('0.01')
+        self.lazy_whale.params['amount'] = amount
+        self.lazy_whale.params['market'] = 'DASH/BTC'
+        self.lazy_whale.safety_buy_value = Decimal('0.00000001')
+        correct_amount = Decimal('0')
+
+        for i in range(0, lowest_buy_index):
+            correct_amount += multiplier(self.lazy_whale.params['amount'], self.intervals[i].get_top())
+
+        correct_amount = divider(correct_amount, self.lazy_whale.safety_buy_value)
+
+        self.assertIsNone(self.api_manager.get_safety_buy())
+        self.lazy_whale.create_safety_buy(lowest_buy_index)
+        self.assertIsNotNone(self.api_manager.get_safety_buy())
+        self.assertEqual(self.api_manager.get_safety_buy().price, self.lazy_whale.safety_buy_value)
+        self.assertEqual(self.api_manager.get_safety_buy().amount, correct_amount)
+
+    def test_create_safety_sell(self):
+        highest_sell_value = 7
+        amount = Decimal('0.01')
+        self.lazy_whale.params['amount'] = amount
+        self.lazy_whale.params['market'] = 'DASH/BTC'
+        self.lazy_whale.safety_sell_value = Decimal('1')
+
+        self.assertIsNone(self.api_manager.get_safety_sell())
+        self.lazy_whale.create_safety_sell(highest_sell_value)
+        self.assertIsNotNone(self.api_manager.get_safety_sell())
+        self.assertEqual(self.api_manager.get_safety_sell().price, self.lazy_whale.safety_sell_value)
+        self.assertEqual(self.api_manager.get_safety_sell().amount,
+                         multiplier(amount, Decimal(str(len(self.intervals) - highest_sell_value - 1))))
+
+    def test_cancel_extra_buy_intervals(self):
+        """Tests that if there are more than needed buy intervals - close the lowest opened interval
+        Possible situations:
+            3 intervals buy
+            3 intervals sell
+            if 4 buys and 3 sells - than not fully fulfilled - do not need to cancel extra_buy
+            if 4 buys and 2 sells - need to cancel
+        """
+        pass
+

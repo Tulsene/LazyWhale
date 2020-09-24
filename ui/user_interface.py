@@ -272,7 +272,7 @@ class UserInterface:
                  level='info', print_=True)
         
         return {'spread_bot': position,
-                'spread_top': position + 2}
+                'spread_top': position + 3}
 
     def ask_param_amount(self, params):
         """Ask the user to enter a value of ALT to sell at each order.
@@ -472,11 +472,8 @@ class UserInterface:
                                             params['range_top'],
                                             params['increment_coef'])})
             
-            if params['spread_bot'] not in params['intervals']:
+            if params['spread_top'] - params['spread_bot'] != 3:
                 raise ValueError('Spread_bot isn\'t properly configured')
-
-            if params['spread_top'] != params['spread_bot'] + 3:
-                raise ValueError('Spread_top isn\'t properly configured')
 
         except Exception as e:
             self.log(f'The LW parameters are not well configured: {e}',
@@ -499,8 +496,8 @@ class UserInterface:
         return params
 
     def convert_params(self, params):
-        decimal_to_test = ['range_bot', 'range_top', 'spread_bot', 'spread_top',
-                            'increment_coef', 'amount', 'profits_alloc']
+        decimal_to_test = ['range_bot', 'range_top',
+                           'increment_coef', 'amount', 'profits_alloc']
         
         for name in decimal_to_test:
             error_message = f"params['{name}'] is not a string:"
@@ -510,7 +507,7 @@ class UserInterface:
             error_message = f"params['{name}'] is not a boolean:"
             params[name] = convert.str_to_bool(params[name], error_message)
         
-        for name in ['nb_buy_to_display', 'nb_sell_to_display']:
+        for name in ['nb_buy_to_display', 'nb_sell_to_display', 'spread_bot', 'spread_top',]:
             error_message = f"params['{name}'] is not a boolean:"
             params[name] = convert.str_to_int(params[name], error_message)
 
