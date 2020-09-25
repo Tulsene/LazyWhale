@@ -13,7 +13,7 @@ class Order:
         self.amount = Decimal(amount)
         self.value = multiplier(self.price, self.amount, Decimal(fee))
         # TODO: redo this assert
-        assert self.value >= config.MIN_VALUE_ORDER
+        # assert self.value >= config.MIN_VALUE_ORDER
         self.timestamp = int(timestamp)
         self.date = date
         self.filled = Decimal(filled)

@@ -120,7 +120,13 @@ class Interval:
         self.__sell_orders = []
 
     def check_empty(self) -> bool:
-        return len(self.__buy_orders) == 0 and len(self.__sell_orders) == 0
+        return self.check_empty_buy() and self.check_empty_sell()
+
+    def check_empty_buy(self):
+        return len(self.__buy_orders) == 0
+
+    def check_empty_sell(self):
+        return len(self.__sell_orders) == 0
 
     def __eq__(self, other):
         return self.__bottom == other.__bottom and self.__top == other.__top \

@@ -62,6 +62,7 @@ class LazyWhaleTests(TestCase):
             self.lazy_whale.log = Logger(name='main',
                                          slack_webhook=keys_config.SLACK_WEBHOOK,
                                          common_path=keys_config.PATH_TO_PROJECT_ROOT).log
+            self.lazy_whale.root_path = keys_config.PATH_TO_PROJECT_ROOT
 
             self.lazy_whale.intervals = deepcopy(self.intervals)
             self.lazy_whale.sides = ('buy', 'sell')
@@ -264,13 +265,49 @@ class LazyWhaleTests(TestCase):
         self.assertEqual(self.api_manager.get_safety_sell().amount,
                          multiplier(amount, Decimal(str(len(self.intervals) - highest_sell_value - 1))))
 
-    def test_cancel_extra_buy_intervals(self):
-        """Tests that if there are more than needed buy intervals - close the lowest opened interval
-        Possible situations:
-            3 intervals buy
-            3 intervals sell
-            if 4 buys and 3 sells - than not fully fulfilled - do not need to cancel extra_buy
-            if 4 buys and 2 sells - need to cancel
-        """
-        pass
+    def test_limit_nb_intervals(self):
+        """Test that nb of intervals is correct"""
+        spread_bot = 4
+        spread_top = 7
+        buy_display = 3
+        sell_display = 3
+        amount = Decimal('0.01')
+        orders_per_interval = 2
 
+        self.lazy_whale.params['spread_bot'] = spread_bot  # index of interval
+        self.lazy_whale.params['spread_top'] = spread_top  # index of interval
+
+        self.lazy_whale.params['nb_buy_to_display'] = buy_display  # number intervals to buy
+        self.lazy_whale.params['nb_sell_to_display'] = sell_display  # number intervals to sell
+
+        self.lazy_whale.params['amount'] = amount  # total amount to open in each interval (except not fully)
+        self.lazy_whale.params['orders_per_interval'] = orders_per_interval  # amount of orders in each intervals (
+        # except not fully)
+
+        self.lazy_whale.set_first_intervals()
+
+        # fulfill one sell interval
+        self.api_manager.create_limit_buy_order(self.market, amount, self.intervals[spread_top].get_top())
+
+        self.assertEqual(len(self.api_manager.get_open_orders(self.market)),
+                         (sell_display + buy_display - 1) * orders_per_interval)
+
+        self.lazy_whale.compare_intervals(self.api_manager.get_intervals())
+
+        self.assertEqual(len(self.api_manager.get_open_orders(self.market)),
+                         (sell_display + buy_display) * orders_per_interval)
+
+        self.assertEqual(len(self.lazy_whale.get_indexes_buy_intervals()), 4)
+        self.assertEqual(len(self.lazy_whale.get_indexes_sell_intervals()), 2)
+
+        self.lazy_whale.limit_nb_intervals()
+
+        self.assertEqual(len(self.lazy_whale.get_indexes_buy_intervals()), 3)
+        self.assertEqual(len(self.lazy_whale.get_indexes_sell_intervals()), 3)
+
+        self.assertEqual(self.lazy_whale.intervals, self.api_manager.get_intervals())
+
+        self.lazy_whale.backup_spread_value()
+
+        self.assertEqual(self.lazy_whale.params['spread_bot'], spread_bot + 1)
+        self.assertEqual(self.lazy_whale.params['spread_top'], spread_top + 1)

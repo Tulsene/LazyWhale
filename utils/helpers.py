@@ -169,8 +169,10 @@ def get_amount_to_open(prev_orders: [Order], new_orders: [Order]) -> Decimal:
     amount_to_open += sum([order.amount for order in consumed_orders])
 
     for new_order in new_orders:
-        prev_order = [pr_order for pr_order in prev_orders if pr_order.id == new_order.id][0]
-        if prev_order.filled != new_order.filled and prev_order.amount != new_order.amount:
-            amount_to_open += prev_order.amount - new_order.amount
+        temp_orders = [pr_order for pr_order in prev_orders if pr_order.id == new_order.id]
+        if temp_orders:
+            prev_order = temp_orders[0]
+            if prev_order.filled != new_order.filled and prev_order.amount != new_order.amount:
+                amount_to_open += prev_order.amount - new_order.amount
 
     return amount_to_open

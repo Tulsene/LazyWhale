@@ -782,14 +782,12 @@ class LazyWhale:
         """Compares intervals and opens new orders and saves them in self.intervals"""
         assert len(self.intervals) == len(new_intervals)
         amounts_to_open = self.amount_compare_intervals(new_intervals)
-
-        if len(amounts_to_open) == 0:
-            return False
+        if not amounts_to_open:
+            return
 
         sell_orders_to_open, buy_orders_to_open = self.prepare_new_orders(new_intervals, amounts_to_open)
 
         self.intervals = self.execute_new_orders(new_intervals, sell_orders_to_open, buy_orders_to_open)
-        return True
 
     def compare_orders(self, new_open_orders):
         """Compare between open order know by LW and buy order from the
@@ -873,12 +871,70 @@ class LazyWhale:
             for i, order in enumerate(executed_orders['sell']):
                 self.open_orders['sell'].insert(i, order)
 
-    def backup_spread_value(self, executed_orders):
-        if executed_orders['buy'] or executed_orders['sell']:
-            index = self.intervals.index(self.open_orders['buy'][-1][1])
-            self.params['spread_bot'] = self.intervals[index]
-            self.params['spread_top'] = self.intervals[index + 2]
-            helper.params_writer(f'{self.root_path}config/params.json', self.params)
+    def backup_spread_value(self):
+        buy_indexes = self.get_indexes_buy_intervals()
+        sell_indexes = self.get_indexes_sell_intervals()
+        self.params['spread_bot'] = buy_indexes[-1]
+        self.params['spread_top'] = self.params['spread_bot'] + 3
+        helper.params_writer(f'{self.root_path}config/params.json', self.params)
+
+    def cancel_extra_buy_interval(self):
+        """When there is more than needed buy intervals are active - close it"""
+        buy_indexes = self.get_indexes_buy_intervals()
+        self.connector.cancel_orders(self.intervals[buy_indexes[0]].get_buy_orders())
+        self.intervals[buy_indexes[0]].remove_buy_orders()
+
+    def cancel_extra_sell_interval(self):
+        """When there is more than needed sell intervals are active - close it"""
+        sell_indexes = self.get_indexes_sell_intervals()
+        self.connector.cancel_orders(self.intervals[sell_indexes[-1]].get_sell_orders())
+        self.intervals[sell_indexes[-1]].remove_sell_orders()
+
+    def open_deficit_buy_interval(self):
+        """When there is less than needed buy intervals are active - open it"""
+        buy_indexes = self.get_indexes_buy_intervals()
+        buy_orders = self.connector.set_several_buy(
+            self.intervals[buy_indexes[0] - 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
+        )
+        helper.populate_intervals(self.intervals, buy_orders)
+
+    def open_deficit_sell_interval(self):
+        """When there is more than needed sell intervals are active - open it"""
+        sell_indexes = self.get_indexes_sell_intervals()
+        sell_orders = self.connector.set_several_sell(
+            self.intervals[sell_indexes[-1] + 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
+        )
+        helper.populate_intervals(self.intervals, sell_orders)
+
+    def get_indexes_buy_intervals(self) -> [int]:
+        """Get indexes of not empty buy intervals"""
+        return sorted([idx for idx, interval in enumerate(self.intervals) if not interval.check_empty_buy()])
+
+    def get_indexes_sell_intervals(self) -> [int]:
+        """Get indexes of not empty sell intervals"""
+        return sorted([idx for idx, interval in enumerate(self.intervals) if not interval.check_empty_sell()])
+
+    def limit_nb_intervals(self):
+        nb_buy_intervals = len(self.get_indexes_buy_intervals())
+        nb_sell_intervals = len(self.get_indexes_sell_intervals())
+
+        while abs(nb_buy_intervals - nb_sell_intervals) >= 2:
+            if nb_buy_intervals > self.params['nb_buy_to_display']:
+                self.cancel_extra_buy_interval()
+
+            if nb_sell_intervals > self.params['nb_sell_to_display']:
+                self.cancel_extra_sell_interval()
+
+            if self.params['spread_bot'] - self.params['nb_buy_to_display'] + 1 >= 0 \
+                    and nb_buy_intervals < self.params['nb_buy_to_display']:
+                self.open_deficit_buy_interval()
+
+            if self.params['spread_top'] + self.params['nb_sell_to_display'] <= len(self.intervals) \
+                    and nb_sell_intervals < self.params['nb_sell_to_display']:
+                self.open_deficit_sell_interval()
+
+            nb_buy_intervals = len(self.get_indexes_buy_intervals())
+            nb_sell_intervals = len(self.get_indexes_sell_intervals())
 
     def limit_nb_orders(self):
         """Cancel open orders if there is too many, open orders if there is
@@ -918,22 +974,6 @@ class LazyWhale:
             f"{self.params['nb_buy_to_display']}")
 
         return nb_orders
-
-    def cancel_extra_buy_intervals(self):
-        """When there is more than nb_buy_to_display + 1 buy intervals are active - close them"""
-        pass
-
-    def cancel_extra_sell_intervals(self):
-        """When there is more than nb_sell_to_display + 1 sell intervals are active - close them"""
-        pass
-
-    def open_deficit_buy_intervals(self):
-        """When there is less than nb_buy_to_display buy intervals are active - open them"""
-        pass
-
-    def open_deficit_sell_intervals(self):
-        """When there is more than nb_buy_to_display sell intervals are active - open them"""
-        pass
 
     def cancel_some_buys(self, nb_orders, new_open_orders):
         """When there is too much buy orders in the order book
@@ -1085,8 +1125,8 @@ class LazyWhale:
                 self.cancel_safety_orders()
                 self.compare_intervals(new_intervals)
 
-                # TODO: implement this function
-                # self.limit_nb_orders()
+                self.limit_nb_intervals()
+                self.backup_spread_value()
 
                 self.set_safety_orders()
 
