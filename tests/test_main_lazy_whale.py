@@ -22,7 +22,10 @@ def patch_log_formatter(*args, **kwargs):
 
 
 class LazyWhaleTests(TestCase):
-    def setUp(self) -> None:
+    @patch('utils.helpers.set_root_path')
+    def setUp(self, set_root_path_patch) -> None:
+        set_root_path_patch.return_value = keys_config.PATH_TO_PROJECT_ROOT
+
         self.market = "DASH/BTC"
         self.intervals = interval_generator(Decimal('0.01'), Decimal('0.015'),
                                             Decimal('1') + Decimal('1.02') / Decimal('100'))
@@ -30,50 +33,37 @@ class LazyWhaleTests(TestCase):
         # Another user for testing purpose
         self.user = ZebitexFormatted(keys_config.ANOTHER_USER_API_KEY, keys_config.ANOTHER_USER_SECRET, True)
 
-        with patch.object(APIManager, "__init__", lambda x, y, z, a: None):
-            # patch APIManager because Logger cant be created in test mode
-            self.api_manager = APIManager(None, None, None)
-            self.api_manager.log = Logger(name='api_manager',
-                                          slack_webhook=keys_config.SLACK_WEBHOOK,
-                                          common_path=keys_config.PATH_TO_PROJECT_ROOT).log
-            self.api_manager.order_logger_formatter = patch_log_formatter
-            self.api_manager.safety_buy_value = Decimal('1E-8')
-            self.api_manager.safety_sell_value = Decimal('1')
-            self.api_manager.root_path = helpers.set_root_path()
-            self.api_manager.exchange = None
-            self.api_manager.err_counter = 0
-            self.api_manager.is_kraken = False
-            self.api_manager.now = 0
-            self.api_manager.fees_coef = 0
-            self.api_manager.intervals = deepcopy(self.intervals)
-            self.api_manager.empty_intervals = deepcopy(self.api_manager.intervals)
-            self.api_manager.market = ''
-            self.api_manager.profits_alloc = 0
-            keys = {
-                "apiKey": keys_config.BOT_API_KEY,
-                "secret": keys_config.BOT_SECRET,
-            }
-            self.api_manager.set_zebitex(keys, "zebitex_testnet")
-            self.api_manager.market = self.market
-            self.api_manager.fees_coef = Decimal('0.9975')
+        with patch.object(Logger, "__init__", lambda x, name, slack_webhook=None: None):
+            self.api_manager = APIManager(keys_config.SLACK_WEBHOOK, Decimal('1E-8'), Decimal('1'))
+            self.lazy_whale = LazyWhale()
 
-        with patch.object(LazyWhale, "__init__", lambda x, y: None):
-            self.lazy_whale = LazyWhale(False)
-            self.lazy_whale.log = Logger(name='main',
-                                         slack_webhook=keys_config.SLACK_WEBHOOK,
-                                         common_path=keys_config.PATH_TO_PROJECT_ROOT).log
-            self.lazy_whale.root_path = keys_config.PATH_TO_PROJECT_ROOT
+        self.api_manager.log = Logger(name='api_manager',
+                                      slack_webhook=keys_config.SLACK_WEBHOOK,
+                                      common_path=keys_config.PATH_TO_PROJECT_ROOT).log
+        self.api_manager.intervals = interval_generator(Decimal('0.01'), Decimal('0.015'),
+                                                        Decimal('1') + Decimal('1.02') / Decimal('100'))
+        self.api_manager.empty_intervals = deepcopy(self.api_manager.intervals)
+        keys = {
+            "apiKey": keys_config.BOT_API_KEY,
+            "secret": keys_config.BOT_SECRET,
+        }
+        self.api_manager.set_zebitex(keys, "zebitex_testnet")
+        self.api_manager.market = self.market
+        self.api_manager.cancel_all(self.market)
+        self.api_manager.fees_coef = Decimal('0.9975')
+        self.lazy_whale.intervals = deepcopy(self.intervals)
+        self.lazy_whale.sides = ('buy', 'sell')
+        self.lazy_whale.connector = self.api_manager
 
-            self.lazy_whale.intervals = deepcopy(self.intervals)
-            self.lazy_whale.sides = ('buy', 'sell')
-            self.lazy_whale.connector = self.api_manager
-
-            self.api_manager.cancel_all(self.market)
-            self.lazy_whale.fees_coef = Decimal('0.9975')
-            self.lazy_whale.min_amount = Decimal('0')
-            self.lazy_whale.params = {
-                "orders_per_interval": 2,
-            }
+        self.api_manager.cancel_all(self.market)
+        self.lazy_whale.fees_coef = Decimal('0.9975')
+        self.lazy_whale.min_amount = Decimal('0')
+        self.lazy_whale.log = Logger(name='main',
+                                     slack_webhook=keys_config.SLACK_WEBHOOK,
+                                     common_path=keys_config.PATH_TO_PROJECT_ROOT).log
+        self.lazy_whale.params = {
+            "orders_per_interval": 2,
+        }
 
     def tearDown(self) -> None:
         self.api_manager.cancel_all(self.market)

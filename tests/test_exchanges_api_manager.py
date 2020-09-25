@@ -20,178 +20,167 @@ def patch_log_formatter(*args, **kwargs):
 
 
 class APIManagerTests(TestCase):
-    def setUp(self) -> None:
-        # cause an error with read-only file system
-        # self.api_manager = \
-        # APIManager(keys_config.SLACK_WEBHOOK, 1, 0.0001)
-        with patch.object(APIManager, "__init__", lambda x, y, z, a: None):
-            # patch APIManager because Logger cant be created in test mode
-            self.api_manager = APIManager(None, None, None)
-            self.api_manager.log = Logger(name='api_manager',
-                                          slack_webhook=keys_config.SLACK_WEBHOOK,
-                                          common_path=keys_config.PATH_TO_PROJECT_ROOT).log
-            self.api_manager.order_logger_formatter = patch_log_formatter
-            self.api_manager.safety_buy_value = Decimal('1E-8')
-            self.api_manager.safety_sell_value = Decimal('1')
-            self.api_manager.root_path = helpers.set_root_path()
-            self.api_manager.exchange = None
-            self.api_manager.err_counter = 0
-            self.api_manager.is_kraken = False
-            self.api_manager.now = 0
-            self.api_manager.fees_coef = 0
-            self.api_manager.intervals = interval_generator(Decimal('0.01'), Decimal('0.015'),
-                                                            Decimal('1') + Decimal('1.02') / Decimal('100'))
-            self.api_manager.empty_intervals = deepcopy(self.api_manager.intervals)
-            self.api_manager.market = ''
-            self.api_manager.profits_alloc = 0
-            keys = {
-                "apiKey": keys_config.BOT_API_KEY,
-                "secret": keys_config.BOT_SECRET,
+    @patch('utils.helpers.set_root_path')
+    def setUp(self, set_root_path_patch) -> None:
+        set_root_path_patch.return_value = keys_config.PATH_TO_PROJECT_ROOT
+
+        with patch.object(Logger, "__init__", lambda x, name, slack_webhook: None):
+            self.api_manager = APIManager(keys_config.SLACK_WEBHOOK, Decimal('1E-8'), Decimal('1'))
+
+        self.api_manager.log = Logger(name='api_manager',
+                                      slack_webhook=keys_config.SLACK_WEBHOOK,
+                                      common_path=keys_config.PATH_TO_PROJECT_ROOT).log
+        self.api_manager.intervals = interval_generator(Decimal('0.01'), Decimal('0.015'),
+                                                        Decimal('1') + Decimal('1.02') / Decimal('100'))
+        self.api_manager.empty_intervals = deepcopy(self.api_manager.intervals)
+        keys = {
+            "apiKey": keys_config.BOT_API_KEY,
+            "secret": keys_config.BOT_SECRET,
+        }
+        self.api_manager.set_zebitex(keys, "zebitex_testnet")
+
+        self.market = "DASH/BTC"
+        self.raw_orders = [
+            {
+                'id': '1',
+                'timestamp': 1,
+                'datetime': '_',
+                'lastTradeTimestamp': None,
+                'status': 'open',
+                'symbol': 'DASH/BTC',
+                'type': 'limit',
+                'side': 'buy',
+                'price': 0.0001,
+                'cost': 0.0049925,
+                'amount': 1,
+                'filled': 0.5,
+                'remaining': 1.49,
+                'trades': None,
+                'fee': 0.00075
+            },
+            {
+                'id': '1',
+                'timestamp': 1,
+                'datetime': '_',
+                'lastTradeTimestamp': None,
+                'status': 'open',
+                'symbol': 'DASH/BTC',
+                'type': 'limit',
+                'side': 'buy',
+                'price': 0.010104,
+                'cost': 0.0049925,
+                'amount': 1,
+                'filled': 0.5,
+                'remaining': 1.49,
+                'trades': None,
+                'fee': 0.00075
+            },
+            {
+                'id': '1',
+                'timestamp': 1,
+                'datetime': '_',
+                'lastTradeTimestamp': None,
+                'status': 'open',
+                'symbol': 'DASH/BTC',
+                'type': 'limit',
+                'side': 'buy',
+                'price': 0.01052081,
+                'cost': 0.0049925,
+                'amount': 1,
+                'filled': 0.5,
+                'remaining': 1.49,
+                'trades': None,
+                'fee': 0.00075
+            },
+            {
+                'id': '1',
+                'timestamp': 1,
+                'datetime': '_',
+                'lastTradeTimestamp': None,
+                'status': 'open',
+                'symbol': 'DASH/BTC',
+                'type': 'limit',
+                'side': 'buy',
+                'price': 1,
+                'cost': 0.0049925,
+                'amount': 1,
+                'filled': 0.5,
+                'remaining': 1.49,
+                'trades': None,
+                'fee': 0.00075
+            },
+            {
+                'id': '2',
+                'timestamp': 1,
+                'datetime': '_',
+                'lastTradeTimestamp': None,
+                'status': 'open',
+                'symbol': 'DASH/BTC',
+                'type': 'limit',
+                'side': 'buy',
+                'price': 0.010105,
+                'cost': 0.0049925,
+                'amount': 1,
+                'filled': 0.5,
+                'remaining': 1.49,
+                'trades': None,
+                'fee': 0.00075
+            },
+            {
+                'id': '1',
+                'timestamp': 1,
+                'datetime': '_',
+                'lastTradeTimestamp': None,
+                'status': 'open',
+                'symbol': 'DASH/BTC',
+                'type': 'limit',
+                'side': 'buy',
+                'price': 0.01020510,
+                'cost': 0.0049925,
+                'amount': 1,
+                'filled': 0.5,
+                'remaining': 1.49,
+                'trades': None,
+                'fee': 0.00075
+            },
+            {
+                'id': '1',
+                'timestamp': 1,
+                'datetime': '_',
+                'lastTradeTimestamp': None,
+                'status': 'open',
+                'symbol': 'DASH/BTC',
+                'type': 'limit',
+                'side': 'sell',
+                'price': 0.01041528,
+                'cost': 0.0049925,
+                'amount': 1,
+                'filled': 0.5,
+                'remaining': 1.49,
+                'trades': None,
+                'fee': 0.00075
+            },
+        ]
+        self.interval_index = 1
+        self.interval = self.api_manager.intervals[self.interval_index]
+        self.api_manager.market = self.market
+        self.api_manager.cancel_all(self.market)
+        self.api_manager.fees_coef = Decimal('0.9975')
+
+        self.orders_to_open = [
+            {
+                "price": Decimal('0.0101'),
+                "amount": Decimal('0.1')
+            },
+            {
+                "price": Decimal('0.0102'),
+                "amount": Decimal('0.1')
+            },
+            {
+                "price": Decimal('0.0103'),
+                "amount": Decimal('0.1')
             }
-            self.api_manager.set_zebitex(keys, "zebitex_testnet")
-
-            self.market = "DASH/BTC"
-            self.raw_orders = [
-                {
-                    'id': '1',
-                    'timestamp': 1,
-                    'datetime': '_',
-                    'lastTradeTimestamp': None,
-                    'status': 'open',
-                    'symbol': 'DASH/BTC',
-                    'type': 'limit',
-                    'side': 'buy',
-                    'price': 0.0001,
-                    'cost': 0.0049925,
-                    'amount': 1,
-                    'filled': 0.5,
-                    'remaining': 1.49,
-                    'trades': None,
-                    'fee': 0.00075
-                },
-                {
-                    'id': '1',
-                    'timestamp': 1,
-                    'datetime': '_',
-                    'lastTradeTimestamp': None,
-                    'status': 'open',
-                    'symbol': 'DASH/BTC',
-                    'type': 'limit',
-                    'side': 'buy',
-                    'price': 0.010104,
-                    'cost': 0.0049925,
-                    'amount': 1,
-                    'filled': 0.5,
-                    'remaining': 1.49,
-                    'trades': None,
-                    'fee': 0.00075
-                },
-                {
-                    'id': '1',
-                    'timestamp': 1,
-                    'datetime': '_',
-                    'lastTradeTimestamp': None,
-                    'status': 'open',
-                    'symbol': 'DASH/BTC',
-                    'type': 'limit',
-                    'side': 'buy',
-                    'price': 0.01052081,
-                    'cost': 0.0049925,
-                    'amount': 1,
-                    'filled': 0.5,
-                    'remaining': 1.49,
-                    'trades': None,
-                    'fee': 0.00075
-                },
-                {
-                    'id': '1',
-                    'timestamp': 1,
-                    'datetime': '_',
-                    'lastTradeTimestamp': None,
-                    'status': 'open',
-                    'symbol': 'DASH/BTC',
-                    'type': 'limit',
-                    'side': 'buy',
-                    'price': 1,
-                    'cost': 0.0049925,
-                    'amount': 1,
-                    'filled': 0.5,
-                    'remaining': 1.49,
-                    'trades': None,
-                    'fee': 0.00075
-                },
-                {
-                    'id': '2',
-                    'timestamp': 1,
-                    'datetime': '_',
-                    'lastTradeTimestamp': None,
-                    'status': 'open',
-                    'symbol': 'DASH/BTC',
-                    'type': 'limit',
-                    'side': 'buy',
-                    'price': 0.010105,
-                    'cost': 0.0049925,
-                    'amount': 1,
-                    'filled': 0.5,
-                    'remaining': 1.49,
-                    'trades': None,
-                    'fee': 0.00075
-                },
-                {
-                    'id': '1',
-                    'timestamp': 1,
-                    'datetime': '_',
-                    'lastTradeTimestamp': None,
-                    'status': 'open',
-                    'symbol': 'DASH/BTC',
-                    'type': 'limit',
-                    'side': 'buy',
-                    'price': 0.01020510,
-                    'cost': 0.0049925,
-                    'amount': 1,
-                    'filled': 0.5,
-                    'remaining': 1.49,
-                    'trades': None,
-                    'fee': 0.00075
-                },
-                {
-                    'id': '1',
-                    'timestamp': 1,
-                    'datetime': '_',
-                    'lastTradeTimestamp': None,
-                    'status': 'open',
-                    'symbol': 'DASH/BTC',
-                    'type': 'limit',
-                    'side': 'sell',
-                    'price': 0.01041528,
-                    'cost': 0.0049925,
-                    'amount': 1,
-                    'filled': 0.5,
-                    'remaining': 1.49,
-                    'trades': None,
-                    'fee': 0.00075
-                },
-            ]
-            self.interval_index = 1
-            self.interval = self.api_manager.intervals[self.interval_index]
-            self.api_manager.market = self.market
-            self.api_manager.cancel_all(self.market)
-            self.api_manager.fees_coef = Decimal('0.9975')
-
-            self.orders_to_open = [
-                {
-                    "price": Decimal('0.0101'),
-                    "amount": Decimal('0.1')
-                },
-                {
-                    "price": Decimal('0.0102'),
-                    "amount": Decimal('0.1')
-                },
-                {
-                    "price": Decimal('0.0103'),
-                    "amount": Decimal('0.1')
-                }
-            ]
+        ]
 
     def tearDown(self) -> None:
         self.api_manager.cancel_all(self.market)
@@ -263,10 +252,10 @@ class APIManagerTests(TestCase):
         self.assertIsNone(self.api_manager.get_safety_buy())
         self.assertIsNone(self.api_manager.get_safety_sell())
 
-        self.api_manager.create_limit_buy_order(self.market, Decimal('1'), self.api_manager.safety_buy_value)
+        self.api_manager.create_limit_buy_order(self.market, Decimal('0.001'), self.api_manager.safety_buy_value)
         self.assertEqual(self.api_manager.get_safety_buy().price, self.api_manager.safety_buy_value)
 
-        self.api_manager.create_limit_sell_order(self.market, Decimal('1'), self.api_manager.safety_sell_value)
+        self.api_manager.create_limit_sell_order(self.market, Decimal('0.001'), self.api_manager.safety_sell_value)
         self.assertEqual(self.api_manager.get_safety_sell().price, self.api_manager.safety_sell_value)
 
     def test_set_several_buy(self):
