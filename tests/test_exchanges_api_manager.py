@@ -178,7 +178,7 @@ class APIManagerTests(TestCase):
             self.api_manager.cancel_all(self.market)
             self.api_manager.fees_coef = Decimal('0.9975')
 
-            self.orders_to_open = orders_to_open = [
+            self.orders_to_open = [
                 {
                     "price": Decimal('0.0101'),
                     "amount": Decimal('0.1')

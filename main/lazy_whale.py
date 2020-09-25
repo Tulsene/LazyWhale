@@ -586,82 +586,33 @@ class LazyWhale:
 
         return target
 
-    def when_bottom_is_reached(self, target, new_open_orders):
-        """Stop or add a fake order.
-        start_index: int.
-        new_open_orders: dict.
-        return: dict"""
-        if self.params['stop_at_bot']:
-            self.log(f'Bottom target reached! target: {target}',
-                     level='critical', slack=True, print_=True)
+    def cancel_all_intervals(self):
+        """Cancel all orders inside all intervals and make self.intervals empty"""
+        for interval in self.intervals:
+            self.connector.cancel_orders(interval.get_buy_orders())
+            self.connector.cancel_orders(interval.get_sell_orders())
 
-            self.connector.cancel_all(self.params['market'], self.remove_safety_orders(
-                self.remove_orders_off_strat(
-                    self.connector.get_orders(self.params['market']))))
+        self.intervals = self.connector.empty_intervals
+
+    def when_bottom_is_reached(self):
+        """Stop if stop_at_bot"""
+        if self.params['stop_at_bot']:
+
+            self.cancel_safety_orders()
+            self.cancel_all_intervals()
+            self.log(f'Bottom target reached!',
+                     level='critical', slack=True, print_=True)
             raise SystemExit()
 
-        else:
-            order = self.create_fake_buy()
-            new_open_orders['buy'].insert(0, order)
-            self.open_orders['buy'].insert(0, order)
+    def when_top_is_reached(self):
+        """Stop if stop_at_top"""
+        if self.params['stop_at_bot']:
 
-        return new_open_orders
-
-    def add_buy_when_none(self, target, new_open_orders):
-        """Fulfill buy side when it's empty.
-        start_index: int.
-        new_open_orders: dict.
-        return: dict"""
-        self.log('Buys side is empty',
-                 level='warning', slack=True, print_=True)
-
-        if target - self.params['nb_buy_to_display'] + 1 >= 1:
-            start_index = target - self.params['nb_buy_to_display'] + 1
-        else:
-            start_index = 1
-
-        orders = self.connector.set_several_buy(start_index, target, self.amounts)
-        for i, order in enumerate(orders):
-            new_open_orders['buy'].insert(i, order)
-            self.open_orders['buy'].insert(i, order)
-            # update_id_list() do not work properly inside check_if_no_orders()
-            self.id_list[self.intervals.index(order[1])] = order[0]
-
-        return new_open_orders
-
-    def set_empty_sell_start_index(self):
-        """From where in self.intervals do we start.
-        return: int"""
-        self.log("no new_open_orders['sell']")
-        if len(self.open_orders['sell']) > 0:
-            start_index = self.intervals.index(
-                self.open_orders['sell'][-1][1]) + 1
-        else:
-            start_index = self.max_sell_index
-
-        return start_index
-
-    def when_top_is_reached(self, start_index, new_open_orders):
-        """Stop or add a fake order.
-        start_index: int.
-        new_open_orders: dict.
-        return: dict"""
-        if self.params['stop_at_top']:
-            self.log(f'Top target reached! start_index: {start_index}, '
-                     f'self.max_sell_index: {self.max_sell_index}',
+            self.cancel_safety_orders()
+            self.cancel_all_intervals()
+            self.log(f'Top target reached!',
                      level='critical', slack=True, print_=True)
-
-            self.connector.cancel_all(self.params['market'], self.remove_safety_orders(
-                self.remove_orders_off_strat(self.connector.get_orders(
-                    self.params['market']))))
-            raise SystemExit
-
-        else:
-            order = self.create_fake_sell()
-            new_open_orders['sell'].append(order)
-            self.open_orders['sell'].append(order)
-
-        return new_open_orders
+            raise SystemExit()
 
     def add_sell_when_none(self, start_index, new_open_orders):
         """Fulfill sell side when it's empty.
@@ -703,25 +654,25 @@ class LazyWhale:
 
                 if amount_to_open_sell > Decimal('0'):
                     if interval_index + 2 >= len(new_intervals):
-                        # TODO: top is reached
-                        assert 1 == 0
+                        self.when_bottom_is_reached()
 
-                    amounts_to_open.append({
-                        "interval_idx": interval_index + 2,
-                        "side": 'sell',
-                        "amount": amount_to_open_sell
-                    })
+                    else:
+                        amounts_to_open.append({
+                            "interval_idx": interval_index + 2,
+                            "side": 'sell',
+                            "amount": amount_to_open_sell
+                        })
 
                 if amount_to_open_buy > Decimal('0'):
                     if interval_index - 2 < 0:
-                        # TODO: bottom is reached
-                        assert 1 == 0
+                        self.when_top_is_reached()
 
-                    amounts_to_open.append({
-                        "interval_idx": interval_index - 2,
-                        "side": 'buy',
-                        "amount": amount_to_open_buy
-                    })
+                    else:
+                        amounts_to_open.append({
+                            "interval_idx": interval_index - 2,
+                            "side": 'buy',
+                            "amount": amount_to_open_buy
+                        })
 
             interval_index += 1
 
@@ -874,8 +825,16 @@ class LazyWhale:
     def backup_spread_value(self):
         buy_indexes = self.get_indexes_buy_intervals()
         sell_indexes = self.get_indexes_sell_intervals()
-        self.params['spread_bot'] = buy_indexes[-1]
-        self.params['spread_top'] = self.params['spread_bot'] + 3
+        if not buy_indexes:
+            self.params['spread_bot'] = 0
+            self.params['spread_top'] = 3
+        elif not sell_indexes:
+            self.params['spread_bot'] = len(self.intervals) - 4
+            self.params['spread_top'] = len(self.intervals) - 1
+        else:
+            self.params['spread_bot'] = buy_indexes[-1]
+            self.params['spread_top'] = self.params['spread_bot'] + 3
+
         helper.params_writer(f'{self.root_path}config/params.json', self.params)
 
     def cancel_extra_buy_interval(self):
@@ -918,7 +877,8 @@ class LazyWhale:
         nb_buy_intervals = len(self.get_indexes_buy_intervals())
         nb_sell_intervals = len(self.get_indexes_sell_intervals())
 
-        while abs(nb_buy_intervals - nb_sell_intervals) >= 2:
+        while (abs(nb_buy_intervals - nb_sell_intervals) >= 2 or nb_buy_intervals == 2 or nb_sell_intervals == 2) \
+                and self.params['spread_bot'] != 0 and self.params['spread_top'] != len(self.intervals) - 1:
             if nb_buy_intervals > self.params['nb_buy_to_display']:
                 self.cancel_extra_buy_interval()
 
