@@ -157,8 +157,6 @@ class LazyWhale:
         """
         self.log('strat_init()')
         self.connector.intervals = self.intervals
-        orders_to_remove = {'sell': [], 'buy': []}
-        remaining_orders_price = {'buy': [], 'sell': []}
 
         lowest_buy, highest_sell = self.get_lowest_highest_interval_index()
 
@@ -170,6 +168,8 @@ class LazyWhale:
             level='info', print_=True)
 
         # TODO: understand, what this code does
+        # orders_to_remove = {'sell': [], 'buy': []}
+        # remaining_orders_price = {'buy': [], 'sell': []}
         # orders_to_remove['buy'] = self.init_remove_orders('buy',
         #                                                   open_orders['buy'],
         #                                                   lowest_buy,
@@ -823,16 +823,26 @@ class LazyWhale:
                 self.open_orders['sell'].insert(i, order)
 
     def backup_spread_value(self):
+        """Set correct spread bot and spread top depending on currently opened intervals"""
         buy_indexes = self.get_indexes_buy_intervals()
         sell_indexes = self.get_indexes_sell_intervals()
+
         if not buy_indexes:
+            self.when_bottom_is_reached()
             self.params['spread_bot'] = 0
             self.params['spread_top'] = 3
         elif not sell_indexes:
+            self.when_top_is_reached()
             self.params['spread_bot'] = len(self.intervals) - 4
             self.params['spread_top'] = len(self.intervals) - 1
         else:
-            self.params['spread_bot'] = buy_indexes[-1]
+            if self.intervals[buy_indexes[-1]].get_buy_orders_amount() == self.params['amount']:
+                self.params['spread_bot'] = buy_indexes[-1]
+            else:
+                if len(buy_indexes) >= 2:
+                    self.params['spread_bot'] = buy_indexes[-2]
+                else:
+                    self.params['spread_bot'] = 0
             self.params['spread_top'] = self.params['spread_bot'] + 3
 
         helper.params_writer(f'{self.root_path}config/params.json', self.params)
@@ -852,18 +862,20 @@ class LazyWhale:
     def open_deficit_buy_interval(self):
         """When there is less than needed buy intervals are active - open it"""
         buy_indexes = self.get_indexes_buy_intervals()
-        buy_orders = self.connector.set_several_buy(
-            self.intervals[buy_indexes[0] - 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
-        )
-        helper.populate_intervals(self.intervals, buy_orders)
+        if buy_indexes[0] - 1 >= 0:
+            buy_orders = self.connector.set_several_buy(
+                self.intervals[buy_indexes[0] - 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
+            )
+            helper.populate_intervals(self.intervals, buy_orders)
 
     def open_deficit_sell_interval(self):
         """When there is more than needed sell intervals are active - open it"""
         sell_indexes = self.get_indexes_sell_intervals()
-        sell_orders = self.connector.set_several_sell(
-            self.intervals[sell_indexes[-1] + 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
-        )
-        helper.populate_intervals(self.intervals, sell_orders)
+        if sell_indexes[-1] + 1 < len(self.intervals):
+            sell_orders = self.connector.set_several_sell(
+                self.intervals[sell_indexes[-1] + 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
+            )
+            helper.populate_intervals(self.intervals, sell_orders)
 
     def get_indexes_buy_intervals(self) -> [int]:
         """Get indexes of not empty buy intervals"""
@@ -877,8 +889,9 @@ class LazyWhale:
         nb_buy_intervals = len(self.get_indexes_buy_intervals())
         nb_sell_intervals = len(self.get_indexes_sell_intervals())
 
-        while (abs(nb_buy_intervals - nb_sell_intervals) >= 2 or nb_buy_intervals == 2 or nb_sell_intervals == 2) \
-                and self.params['spread_bot'] != 0 and self.params['spread_top'] != len(self.intervals) - 1:
+        # while (abs(nb_buy_intervals - nb_sell_intervals) >= 2 or nb_buy_intervals == 2 or nb_sell_intervals == 2) \
+        #         and self.params['spread_bot'] != 0 and self.params['spread_top'] != len(self.intervals) - 1:
+        for _ in range(0, abs(nb_buy_intervals - nb_sell_intervals) // 2):
             if nb_buy_intervals > self.params['nb_buy_to_display']:
                 self.cancel_extra_buy_interval()
 
@@ -889,7 +902,7 @@ class LazyWhale:
                     and nb_buy_intervals < self.params['nb_buy_to_display']:
                 self.open_deficit_buy_interval()
 
-            if self.params['spread_top'] + self.params['nb_sell_to_display'] <= len(self.intervals) \
+            if self.params['spread_top'] + self.params['nb_sell_to_display'] - 1 < len(self.intervals) \
                     and nb_sell_intervals < self.params['nb_sell_to_display']:
                 self.open_deficit_sell_interval()
 
@@ -1069,6 +1082,19 @@ class LazyWhale:
         self.strat_init()
         self.set_safety_orders()
 
+    def main_cycle(self):
+        """One cycle of LW activity"""
+        new_intervals = self.connector.get_intervals()
+        is_equal = self.check_intervals_equal(new_intervals)
+        if not is_equal:
+            self.cancel_safety_orders()
+            self.compare_intervals(new_intervals)
+
+            self.limit_nb_intervals()
+            self.backup_spread_value()
+
+            self.set_safety_orders()
+
     def main(self):
         self.lw_initialisation()
         while True:
@@ -1079,16 +1105,8 @@ class LazyWhale:
             #         self.connector.get_orders(
             #             self.params['market']))))
 
-            new_intervals = self.connector.get_intervals()
-            is_equal = self.check_intervals_equal(new_intervals)
-            if not is_equal:
-                self.cancel_safety_orders()
-                self.compare_intervals(new_intervals)
-
-                self.limit_nb_intervals()
-                self.backup_spread_value()
-
-                self.set_safety_orders()
+            # core functionality is here
+            self.main_cycle()
 
             self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE STOP',
                      level='info', print_=True)

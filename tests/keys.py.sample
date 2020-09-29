@@ -4,7 +4,8 @@
 BOT_API_KEY = "YOUR API KEY FOR LAZYWHALE"
 BOT_SECRET = "YOUR SECRET FOR LAZYWHALE"
 
-# Another user will consume some orders from LW for testing purpose
+# Another user will consume some orders from LW for testing purpose - this user
+# NOTE: this user mustn't have another orders on this market
 ANOTHER_USER_API_KEY = "API KEY FOR ANOTHER USER"
 ANOTHER_USER_SECRET = "SECRET FOR ANOTHER USER"
 

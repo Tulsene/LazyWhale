@@ -40,8 +40,7 @@ class LazyWhaleTests(TestCase):
         self.api_manager.log = Logger(name='api_manager',
                                       slack_webhook=keys_config.SLACK_WEBHOOK,
                                       common_path=keys_config.PATH_TO_PROJECT_ROOT).log
-        self.api_manager.intervals = interval_generator(Decimal('0.01'), Decimal('0.015'),
-                                                        Decimal('1') + Decimal('1.02') / Decimal('100'))
+        self.api_manager.intervals = deepcopy(self.intervals)
         self.api_manager.empty_intervals = deepcopy(self.api_manager.intervals)
         keys = {
             "apiKey": keys_config.BOT_API_KEY,
