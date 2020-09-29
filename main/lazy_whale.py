@@ -861,21 +861,36 @@ class LazyWhale:
 
     def open_deficit_buy_interval(self):
         """When there is less than needed buy intervals are active - open it"""
+        sell_indexes = self.get_indexes_sell_intervals()
         buy_indexes = self.get_indexes_buy_intervals()
-        if buy_indexes[0] - 1 >= 0:
+        buy_orders = []
+        if len(buy_indexes) > 0:
+            if buy_indexes[0] - 1 >= 0:
+                buy_orders = self.connector.set_several_buy(
+                    self.intervals[buy_indexes[0] - 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
+                )
+        elif len(sell_indexes) >= 0 and sell_indexes[0] - 3 >= 0:
             buy_orders = self.connector.set_several_buy(
-                self.intervals[buy_indexes[0] - 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
+                self.intervals[sell_indexes[0] - 3].generate_orders_by_amount(self.params['amount'], self.min_amount)
             )
-            helper.populate_intervals(self.intervals, buy_orders)
+
+        helper.populate_intervals(self.intervals, buy_orders)
 
     def open_deficit_sell_interval(self):
         """When there is more than needed sell intervals are active - open it"""
         sell_indexes = self.get_indexes_sell_intervals()
-        if sell_indexes[-1] + 1 < len(self.intervals):
+        buy_indexes = self.get_indexes_buy_intervals()
+        sell_orders = []
+        if len(sell_indexes) > 0:
+            if sell_indexes[-1] + 1 < len(self.intervals):
+                sell_orders = self.connector.set_several_sell(
+                    self.intervals[sell_indexes[-1] + 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
+                )
+        elif len(buy_indexes) >= 0 and buy_indexes[-1] + 3 < len(self.intervals):
             sell_orders = self.connector.set_several_sell(
-                self.intervals[sell_indexes[-1] + 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
+                self.intervals[buy_indexes[-1] + 3].generate_orders_by_amount(self.params['amount'], self.min_amount)
             )
-            helper.populate_intervals(self.intervals, sell_orders)
+        helper.populate_intervals(self.intervals, sell_orders)
 
     def get_indexes_buy_intervals(self) -> [int]:
         """Get indexes of not empty buy intervals"""

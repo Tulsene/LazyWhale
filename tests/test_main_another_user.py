@@ -74,7 +74,6 @@ class AnotherUserTests(TestCase):
 
         self.epsilon_amount = Decimal('0.00000005')
 
-
     def tearDown(self) -> None:
         self.api_manager.cancel_all(self.market)
         self.user.cancel_all_orders()
@@ -184,6 +183,85 @@ class AnotherUserTests(TestCase):
                 self.assertRaises(SystemExit, self.lazy_whale.main_cycle)
             else:
                 self.lazy_whale.main_cycle()
+
+    def test_mad_market_volatility_top_is_reached(self):
+        """Tests scenario 5 - user buy all LW orders until top is reached (buy everything)"""
+        self.lazy_whale.params['stop_at_top'] = True
+        self.lazy_whale.params['spread_bot'] = len(self.intervals) - 10
+        self.lazy_whale.params['spread_top'] = len(self.intervals) - 7
+        self.lazy_whale.params['nb_buy_to_display'] = 3
+        self.lazy_whale.params['nb_sell_to_display'] = 3
+
+        self.lazy_whale.strat_init()
+        self.lazy_whale.set_safety_orders()
+
+        self.user.create_limit_buy_order(self.market, multiplier(self.lazy_whale.params['amount'],
+                                         Decimal(str(len(self.intervals)))),
+                                         self.intervals[-1].get_top())
+        self.lazy_whale.main_cycle()
+        self.lazy_whale.main_cycle()
+        self.assertRaises(SystemExit, self.lazy_whale.main_cycle)
+
+    def test_mad_market_volatility_bot_is_reached(self):
+        """Tests scenario 6 - user sell orders to LW until bot is reached (sell everything)"""
+        self.lazy_whale.params['stop_at_bot'] = True
+        self.lazy_whale.params['spread_bot'] = 6
+        self.lazy_whale.params['spread_top'] = 9
+        self.lazy_whale.params['nb_buy_to_display'] = 3
+        self.lazy_whale.params['nb_sell_to_display'] = 3
+
+        self.lazy_whale.strat_init()
+        self.lazy_whale.set_safety_orders()
+
+        self.user.create_limit_sell_order(self.market, multiplier(self.lazy_whale.params['amount'],
+                                          Decimal(str(len(self.intervals)))),
+                                          self.intervals[0].get_bottom())
+        self.lazy_whale.main_cycle()
+        self.lazy_whale.main_cycle()
+        self.assertRaises(SystemExit, self.lazy_whale.main_cycle)
+
+    # def test_consume_buys_sells(self):
+    #     """Tests scenario 7 - user should consume both buy and sell orders
+    #     Important tests:
+    #       check spread bot moving correctly
+    #       check orders are opened with correct amount
+    #       check there is always amount of intervals in [nb_to_display, nb_to_display + 1]
+    #     """
+    #     def test_amount():
+    #         for i in range(self.lazy_whale.params['spread_bot'] - self.lazy_whale.params['nb_buy_to_display'] + 1,
+    #                        self.lazy_whale.params['spread_bot'] + 1):
+    #             self.assertEqual(self.lazy_whale.intervals[i].get_buy_orders_amount(), self.lazy_whale.params['amount'])
+    #
+    #         for i in range(self.lazy_whale.params['spread_top'],
+    #                        self.lazy_whale.params['spread_top'] + self.lazy_whale.params['nb_buy_to_display']):
+    #             self.assertEqual(self.lazy_whale.intervals[i].get_sell_orders_amount(),
+    #                              self.lazy_whale.params['amount'])
+    #
+    #     self.lazy_whale.params['stop_at_bot'] = True
+    #     self.lazy_whale.params['stop_at_top'] = True
+    #     self.lazy_whale.params['spread_bot'] = 6
+    #     self.lazy_whale.params['spread_top'] = 9
+    #     self.lazy_whale.params['nb_buy_to_display'] = 3
+    #     self.lazy_whale.params['nb_sell_to_display'] = 3
+    #     spr_bot = self.lazy_whale.params['spread_bot']
+    #     spr_top = self.lazy_whale.params['spread_top']
+    #
+    #     self.lazy_whale.strat_init()
+    #     self.lazy_whale.set_safety_orders()
+    #
+    #     self.user.create_limit_buy_order(self.market,
+    #                                      self.lazy_whale.params['amount'],
+    #                                      self.intervals[self.lazy_whale.params['spread_top']].get_top())
+    #
+    #     self.user.create_limit_sell_order(self.market,
+    #                                       self.lazy_whale.params['amount'],
+    #                                       self.intervals[self.lazy_whale.params['spread_bot']].get_bottom())
+    #
+    #     self.lazy_whale.main_cycle()
+    #     self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot)
+    #     self.assertEqual(self.lazy_whale.params['spread_top'], spr_top)
+    #
+    #     test_amount()
 
 
 
