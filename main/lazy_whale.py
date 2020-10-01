@@ -11,6 +11,7 @@ import ccxt
 import utils.helpers as helper
 import utils.converters as convert
 from main.interval import Interval
+from main.order import Order
 from ui.user_interface import UserInterface
 from utils.logger import Logger
 import config.config as config
@@ -597,7 +598,6 @@ class LazyWhale:
     def when_bottom_is_reached(self):
         """Stop if stop_at_bot"""
         if self.params['stop_at_bot']:
-
             self.cancel_safety_orders()
             self.cancel_all_intervals()
             self.log(f'Bottom target reached!',
@@ -607,7 +607,6 @@ class LazyWhale:
     def when_top_is_reached(self):
         """Stop if stop_at_top"""
         if self.params['stop_at_bot']:
-
             self.cancel_safety_orders()
             self.cancel_all_intervals()
             self.log(f'Top target reached!',
@@ -637,81 +636,137 @@ class LazyWhale:
 
         return new_open_orders
 
-    def amount_compare_intervals(self, new_intervals: [Interval]) -> [dict]:
-        """Compare intervals and return amount of orders to open on correct interval with correct side"""
+    def amount_compare_intervals(self, new_intervals: [Interval]) -> (Decimal, Decimal):
+        """Compare intervals and return amount of MANA to open with correct side"""
         interval_index = 0
         # check length of intervals are same
-
-        amounts_to_open = []
+        amount_to_open_sell = Decimal('0')
+        amount_to_open_buy = Decimal('0')
 
         while interval_index < len(new_intervals):
             if self.intervals[interval_index] != new_intervals[interval_index]:
-                amount_to_open_sell = helper.get_amount_to_open(self.intervals[interval_index].get_buy_orders(),
-                                                                new_intervals[interval_index].get_buy_orders(), )
+                amount_to_open_sell += helper.get_amount_to_open(self.intervals[interval_index].get_buy_orders(),
+                                                                 new_intervals[interval_index].get_buy_orders())
 
-                amount_to_open_buy = helper.get_amount_to_open(self.intervals[interval_index].get_sell_orders(),
-                                                               new_intervals[interval_index].get_sell_orders())
-
-                if amount_to_open_sell > Decimal('0'):
-                    if interval_index + 2 >= len(new_intervals):
-                        self.when_bottom_is_reached()
-
-                    else:
-                        amounts_to_open.append({
-                            "interval_idx": interval_index + 2,
-                            "side": 'sell',
-                            "amount": amount_to_open_sell
-                        })
-
-                if amount_to_open_buy > Decimal('0'):
-                    if interval_index - 2 < 0:
-                        self.when_top_is_reached()
-
-                    else:
-                        amounts_to_open.append({
-                            "interval_idx": interval_index - 2,
-                            "side": 'buy',
-                            "amount": amount_to_open_buy
-                        })
+                amount_to_open_buy += helper.get_amount_to_open(self.intervals[interval_index].get_sell_orders(),
+                                                                new_intervals[interval_index].get_sell_orders())
 
             interval_index += 1
 
-        return amounts_to_open
+        return amount_to_open_buy, amount_to_open_sell
 
-    def prepare_new_orders(self, new_intervals, amounts_to_open):
-        """Generate orders based on interval index and amount to open
-        and return them"""
-        sell_orders_to_open = []
+    def generate_orders_to_open(self, index, existing_amount, amount_to_open) -> [Order]:
+        """Generates orders by index and amount to open"""
+        return self.intervals[index].generate_orders_by_amount(min(self.params['amount'],
+                                                               existing_amount + amount_to_open),
+                                                               self.min_amount,
+                                                               self.params['orders_per_interval'])
+
+    def get_spread_bot(self, intervals: [Interval]) -> int:
+        """Returns highest buy interval with amount >= params['amount']"""
+        buy_indexes = helper.get_indexes_buy_intervals(intervals)
+        for index in reversed(buy_indexes):
+            if intervals[index].get_buy_orders_amount() >= self.params['amount']:
+                return index
+
+        # fail safe
+        return buy_indexes[-1]
+
+    def get_spread_top(self, intervals: [Interval]) -> int:
+        """Returns lowest sell interval with amount >= params['amount']"""
+        sell_indexes = helper.get_indexes_sell_intervals(intervals)
+        for index in reversed(sell_indexes):
+            if intervals[index].get_sell_orders_amount() >= self.params['amount']:
+                return index
+
+        # fail safe
+        return sell_indexes[0]
+
+    def where_to_open_buys(self, new_intervals: [Interval], amount_to_open_buy: Decimal):
+        """Decide, depending on amount_to_open and new_intervals, where to open intervals"""
         buy_orders_to_open = []
-
-        for amount_to_open in amounts_to_open:
-            if amount_to_open['side'] == 'buy':
-                # get existing amount of orders in interval
-                existing_amount = self.intervals[amount_to_open['interval_idx']].get_buy_orders_amount()
-                # cancel existing orders
-                self.connector.cancel_orders(self.intervals[amount_to_open['interval_idx']].get_buy_orders())
-                new_intervals[amount_to_open['interval_idx']].remove_buy_orders()
-
-                # prepare new orders for opening
-                buy_orders_to_open.extend(
-                    self.intervals[amount_to_open['interval_idx']]
-                        .generate_orders_by_amount(amount_to_open['amount'] + existing_amount,
-                                                   self.min_amount,
-                                                   self.params['orders_per_interval'])
-                )
+        buy_indexes = helper.get_indexes_buy_intervals(new_intervals)
+        if buy_indexes:
+            highest_buy_index = buy_indexes[-1]
+        else:
+            sell_indexes = helper.get_indexes_sell_intervals(new_intervals)
+            if sell_indexes:
+                highest_buy_index = self.get_spread_top(new_intervals) - 3
             else:
-                existing_amount = self.intervals[amount_to_open['interval_idx']].get_sell_orders_amount()
-                self.connector.cancel_orders(self.intervals[amount_to_open['interval_idx']].get_sell_orders())
-                new_intervals[amount_to_open['interval_idx']].remove_sell_orders()
+                highest_buy_index = self.params['spread_bot']
 
+            # TODO: implement dynamic amount
+            last_interval_amount = amount_to_open_buy - self.params['nb_buy_to_display'] * self.params['amount']
+            if last_interval_amount > 0:
+                buy_orders_to_open.extend(self.intervals[highest_buy_index + 1]
+                                          .generate_orders_by_amount(last_interval_amount,
+                                          self.min_amount,
+                                          self.params['orders_per_interval']))
+                amount_to_open_buy -= last_interval_amount
+
+        while amount_to_open_buy > Decimal('0'):
+            # fail safe, if interval will go so high
+            if highest_buy_index >= len(new_intervals):
+                self.when_top_is_reached()
+            else:
+                # TODO: implement dynamic amount
+                highest_buy_amount = new_intervals[highest_buy_index].get_buy_orders_amount()
+                missing_amount = self.params['amount'] - highest_buy_amount
+                if missing_amount > Decimal('0'):
+                    self.connector.cancel_orders(new_intervals[highest_buy_index].get_buy_orders())
+                    buy_orders_to_open.extend(
+                        self.generate_orders_to_open(highest_buy_index,
+                                                     highest_buy_amount, amount_to_open_buy))
+                    amount_to_open_buy -= missing_amount
+
+            highest_buy_index += 1
+
+        # end while
+        return buy_orders_to_open
+
+    def where_to_open_sells(self, new_intervals: [Interval], amount_to_open_sell: Decimal):
+        """Decide, depending on amount_to_open and new_intervals, where to open intervals"""
+        sell_orders_to_open = []
+
+        sell_indexes = helper.get_indexes_sell_intervals(new_intervals)
+        if sell_indexes:
+            lowest_sell_index = sell_indexes[0]
+        else:
+            buy_indexes = helper.get_indexes_buy_intervals(new_intervals)
+            if buy_indexes:
+                lowest_sell_index = self.get_spread_bot(new_intervals) + 3
+            else:
+                lowest_sell_index = self.params['spread_bot']
+
+            # TODO: implement dynamic amount
+            last_interval_amount = amount_to_open_sell - self.params['nb_sell_to_display'] * self.params['amount']
+            if last_interval_amount > Decimal('0'):
                 sell_orders_to_open.extend(
-                    self.intervals[amount_to_open['interval_idx']]
-                        .generate_orders_by_amount(amount_to_open['amount'] + existing_amount,
-                                                   self.min_amount,
-                                                   self.params['orders_per_interval'])
-                )
+                    self.intervals[lowest_sell_index - 1].generate_orders_by_amount(last_interval_amount,
+                                                                                    self.min_amount,
+                                                                                    self.params['orders_per_interval']))
+                amount_to_open_sell -= last_interval_amount
 
-        return sell_orders_to_open, buy_orders_to_open
+        while amount_to_open_sell > Decimal('0'):
+            # fail safe, if interval will go so low
+            if lowest_sell_index < 0:
+                self.when_bottom_is_reached()
+            else:
+                # TODO: implement dynamic amount
+                lowest_sell_amount = new_intervals[lowest_sell_index].get_sell_orders_amount()
+                missing_amount = self.params['amount'] - lowest_sell_amount
+                if missing_amount > 0:
+                    # cancel existing orders
+                    self.connector.cancel_orders(new_intervals[lowest_sell_index].get_sell_orders())
+                    sell_orders_to_open.extend(
+                        self.generate_orders_to_open(lowest_sell_index,
+                                                     lowest_sell_amount, amount_to_open_sell))
+                    amount_to_open_sell -= missing_amount
+
+            lowest_sell_index -= 1
+
+        # end while
+        return sell_orders_to_open
 
     def execute_new_orders(self, new_intervals, sell_orders_to_open, buy_orders_to_open):
         """Open orders saved them in new_intervals and return new_intervals"""
@@ -732,11 +787,30 @@ class LazyWhale:
     def compare_intervals(self, new_intervals: [Interval]):
         """Compares intervals and opens new orders and saves them in self.intervals"""
         assert len(self.intervals) == len(new_intervals)
-        amounts_to_open = self.amount_compare_intervals(new_intervals)
-        if not amounts_to_open:
+        amount_to_open_buy, amount_to_open_sell = self.amount_compare_intervals(new_intervals)
+        if amount_to_open_buy == amount_to_open_sell == Decimal('0'):
             return
 
-        sell_orders_to_open, buy_orders_to_open = self.prepare_new_orders(new_intervals, amounts_to_open)
+        amount_buys = len(helper.get_indexes_buy_intervals(new_intervals))
+        amount_sells = len(helper.get_indexes_sell_intervals(new_intervals))
+
+        # some cheats to use things, that spread_bot - spread_top = 3
+        if amount_buys > 0 and amount_sells > 0:
+            buy_orders_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
+            sell_orders_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+        elif amount_buys > 0:
+            buy_orders_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
+            self.execute_new_orders(new_intervals, buy_orders_to_open, [])
+            buy_orders_to_open = []
+            sell_orders_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+        elif amount_sells > 0:
+            sell_orders_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+            self.execute_new_orders(new_intervals, [], sell_orders_to_open)
+            sell_orders_to_open = []
+            buy_orders_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
+        else:
+            sell_orders_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+            buy_orders_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
 
         self.intervals = self.execute_new_orders(new_intervals, sell_orders_to_open, buy_orders_to_open)
 
@@ -824,8 +898,8 @@ class LazyWhale:
 
     def backup_spread_value(self):
         """Set correct spread bot and spread top depending on currently opened intervals"""
-        buy_indexes = self.get_indexes_buy_intervals()
-        sell_indexes = self.get_indexes_sell_intervals()
+        buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
+        sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
 
         if not buy_indexes:
             self.when_bottom_is_reached()
@@ -849,20 +923,20 @@ class LazyWhale:
 
     def cancel_extra_buy_interval(self):
         """When there is more than needed buy intervals are active - close it"""
-        buy_indexes = self.get_indexes_buy_intervals()
+        buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
         self.connector.cancel_orders(self.intervals[buy_indexes[0]].get_buy_orders())
         self.intervals[buy_indexes[0]].remove_buy_orders()
 
     def cancel_extra_sell_interval(self):
         """When there is more than needed sell intervals are active - close it"""
-        sell_indexes = self.get_indexes_sell_intervals()
+        sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
         self.connector.cancel_orders(self.intervals[sell_indexes[-1]].get_sell_orders())
         self.intervals[sell_indexes[-1]].remove_sell_orders()
 
     def open_deficit_buy_interval(self):
         """When there is less than needed buy intervals are active - open it"""
-        sell_indexes = self.get_indexes_sell_intervals()
-        buy_indexes = self.get_indexes_buy_intervals()
+        sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
+        buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
         buy_orders = []
         if len(buy_indexes) > 0:
             if buy_indexes[0] - 1 >= 0:
@@ -878,13 +952,14 @@ class LazyWhale:
 
     def open_deficit_sell_interval(self):
         """When there is more than needed sell intervals are active - open it"""
-        sell_indexes = self.get_indexes_sell_intervals()
-        buy_indexes = self.get_indexes_buy_intervals()
+        sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
+        buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
         sell_orders = []
         if len(sell_indexes) > 0:
             if sell_indexes[-1] + 1 < len(self.intervals):
                 sell_orders = self.connector.set_several_sell(
-                    self.intervals[sell_indexes[-1] + 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
+                    self.intervals[sell_indexes[-1] + 1].generate_orders_by_amount(self.params['amount'],
+                                                                                   self.min_amount)
                 )
         elif len(buy_indexes) >= 0 and buy_indexes[-1] + 3 < len(self.intervals):
             sell_orders = self.connector.set_several_sell(
@@ -892,17 +967,9 @@ class LazyWhale:
             )
         helper.populate_intervals(self.intervals, sell_orders)
 
-    def get_indexes_buy_intervals(self) -> [int]:
-        """Get indexes of not empty buy intervals"""
-        return sorted([idx for idx, interval in enumerate(self.intervals) if not interval.check_empty_buy()])
-
-    def get_indexes_sell_intervals(self) -> [int]:
-        """Get indexes of not empty sell intervals"""
-        return sorted([idx for idx, interval in enumerate(self.intervals) if not interval.check_empty_sell()])
-
     def limit_nb_intervals(self):
-        nb_buy_intervals = len(self.get_indexes_buy_intervals())
-        nb_sell_intervals = len(self.get_indexes_sell_intervals())
+        nb_buy_intervals = len(helper.get_indexes_buy_intervals(self.intervals))
+        nb_sell_intervals = len(helper.get_indexes_sell_intervals(self.intervals))
 
         # while (abs(nb_buy_intervals - nb_sell_intervals) >= 2 or nb_buy_intervals == 2 or nb_sell_intervals == 2) \
         #         and self.params['spread_bot'] != 0 and self.params['spread_top'] != len(self.intervals) - 1:
@@ -921,8 +988,8 @@ class LazyWhale:
                     and nb_sell_intervals < self.params['nb_sell_to_display']:
                 self.open_deficit_sell_interval()
 
-            nb_buy_intervals = len(self.get_indexes_buy_intervals())
-            nb_sell_intervals = len(self.get_indexes_sell_intervals())
+            nb_buy_intervals = len(helper.get_indexes_buy_intervals(self.intervals))
+            nb_sell_intervals = len(helper.get_indexes_sell_intervals(self.intervals))
 
     def limit_nb_orders(self):
         """Cancel open orders if there is too many, open orders if there is

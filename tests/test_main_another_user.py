@@ -44,11 +44,11 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.params = params
 
         self.api_manager.logger = Logger(name='api_manager',
-                                      slack_webhook=keys_config.SLACK_WEBHOOK,
-                                      common_path=keys_config.PATH_TO_PROJECT_ROOT)
+                                         slack_webhook=keys_config.SLACK_WEBHOOK,
+                                         common_path=keys_config.PATH_TO_PROJECT_ROOT)
         self.lazy_whale.logger = Logger(name='main',
-                                     slack_webhook=keys_config.SLACK_WEBHOOK,
-                                     common_path=keys_config.PATH_TO_PROJECT_ROOT)
+                                        slack_webhook=keys_config.SLACK_WEBHOOK,
+                                        common_path=keys_config.PATH_TO_PROJECT_ROOT)
         self.api_manager.log = self.api_manager.logger.log
         self.lazy_whale.log = self.lazy_whale.logger.log
 
@@ -220,48 +220,45 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.main_cycle()
         self.assertRaises(SystemExit, self.lazy_whale.main_cycle)
 
-    # def test_consume_buys_sells(self):
-    #     """Tests scenario 7 - user should consume both buy and sell orders
-    #     Important tests:
-    #       check spread bot moving correctly
-    #       check orders are opened with correct amount
-    #       check there is always amount of intervals in [nb_to_display, nb_to_display + 1]
-    #     """
-    #     def test_amount():
-    #         for i in range(self.lazy_whale.params['spread_bot'] - self.lazy_whale.params['nb_buy_to_display'] + 1,
-    #                        self.lazy_whale.params['spread_bot'] + 1):
-    #             self.assertEqual(self.lazy_whale.intervals[i].get_buy_orders_amount(), self.lazy_whale.params['amount'])
-    #
-    #         for i in range(self.lazy_whale.params['spread_top'],
-    #                        self.lazy_whale.params['spread_top'] + self.lazy_whale.params['nb_buy_to_display']):
-    #             self.assertEqual(self.lazy_whale.intervals[i].get_sell_orders_amount(),
-    #                              self.lazy_whale.params['amount'])
-    #
-    #     self.lazy_whale.params['stop_at_bot'] = True
-    #     self.lazy_whale.params['stop_at_top'] = True
-    #     self.lazy_whale.params['spread_bot'] = 6
-    #     self.lazy_whale.params['spread_top'] = 9
-    #     self.lazy_whale.params['nb_buy_to_display'] = 3
-    #     self.lazy_whale.params['nb_sell_to_display'] = 3
-    #     spr_bot = self.lazy_whale.params['spread_bot']
-    #     spr_top = self.lazy_whale.params['spread_top']
-    #
-    #     self.lazy_whale.strat_init()
-    #     self.lazy_whale.set_safety_orders()
-    #
-    #     self.user.create_limit_buy_order(self.market,
-    #                                      self.lazy_whale.params['amount'],
-    #                                      self.intervals[self.lazy_whale.params['spread_top']].get_top())
-    #
-    #     self.user.create_limit_sell_order(self.market,
-    #                                       self.lazy_whale.params['amount'],
-    #                                       self.intervals[self.lazy_whale.params['spread_bot']].get_bottom())
-    #
-    #     self.lazy_whale.main_cycle()
-    #     self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot)
-    #     self.assertEqual(self.lazy_whale.params['spread_top'], spr_top)
-    #
-    #     test_amount()
+    def test_consume_buys_sells(self):
+        """Tests scenario 7 - user should consume both buy and sell orders
+        Important tests:
+          check spread bot moving correctly
+          check orders are opened with correct amount
+          check there is always amount of intervals in [nb_to_display, nb_to_display + 1]
+        """
+        def test_amount():
+            for i in range(self.lazy_whale.params['spread_bot'] - self.lazy_whale.params['nb_buy_to_display'] + 1,
+                           self.lazy_whale.params['spread_bot'] + 1):
+                self.assertEqual(self.lazy_whale.intervals[i].get_buy_orders_amount(), self.lazy_whale.params['amount'])
 
+            for i in range(self.lazy_whale.params['spread_top'],
+                           self.lazy_whale.params['spread_top'] + self.lazy_whale.params['nb_buy_to_display']):
+                self.assertEqual(self.lazy_whale.intervals[i].get_sell_orders_amount(),
+                                 self.lazy_whale.params['amount'])
 
+        self.lazy_whale.params['stop_at_bot'] = True
+        self.lazy_whale.params['stop_at_top'] = True
+        self.lazy_whale.params['spread_bot'] = 6
+        self.lazy_whale.params['spread_top'] = 9
+        self.lazy_whale.params['nb_buy_to_display'] = 3
+        self.lazy_whale.params['nb_sell_to_display'] = 3
+        spr_bot = self.lazy_whale.params['spread_bot']
+        spr_top = self.lazy_whale.params['spread_top']
 
+        self.lazy_whale.strat_init()
+        self.lazy_whale.set_safety_orders()
+
+        self.user.create_limit_buy_order(self.market,
+                                         Decimal('3') * self.lazy_whale.params['amount'],
+                                         self.intervals[-1].get_top())
+
+        self.user.create_limit_sell_order(self.market,
+                                          Decimal('3') * self.lazy_whale.params['amount'],
+                                          self.intervals[0].get_bottom())
+
+        self.lazy_whale.main_cycle()
+        self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot)
+        self.assertEqual(self.lazy_whale.params['spread_top'], spr_top)
+
+        test_amount()

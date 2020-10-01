@@ -176,3 +176,13 @@ def get_amount_to_open(prev_orders: [Order], new_orders: [Order]) -> Decimal:
                 amount_to_open += prev_order.amount - new_order.amount
 
     return amount_to_open
+
+
+def get_indexes_buy_intervals(intervals: [Interval]) -> [int]:
+    """Get indexes of not empty buy intervals"""
+    return sorted([idx for idx, interval in enumerate(intervals) if not interval.check_empty_buy()])
+
+
+def get_indexes_sell_intervals(intervals: [Interval]) -> [int]:
+    """Get indexes of not empty sell intervals"""
+    return sorted([idx for idx, interval in enumerate(intervals) if not interval.check_empty_sell()])

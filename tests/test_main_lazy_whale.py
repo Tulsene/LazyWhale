@@ -61,7 +61,21 @@ class LazyWhaleTests(TestCase):
                                      slack_webhook=keys_config.SLACK_WEBHOOK,
                                      common_path=keys_config.PATH_TO_PROJECT_ROOT).log
         self.lazy_whale.params = {
-            "orders_per_interval": 2,
+            "datetime": "2020-09-25 12:45:16.243709",
+            "marketplace": "zebitex_testnet",
+            "market": "DASH/BTC",
+            "range_bot": Decimal('0.01'),
+            "range_top":  Decimal('0.015'),
+            "increment_coef": Decimal('1.0102'),
+            "spread_bot": 3,
+            "spread_top": 6,
+            "amount": Decimal('0.2'),
+            "stop_at_bot": True,
+            "stop_at_top": True,
+            "nb_buy_to_display": 3,
+            "nb_sell_to_display": 3,
+            "profits_alloc": 0,
+            "orders_per_interval": 2
         }
 
     def tearDown(self) -> None:
@@ -113,8 +127,7 @@ class LazyWhaleTests(TestCase):
 
     def test_compare_intervals(self):
         """Tests that comparing intervals is correct and is doing by the strategy
-        When order, known by LW, have been consumed or not fully consumed,
-        LW should open a new opposite order +2/-2 intervals higher/lower
+        described in where_to_open_buys
         """
         initial_buy_orders = [
             {
@@ -303,3 +316,40 @@ class LazyWhaleTests(TestCase):
         #
         # self.assertEqual(self.lazy_whale.params['spread_bot'], spread_bot + 1)
         # self.assertEqual(self.lazy_whale.params['spread_top'], spread_top + 1)
+
+    def test_where_to_open_buys(self):
+        """1st (or 2nd): Strategy: if sell occurred - open buy over the highest buy (or on it)
+        3th If no buys at all - look at sells
+        4th if no sells - look at the previous spread_bot
+        """
+        self.lazy_whale.params['spread_bot'] = 3
+        self.lazy_whale.params['spread_top'] = 6
+        self.lazy_whale.params['nb_buy_to_display'] = 3
+        self.lazy_whale.params['nb_sell_to_display'] = 3
+        self.lazy_whale.params['amount'] = Decimal('0.2')
+
+        # 1st
+        self.lazy_whale.strat_init()
+        amount_to_open = Decimal('0.15')
+        self.user.create_limit_buy_order(self.market, amount_to_open, self.intervals[-1].get_top())
+
+        buy_orders = self.lazy_whale.where_to_open_buys(self.api_manager.get_intervals(self.market), amount_to_open)
+        self.assertEqual(len(buy_orders), 2)
+        self.assertEqual(sum([order['amount'] for order in buy_orders]), amount_to_open)
+        self.assertGreaterEqual(min([order['price'] for order in buy_orders]),
+                                self.intervals[self.lazy_whale.params['spread_bot'] + 1].get_bottom())
+        self.assertLessEqual(max([order['price'] for order in buy_orders]),
+                             self.intervals[self.lazy_whale.params['spread_bot'] + 1].get_top())
+
+        # 2nd
+        self.lazy_whale.strat_init()
+        amount_to_open = Decimal('0.25')
+        self.user.create_limit_buy_order(self.market, amount_to_open, self.intervals[-1].get_top())
+
+        buy_orders = self.lazy_whale.where_to_open_buys(self.api_manager.get_intervals(self.market), amount_to_open)
+        self.assertEqual(len(buy_orders), 4)
+        self.assertEqual(sum([order['amount'] for order in buy_orders]), amount_to_open)
+        self.assertGreaterEqual(min([order['price'] for order in buy_orders]),
+                                self.intervals[self.lazy_whale.params['spread_bot'] + 1].get_bottom())
+        self.assertLessEqual(max([order['price'] for order in buy_orders]),
+                             self.intervals[self.lazy_whale.params['spread_bot'] + 2].get_top())
