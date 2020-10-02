@@ -22,6 +22,10 @@ class UtilsTests(TestCase):
         second = Decimal('0.00000000000000000010011')
         self.assertTrue(is_equal_decimal(first, second))
 
+        first = Decimal('0.01999999')
+        second = Decimal('0.02000000')
+        self.assertTrue(is_equal_decimal(first, second))
+
         self.assertFalse(is_equal_decimal(Decimal('1'), Decimal('2')))
 
     def test_get_amount_to_open(self):

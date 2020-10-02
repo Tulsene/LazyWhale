@@ -97,6 +97,6 @@ def nb_to_display(nb, max_size):
 
 
 def is_equal_decimal(first: Decimal, second: Decimal):
-    eps = Decimal(10 ** (-config.DECIMAL_PRECISION))
-    return (first - second).copy_abs() < eps
+    eps = Decimal(Decimal('10') ** (-config.DECIMAL_PRECISION))
+    return (first - second).copy_abs() <= eps
 

@@ -7,6 +7,7 @@ from unittest.mock import patch
 from exchanges.api_manager import APIManager
 from exchanges.zebitexFormatted import ZebitexFormatted
 from ui.user_interface import UserInterface
+from utils.checkers import is_equal_decimal
 from utils.converters import multiplier
 from utils.helpers import interval_generator
 from utils.logger import Logger
@@ -230,12 +231,12 @@ class AnotherUserTests(TestCase):
         def test_amount():
             for i in range(self.lazy_whale.params['spread_bot'] - self.lazy_whale.params['nb_buy_to_display'] + 1,
                            self.lazy_whale.params['spread_bot'] + 1):
-                self.assertEqual(self.lazy_whale.intervals[i].get_buy_orders_amount(), self.lazy_whale.params['amount'])
+                self.assertTrue(is_equal_decimal(self.lazy_whale.intervals[i].get_buy_orders_amount(), self.lazy_whale.params['amount']))
 
             for i in range(self.lazy_whale.params['spread_top'],
-                           self.lazy_whale.params['spread_top'] + self.lazy_whale.params['nb_buy_to_display']):
-                self.assertEqual(self.lazy_whale.intervals[i].get_sell_orders_amount(),
-                                 self.lazy_whale.params['amount'])
+                           self.lazy_whale.params['spread_top'] + self.lazy_whale.params['nb_sell_to_display']):
+                self.assertTrue(is_equal_decimal(self.lazy_whale.intervals[i].get_sell_orders_amount(),
+                                self.lazy_whale.params['amount']))
 
         self.lazy_whale.params['stop_at_bot'] = True
         self.lazy_whale.params['stop_at_top'] = True
@@ -250,6 +251,20 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.set_safety_orders()
 
         self.user.create_limit_buy_order(self.market,
+                                         Decimal('1') * self.lazy_whale.params['amount'],
+                                         self.intervals[-1].get_top())
+
+        self.user.create_limit_sell_order(self.market,
+                                          Decimal('1') * self.lazy_whale.params['amount'],
+                                          self.intervals[0].get_bottom())
+
+        self.lazy_whale.main_cycle()
+        self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot)
+        self.assertEqual(self.lazy_whale.params['spread_top'], spr_top)
+
+        test_amount()
+
+        self.user.create_limit_buy_order(self.market,
                                          Decimal('3') * self.lazy_whale.params['amount'],
                                          self.intervals[-1].get_top())
 
@@ -262,3 +277,29 @@ class AnotherUserTests(TestCase):
         self.assertEqual(self.lazy_whale.params['spread_top'], spr_top)
 
         test_amount()
+
+        self.user.create_limit_buy_order(self.market,
+                                         Decimal('2') * self.lazy_whale.params['amount'],
+                                         self.intervals[-1].get_top())
+
+        self.user.create_limit_sell_order(self.market,
+                                          Decimal('2') * self.lazy_whale.params['amount'],
+                                          self.intervals[0].get_bottom())
+
+        self.lazy_whale.main_cycle()
+        self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot)
+        self.assertEqual(self.lazy_whale.params['spread_top'], spr_top)
+
+        test_amount()
+
+        self.user.create_limit_buy_order(self.market,
+                                         Decimal('1') * self.lazy_whale.params['amount'],
+                                         self.intervals[-1].get_top())
+
+        self.user.create_limit_sell_order(self.market,
+                                          Decimal('3') * self.lazy_whale.params['amount'],
+                                          self.intervals[0].get_bottom())
+
+        self.lazy_whale.main_cycle()
+        self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot - 2)
+        self.assertEqual(self.lazy_whale.params['spread_top'], spr_top - 2)
