@@ -160,8 +160,8 @@ class LazyWhaleTests(TestCase):
         self.assertEqual(self.lazy_whale.intervals, self.api_manager.get_intervals(self.market))
 
         self.assertEqual(len(self.api_manager.get_open_orders()), 4)
-        self.assertEqual(len(self.lazy_whale.intervals[3].get_buy_orders()), 2)
-        self.assertEqual(self.lazy_whale.intervals[3].get_buy_orders_amount(), sell_orders[0].amount + Decimal('0.04'))
+        self.assertEqual(len(self.lazy_whale.intervals[2].get_buy_orders()), 2)
+        self.assertEqual(self.lazy_whale.intervals[2].get_buy_orders_amount(), sell_orders[0].amount + Decimal('0.04'))
 
     def test_set_first_intervals(self):
         """Tests that first intervals are set using params"""

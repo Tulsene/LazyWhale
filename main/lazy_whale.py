@@ -13,6 +13,7 @@ import utils.converters as convert
 from main.interval import Interval
 from main.order import Order
 from ui.user_interface import UserInterface
+from utils.checkers import is_equal_decimal
 from utils.logger import Logger
 import config.config as config
 
@@ -290,7 +291,7 @@ class LazyWhale:
         opened_buy = []
         opened_sell = []
 
-        for interval_idx in range(lowest_interval, self.params['spread_bot'] + 1):
+        for interval_idx in reversed(range(lowest_interval, self.params['spread_bot'] + 1)):
             if existing_intervals[interval_idx].get_buy_orders_amount() \
                     + existing_intervals[interval_idx + 2].get_sell_orders_amount() != self.params['amount']:
 
@@ -593,7 +594,8 @@ class LazyWhale:
             self.connector.cancel_orders(interval.get_buy_orders())
             self.connector.cancel_orders(interval.get_sell_orders())
 
-        self.intervals = self.connector.empty_intervals
+        self.intervals = deepcopy(self.connector.empty_intervals)
+        self.cancel_safety_orders()
 
     def cancel_buy_interval_by_index(self, intervals, index):
         """Cancel all buys inside interval from market and from intervals"""
@@ -677,28 +679,30 @@ class LazyWhale:
         buy_indexes = helper.get_indexes_buy_intervals(intervals)
 
         for index in reversed(buy_indexes):
-            if intervals[index].get_buy_orders_amount() >= self.params['amount']:
+            if intervals[index].get_buy_orders_amount() > self.params['amount']\
+                    or is_equal_decimal(intervals[index].get_buy_orders_amount(), self.params['amount']):
                 return index
 
         # fail safe
         if buy_indexes:
             return buy_indexes[-1]
         else:
-            # TODO: should not raised
+            # TODO: should not be at all
             assert 1 == 0
 
     def get_spread_top(self, intervals: [Interval]) -> int:
         """Returns lowest sell interval with amount >= params['amount']"""
         sell_indexes = helper.get_indexes_sell_intervals(intervals)
         for index in sell_indexes:
-            if intervals[index].get_sell_orders_amount() >= self.params['amount']:
+            if intervals[index].get_sell_orders_amount() > self.params['amount']\
+                    or is_equal_decimal(intervals[index].get_sell_orders_amount(), self.params['amount']):
                 return index
 
         # fail safe
         if sell_indexes:
             return sell_indexes[-1]
         else:
-            # TODO: should not raised
+            # TODO: should be at all
             assert 1 == 0
 
     def where_to_open_buys(self, new_intervals: [Interval], amount_to_open_buy: Decimal):
@@ -729,6 +733,11 @@ class LazyWhale:
             # fail safe, if interval will go so high
             if highest_buy_index >= len(new_intervals):
                 self.when_top_is_reached()
+            # fail safe, if interval will go so low
+            elif highest_buy_index < 0:
+                if not buy_indexes:
+                    highest_buy_index = self.params['spread_bot']
+                    buy_step *= -1
             else:
                 # TODO: implement dynamic amount
                 highest_buy_amount = new_intervals[highest_buy_index].get_buy_orders_amount()
@@ -773,6 +782,11 @@ class LazyWhale:
             # fail safe, if interval will go so low
             if lowest_sell_index < 0:
                 self.when_bottom_is_reached()
+            # fail safe, if interval will go so high
+            elif lowest_sell_index >= len(self.intervals):
+                if not sell_indexes:
+                    lowest_sell_index = self.params['spread_top']
+                    sell_step *= -1
             else:
                 # TODO: implement dynamic amount
                 lowest_sell_amount = new_intervals[lowest_sell_index].get_sell_orders_amount()
@@ -807,7 +821,7 @@ class LazyWhale:
 
         return new_intervals
 
-    def compare_intervals(self, new_intervals: [Interval]):
+    def compare_intervals(self, new_intervals: [Interval]) -> None:
         """Compares intervals and opens new orders and saves them in self.intervals"""
         assert len(self.intervals) == len(new_intervals)
         amount_to_open_buy, amount_to_open_sell = self.amount_compare_intervals(new_intervals)
@@ -933,13 +947,7 @@ class LazyWhale:
             self.params['spread_bot'] = len(self.intervals) - 4
             self.params['spread_top'] = len(self.intervals) - 1
         else:
-            if self.intervals[buy_indexes[-1]].get_buy_orders_amount() == self.params['amount']:
-                self.params['spread_bot'] = buy_indexes[-1]
-            else:
-                if len(buy_indexes) >= 2:
-                    self.params['spread_bot'] = buy_indexes[-2]
-                else:
-                    self.params['spread_bot'] = 0
+            self.params['spread_bot'] = self.get_spread_bot(self.intervals)
             self.params['spread_top'] = self.params['spread_bot'] + 3
 
         helper.params_writer(f'{self.root_path}config/params.json', self.params)
@@ -989,16 +997,19 @@ class LazyWhale:
         helper.populate_intervals(self.intervals, sell_orders)
 
     def limit_nb_intervals(self):
-        nb_buy_intervals = len(helper.get_indexes_buy_intervals(self.intervals))
-        nb_sell_intervals = len(helper.get_indexes_sell_intervals(self.intervals))
+        buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
+        sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
+        nb_buy_intervals = len(buy_indexes)
+        nb_sell_intervals = len(sell_indexes)
 
-        # while (abs(nb_buy_intervals - nb_sell_intervals) >= 2 or nb_buy_intervals == 2 or nb_sell_intervals == 2) \
-        #         and self.params['spread_bot'] != 0 and self.params['spread_top'] != len(self.intervals) - 1:
-        for _ in range(0, abs(nb_buy_intervals - nb_sell_intervals) // 2):
-            if nb_buy_intervals > self.params['nb_buy_to_display']:
+        # TODO: think about non-fully filled - cause it will close, if they exist
+        for _ in range(abs(nb_buy_intervals - nb_sell_intervals)):
+            if nb_buy_intervals > self.params['nb_buy_to_display'] \
+                    and buy_indexes[-1] == self.get_spread_bot(self.intervals):
                 self.cancel_extra_buy_interval()
 
-            if nb_sell_intervals > self.params['nb_sell_to_display']:
+            if nb_sell_intervals > self.params['nb_sell_to_display'] \
+                    and sell_indexes[0] == self.get_spread_top(self.intervals):
                 self.cancel_extra_sell_interval()
 
             if self.params['spread_bot'] - self.params['nb_buy_to_display'] + 1 >= 0 \
