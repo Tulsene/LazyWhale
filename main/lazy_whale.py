@@ -1,5 +1,3 @@
-import os
-import sys
 import json
 from copy import deepcopy
 from datetime import datetime
@@ -45,8 +43,10 @@ class LazyWhale:
         self.id_list = []
         self.max_sell_index = 0
         self.sides = ('buy', 'sell')
-        # TODO: calculate min_amount correctly
+        # calculated properly in set_min_amount
         self.min_amount = Decimal('0')
+        self.remaining_amount_to_open_buy = Decimal('0')
+        self.remaining_amount_to_open_sell = Decimal('0')
 
     def keys_initialisation(self):
         """Check if a key.json file exist and create one if none.
@@ -158,6 +158,7 @@ class LazyWhale:
         return: dict, of open orders used for the strategy.
         """
         self.log('strat_init()')
+        self.set_min_amount()
         self.connector.intervals = self.intervals
 
         lowest_buy, highest_sell = self.get_lowest_highest_interval_index()
@@ -195,6 +196,7 @@ class LazyWhale:
 
         self.set_first_intervals()
 
+    # TODO: rewrite due to new functionality
     def init_remove_orders(self, side, open_orders, lowest_price, highest_price, orders_to_remove):
         """Remove unwanted buys orders for the strategy.
         open_orders: dict.
@@ -255,22 +257,6 @@ class LazyWhale:
 
         return orders_to_remove
 
-    def update_orders(self, side, open_orders, orders_to_remove, remaining_orders_price):
-        """Remove canceled orders from open_orders and generate list of prices
-        from remaining orders.
-        open_orders: dict.
-        order_to_remove: dict.
-        return: dicts"""
-        if orders_to_remove[side]:
-            for i, index in enumerate(orders_to_remove[side]):
-                del open_orders[side][index - i]
-
-        if open_orders[side]:
-            for order in open_orders[side]:
-                remaining_orders_price[side].append(order[1])
-
-        return open_orders, remaining_orders_price
-
     def get_lowest_highest_interval_index(self):
         lowest_interval = max(0, self.params['spread_bot'] - self.params['nb_buy_to_display'] + 1)
         highest_interval = min(len(self.intervals), self.params['spread_top'] + self.params['nb_sell_to_display'] - 1)
@@ -292,8 +278,9 @@ class LazyWhale:
         opened_sell = []
 
         for interval_idx in reversed(range(lowest_interval, self.params['spread_bot'] + 1)):
-            if existing_intervals[interval_idx].get_buy_orders_amount() \
-                    + existing_intervals[interval_idx + 2].get_sell_orders_amount() != self.params['amount']:
+            if not is_equal_decimal(existing_intervals[interval_idx].get_buy_orders_amount()
+                                    + existing_intervals[interval_idx + 2].get_sell_orders_amount(),
+                                    self.params['amount']):
 
                 # TODO: redo here canceling all orders
                 if existing_intervals[interval_idx].get_buy_orders():
@@ -306,8 +293,9 @@ class LazyWhale:
                 ))
 
         for interval_idx in range(self.params['spread_top'], highest_interval + 1):
-            if existing_intervals[interval_idx].get_sell_orders_amount() \
-                    + existing_intervals[interval_idx - 2].get_buy_orders_amount() != self.params['amount']:
+            if not is_equal_decimal(existing_intervals[interval_idx].get_sell_orders_amount()
+                                    + existing_intervals[interval_idx - 2].get_buy_orders_amount(),
+                                    self.params['amount']):
 
                 # TODO: redo here canceling all orders
                 if existing_intervals[interval_idx].get_sell_orders():
@@ -321,135 +309,6 @@ class LazyWhale:
 
         helper.populate_intervals(self.intervals, opened_buy)
         helper.populate_intervals(self.intervals, opened_sell)
-
-    def set_first_orders(self, remaining_orders_price, open_orders):
-        """Open orders for the strategy.
-        remaining_orders_price: dict.
-        open_orders: dict.
-        return: dict, of open orders used for the strategy."""
-        self.log('set_first_orders()')
-        buy_target = self.intervals.index(self.params['spread_bot'])
-        lowest_sell_index = buy_target + 2
-        new_orders = {'sell': [], 'buy': []}
-        lowest_buy_index, sell_target = self.set_first_orders_indexes(buy_target, lowest_sell_index)
-
-        self.log(
-            f'buy target: {buy_target}, lowest_buy_index: '
-            f'{lowest_buy_index}, lowest_sell_index: {lowest_sell_index}, '
-            f'sell_target: {sell_target}, max_sell_index: '
-            f'{self.max_sell_index}')
-
-        for side in self.sides:
-            new_orders[side] = self.open_first_orders(open_orders[side],
-                                                      remaining_orders_price[side],
-                                                      new_orders[side],
-                                                      eval(f'lowest_{side}_index'),
-                                                      eval(f'{side}_target'),
-                                                      side)
-
-        self.log(f'new_orders: {new_orders}')
-        return new_orders
-
-    def set_first_orders_indexes(self, buy_target, lowest_sell_index):
-        if self.params['nb_buy_to_display'] == 0:
-            self.params['nb_buy_to_display'] = self.max_sell_index
-        if self.params['nb_sell_to_display'] == 0:
-            self.params['nb_sell_to_display'] = self.max_sell_index
-
-        # At which index do we need to stop to add orders
-        if buy_target - self.params['nb_buy_to_display'] > 1:
-            lowest_buy_index = buy_target - self.params['nb_buy_to_display'] + 1
-        else:
-            lowest_buy_index = 1
-
-        if lowest_sell_index + self.params['nb_sell_to_display'] \
-                < len(self.intervals) - 2:
-            sell_target = lowest_sell_index + self.params['nb_sell_to_display'] - 1
-        else:
-            sell_target = len(self.intervals) - 2
-
-        return lowest_buy_index, sell_target
-
-    def open_first_orders(self, open_orders, remaining_orders_price, new_orders, lowest_index, target_index, side):
-        """Open a buy order if needed or use an already existing open order.
-        From the lowest price to the highest price.
-        open_orders, remaining_orders_price, new_orders: dict.
-        lowest_buy_index, buy_target: int.
-        return: dict."""
-        api_call = self.connector.init_limit_buy_order if side == 'buy' else self.connector.init_limit_sell_order
-        while lowest_index <= target_index:
-            if self.intervals[lowest_index] \
-                    not in remaining_orders_price:
-                order = api_call(self.params['market'],
-                                 self.amounts[lowest_index],
-                                 self.intervals[lowest_index])
-                new_orders.append(order)
-                sleep(0.2)
-
-            else:
-                for item in open_orders:
-                    if item[1] == self.intervals[lowest_index]:
-                        new_orders.append(item)
-                        break
-
-            lowest_index += 1
-
-        return new_orders
-
-    def remove_safety_orders(self, open_orders):
-        for side in self.sides:
-            if open_orders[side]:
-                open_orders[side] = self.remove_safety_order(open_orders[side], side)
-
-        return open_orders
-
-    def safety_failsafe(self, open_orders):
-        """Empty lists break the strategy, add fake orders.
-        open_orders: dict.
-        return: dict."""
-        for side in self.sides:
-            index = -1 if side == 'buy' else 0
-            create_fake = self.create_fake_buy if side == 'buy' else self.create_fake_sell
-
-            if self.open_orders[side]:
-                if not open_orders[side] and not self.open_orders[side][index][2]:
-                    open_orders[side].append(create_fake())
-
-        return open_orders
-
-    def main_loop_abort(self, open_orders):
-        """Abort main loop when there is no order fulfilled.
-        open_orders: dict.
-        return: bool."""
-        if open_orders['buy'] and open_orders['sell']:
-            if self.open_orders['buy'] and self.open_orders['sell']:
-                if open_orders['buy'][-1][0] == self.open_orders['buy'][-1][0] \
-                        and open_orders['sell'][0][0] == self.open_orders['sell'][0][0]:
-                    return True
-
-        return False
-
-    def remove_safety_order(self, open_orders, side):
-        """Remove safety orders and it's associated order ID.
-        open_orders: dict.
-        return: dict."""
-        index = 0 if side == 'buy' else -1
-        if open_orders[index][0] == self.id_list[index]:
-            # The safety order can be a fake order
-            if open_orders[index][2]:
-                self.connector.cancel_order(self.params['market'],
-                                            open_orders[index][0],
-                                            open_orders[index][1],
-                                            open_orders[index][4],
-                                            side)
-
-            del open_orders[index]
-
-        if self.open_orders[side][index][0] == self.id_list[index]:
-            del self.open_orders[side][index]
-            self.id_list[index] = None
-
-        return open_orders
 
     def set_safety_orders(self):
         """Add safety orders to lock funds for the strategy.
@@ -513,6 +372,7 @@ class LazyWhale:
         if safety_sell:
             self.connector.cancel_order(safety_sell)
 
+    # TODO: rewrite due to new functionality
     def remove_orders_off_strat(self, new_open_orders):
         """Remove all orders that are not included in the strategy
         new_open_orders: dict, every open orders on the market
@@ -534,59 +394,6 @@ class LazyWhale:
 
         self.log(f'orders_to_remove: {orders_to_remove}')
         return new_open_orders
-
-    def check_if_no_orders(self, new_open_orders):
-        """Open orders when there is none on the market otherwise
-        compare_orders() will fail.
-        new_open_orders: dict.
-        return: dict"""
-        order_oppened = False
-        self.log('check_if_no_orders()')
-        if not new_open_orders['buy']:
-            target = self.set_empty_buy_target()
-            if target < 1:
-                new_open_orders = self.when_bottom_is_reached(target, new_open_orders)
-
-            else:
-                new_open_orders = self.add_buy_when_none(target, new_open_orders)
-                order_oppened = True
-
-            self.log(f'updated new_buy_orders: {new_open_orders["buy"]}',
-                     level='debug')
-
-        if not new_open_orders['sell']:
-            start_index = self.set_empty_sell_start_index()
-            if start_index > self.max_sell_index:
-                new_open_orders = self.when_top_is_reached(start_index, new_open_orders)
-
-            else:
-                new_open_orders = self.add_sell_when_none(start_index, new_open_orders)
-                order_oppened = True
-
-            self.log(f'updated new_sell_orders: {new_open_orders["sell"]}',
-                     level='debug')
-
-        if order_oppened:
-            new_open_orders = self.check_if_no_orders(
-                self.connector.orders_price_ordering(
-                    self.connector.get_orders(
-                        self.params['market'])))
-            # Fake buy Handler when range_bot/top is reached
-            self.update_id_list()
-
-        return new_open_orders
-
-    def set_empty_buy_target(self):
-        """From where in self.intervals do we start.
-        return: int"""
-        self.log("no new_open_orders['buy']")
-        if len(self.open_orders['buy']) > 0:
-            target = self.intervals.index(
-                self.open_orders['buy'][0][1]) - 1
-        else:
-            target = 0
-
-        return target
 
     def cancel_all_intervals(self):
         """Cancel all orders inside all intervals and make self.intervals empty"""
@@ -625,29 +432,6 @@ class LazyWhale:
                      level='critical', slack=True, print_=True)
             raise SystemExit()
 
-    def add_sell_when_none(self, start_index, new_open_orders):
-        """Fulfill sell side when it's empty.
-        start_index: int.
-        new_open_orders: dict.
-        return: dict"""
-        self.log('Sell side is empty',
-                 level='warning', slack=True, print_=True)
-
-        if start_index + self.params['nb_sell_to_display'] - 1 \
-                <= self.max_sell_index:
-            target = start_index + self.params['nb_sell_to_display'] - 1
-
-        else:
-            target = self.max_sell_index
-
-        orders = self.connector.set_several_sell(start_index, target, self.amounts)
-        for order in orders:
-            new_open_orders['sell'].append(order)
-            self.open_orders['sell'].append(order)
-            self.id_list[self.intervals.index(order[1])] = order[0]
-
-        return new_open_orders
-
     def amount_compare_intervals(self, new_intervals: [Interval]) -> (Decimal, Decimal):
         """Compare intervals and return amount of MANA to open with correct side"""
         interval_index = 0
@@ -670,7 +454,7 @@ class LazyWhale:
     def generate_orders_to_open(self, index, existing_amount, amount_to_open) -> [Order]:
         """Generates orders by index and amount to open"""
         return self.intervals[index].generate_orders_by_amount(min(self.params['amount'],
-                                                               existing_amount + amount_to_open),
+                                                                   existing_amount + amount_to_open),
                                                                self.min_amount,
                                                                self.params['orders_per_interval'])
 
@@ -679,7 +463,7 @@ class LazyWhale:
         buy_indexes = helper.get_indexes_buy_intervals(intervals)
 
         for index in reversed(buy_indexes):
-            if intervals[index].get_buy_orders_amount() > self.params['amount']\
+            if intervals[index].get_buy_orders_amount() > self.params['amount'] \
                     or is_equal_decimal(intervals[index].get_buy_orders_amount(), self.params['amount']):
                 return index
 
@@ -694,7 +478,7 @@ class LazyWhale:
         """Returns lowest sell interval with amount >= params['amount']"""
         sell_indexes = helper.get_indexes_sell_intervals(intervals)
         for index in sell_indexes:
-            if intervals[index].get_sell_orders_amount() > self.params['amount']\
+            if intervals[index].get_sell_orders_amount() > self.params['amount'] \
                     or is_equal_decimal(intervals[index].get_sell_orders_amount(), self.params['amount']):
                 return index
 
@@ -722,14 +506,17 @@ class LazyWhale:
 
             # TODO: implement dynamic amount
             last_interval_amount = amount_to_open_buy - self.params['nb_buy_to_display'] * self.params['amount']
-            if last_interval_amount > Decimal('0'):
+            if last_interval_amount > convert.multiplier(self.min_amount, self.params['orders_per_interval']):
                 buy_orders_to_open.extend(self.intervals[highest_buy_index + 1]
                                           .generate_orders_by_amount(last_interval_amount,
-                                          self.min_amount,
-                                          self.params['orders_per_interval']))
+                                                                     self.min_amount,
+                                                                     self.params['orders_per_interval']))
+                amount_to_open_buy -= last_interval_amount
+            elif last_interval_amount > Decimal('0'):
+                self.remaining_amount_to_open_buy += last_interval_amount
                 amount_to_open_buy -= last_interval_amount
 
-        while amount_to_open_buy > Decimal('0'):
+        while amount_to_open_buy > convert.multiplier(self.min_amount, self.params['orders_per_interval']):
             # fail safe, if interval will go so high
             if highest_buy_index >= len(new_intervals):
                 self.when_top_is_reached()
@@ -752,6 +539,9 @@ class LazyWhale:
             highest_buy_index += buy_step
 
         # end while
+        if amount_to_open_buy > Decimal('0'):
+            self.remaining_amount_to_open_buy += amount_to_open_buy
+
         return buy_orders_to_open
 
     def where_to_open_sells(self, new_intervals: [Interval], amount_to_open_sell: Decimal):
@@ -771,14 +561,17 @@ class LazyWhale:
 
             # TODO: implement dynamic amount
             last_interval_amount = amount_to_open_sell - self.params['nb_sell_to_display'] * self.params['amount']
-            if last_interval_amount > Decimal('0'):
+            if last_interval_amount > convert.multiplier(self.min_amount, self.params['orders_per_interval']):
                 sell_orders_to_open.extend(
                     self.intervals[lowest_sell_index - 1].generate_orders_by_amount(last_interval_amount,
                                                                                     self.min_amount,
                                                                                     self.params['orders_per_interval']))
                 amount_to_open_sell -= last_interval_amount
+            elif last_interval_amount > Decimal('0'):
+                self.remaining_amount_to_open_sell += last_interval_amount
+                amount_to_open_sell -= last_interval_amount
 
-        while amount_to_open_sell > Decimal('0'):
+        while amount_to_open_sell > convert.multiplier(self.min_amount, self.params['orders_per_interval']):
             # fail safe, if interval will go so low
             if lowest_sell_index < 0:
                 self.when_bottom_is_reached()
@@ -803,6 +596,9 @@ class LazyWhale:
             lowest_sell_index += sell_step
 
         # end while
+        if amount_to_open_sell > Decimal('0'):
+            self.remaining_amount_to_open_sell += amount_to_open_sell
+
         return sell_orders_to_open
 
     def execute_new_orders(self, new_intervals, buy_orders_to_open, sell_orders_to_open):
@@ -828,6 +624,14 @@ class LazyWhale:
         if amount_to_open_buy == amount_to_open_sell == Decimal('0'):
             return
 
+        if self.remaining_amount_to_open_buy > Decimal('0'):
+            amount_to_open_buy += self.remaining_amount_to_open_buy
+            self.remaining_amount_to_open_buy = Decimal('0')
+
+        if self.remaining_amount_to_open_sell > Decimal('0'):
+            amount_to_open_sell += self.remaining_amount_to_open_sell
+            self.remaining_amount_to_open_sell = Decimal('0')
+
         amount_buys = len(helper.get_indexes_buy_intervals(new_intervals))
         amount_sells = len(helper.get_indexes_sell_intervals(new_intervals))
 
@@ -851,35 +655,7 @@ class LazyWhale:
 
         self.intervals = self.execute_new_orders(new_intervals, buy_orders_to_open, sell_orders_to_open)
 
-    def compare_orders(self, new_open_orders):
-        """Compare between open order know by LW and buy order from the
-        marketplace.
-        """
-        self.log('compare_orders()')
-        executed_orders = {'sell': [], 'buy': []}
-        missing_orders = self.get_missing_orders(new_open_orders)
-
-        for side in self.sides:
-            if missing_orders[side]:
-                self.set_amounts(missing_orders)
-                executed_orders = self.execute_orders(side, new_open_orders, missing_orders, executed_orders)
-
-        self.log(f'compare_orders, missing_orders: {missing_orders} '
-                 f'executed_orders: {executed_orders}')
-        self.update_open_orders(missing_orders, executed_orders)
-        self.backup_spread_value(executed_orders)
-
-    def get_missing_orders(self, new_open_orders):
-        missing_orders = deepcopy(self.open_orders)
-
-        for side in self.sides:
-            for order in self.open_orders[side]:
-                rsp = any(new_order[0] == order[0] for new_order in new_open_orders[side])
-                if rsp:
-                    missing_orders[side].remove(order)
-
-        return missing_orders
-
+    # TODO: implement profit allocation
     def set_amounts(self, missing_orders):
         if missing_orders['buy']:
             for order in missing_orders['buy']:
@@ -889,6 +665,7 @@ class LazyWhale:
             for order in missing_orders['sell']:
                 self.amounts[self.intervals.index(order[1]) - 1] = self.set_buy_amount(order)
 
+    # TODO: implement profit allocation
     def set_buy_amount(self, order):
         if self.params['profits_alloc'] != 0:
             btc_won = convert.multiplier(order[1], self.params['amount'], self.fees_coef)
@@ -899,39 +676,6 @@ class LazyWhale:
                                         btc_to_spend) / self.intervals[self.intervals.index(order[1]) - 2])
         else:
             return self.params['amount']
-
-    def execute_orders(self, side, new_open_orders, missing_orders, executed_orders):
-        list_index = -1 if side == 'buy' else 0
-        coef = 1 if side == 'buy' else -1
-        opposite_side = 'sell' if side == 'buy' else 'buy'
-        api_call = self.connector.set_several_sell if side == 'buy' else self.connector.set_several_buy
-        self.log(f'{len(missing_orders[side])} {side}(s) has occurred',
-                 level='warning', slack=True, print_=True)
-        start_index = self.id_list.index(new_open_orders[side][list_index][0]) + convert.int_multiplier(2, coef)
-        target = start_index + convert.int_multiplier(len(missing_orders[side]), coef) - convert.int_multiplier(1, coef)
-        if side == 'sell':
-            start_index, target = target, start_index
-        self.log(f'start_index: {start_index}, target: {target}')
-        executed_orders[opposite_side] = api_call(start_index, target, self.amounts)
-
-        return executed_orders
-
-    def update_open_orders(self, missing_orders, executed_orders):
-        """Update self.open_orders with orders missing and executed orders.
-        missing_orders: dict, all the missing orders since the last LW cycle.
-        executed_order: dict, all the executed orders since the last LW cycle"""
-        self.log('update_open_orders()')
-        if executed_orders['buy']:
-            for order in missing_orders['sell']:
-                self.open_orders['sell'].remove(order)
-            for order in executed_orders['buy']:
-                self.open_orders['buy'].append(order)
-
-        if executed_orders['sell']:
-            for order in missing_orders['buy']:
-                self.open_orders['buy'].remove(order)
-            for i, order in enumerate(executed_orders['sell']):
-                self.open_orders['sell'].insert(i, order)
 
     def backup_spread_value(self):
         """Set correct spread bot and spread top depending on currently opened intervals"""
@@ -1023,154 +767,14 @@ class LazyWhale:
             nb_buy_intervals = len(helper.get_indexes_buy_intervals(self.intervals))
             nb_sell_intervals = len(helper.get_indexes_sell_intervals(self.intervals))
 
-    def limit_nb_orders(self):
-        """Cancel open orders if there is too many, open orders if there is
-        not enough of it"""
-        new_open_orders = self.remove_orders_off_strat(
-            self.connector.orders_price_ordering(
-                self.connector.get_orders(
-                    self.params['market'])))
-
-        nb_orders = self.how_much_buys(new_open_orders)
-        if nb_orders > self.params['nb_buy_to_display']:
-            self.cancel_some_buys(nb_orders, new_open_orders)
-
-        elif nb_orders < self.params['nb_buy_to_display']:
-            self.open_some_buys(nb_orders)
-
-        nb_orders = self.how_much_sells(new_open_orders)
-        if nb_orders > self.params['nb_sell_to_display']:
-            self.cancel_some_sells(nb_orders, new_open_orders)
-
-        elif nb_orders < self.params['nb_sell_to_display']:
-            self.open_some_sells(nb_orders)
-
-        self.log(f'self.open_orders: {self.open_orders}')
-
-    def how_much_buys(self, new_open_orders):
-        # Don't mess up if all buy orders have been filled during the cycle
-        if new_open_orders['buy']:
-            nb_orders = len(new_open_orders['buy'])
-            if new_open_orders['buy'][0][1] == self.safety_buy_value:
-                nb_orders -= 1
-        else:
-            nb_orders = 0
-
-        self.log(
-            f'nb_orders: {nb_orders}, params["nb_buy_to_display"]: '
-            f"{self.params['nb_buy_to_display']}")
-
-        return nb_orders
-
-    def cancel_some_buys(self, nb_orders, new_open_orders):
-        """When there is too much buy orders in the order book
-        nb_orders: int.
-        new_open_orders: dict.
-        return: dict."""
-        self.log(f'nb_orders > params["nb_buy_to_display"]')
-        # Care of the fake order
-        if not self.open_orders['buy'][0][0]:
-            del self.open_orders['buy'][0]
-
-        nb_orders -= self.params['nb_buy_to_display']
-
-        while nb_orders > 0:
-            self.connector.cancel_order(self.params['market'],
-                                        self.open_orders['buy'][0][0],
-                                        self.open_orders['buy'][0][1],
-                                        self.open_orders['buy'][0][4],
-                                        'buy')
-
-            # I consider that if there is a fucked up at this stage LW will crash
-            if self.open_orders['buy'][0][0] == new_open_orders['buy'][0][0]:
-                if new_open_orders['buy'][0][2] != self.params['amount']:
-                    # Amount should be saved in order to not open an order with
-                    # full amount. That could be costly during long range.
-                    self.amounts[self.id_list.index(new_open_orders['buy'][0][0])] = new_open_orders['buy'][0][2]
-                del new_open_orders['buy'][0]
-
-            del self.open_orders['buy'][0]
-            nb_orders -= 1
-
-    def open_some_buys(self, nb_orders):
-        """When there is not enough buy order in the order book
-        Ignore if the bottom of the range is reached. It's value is None"""
-        if self.open_orders['buy'][0][2]:
-            self.log(
-                f"{self.open_orders['buy'][0][1]} > {self.intervals[1]}")
-            # Set the range of buy orders to create
-            target = self.intervals.index(self.open_orders['buy'][0][1]) - 1
-            start_index = target - self.params['nb_buy_to_display'] \
-                          + len(self.open_orders['buy']) + 1
-            if start_index <= 1:
-                start_index = 1
-            self.log(f'start_index: {start_index}, target: {target}')
-
-            orders = self.connector.set_several_buy(start_index, target, self.amounts)
-            for i, order in enumerate(orders):
-                self.open_orders['buy'].insert(i, order)
-
-    def how_much_sells(self, new_open_orders):
-        """Don't mess up if all sell orders have been filled during the cycle"""
-        if new_open_orders['sell']:
-            nb_orders = len(new_open_orders['sell'])
-            if new_open_orders['sell'][-1][1] == self.safety_sell_value:
-                nb_orders -= 1
-
-        else:
-            nb_orders = 0
-
-        self.log(
-            f'nb_orders: {nb_orders}; params["nb_sell_to_display"]: '
-            f"{self.params['nb_sell_to_display']}")
-
-        return nb_orders
-
-    def cancel_some_sells(self, nb_orders, new_open_orders):
-        """When there is too much sell orders in the order book
-        Care of fake order"""
-        if not self.open_orders['sell'][-1][0]:
-            del self.open_orders['sell'][-1]
-        nb_orders -= self.params['nb_sell_to_display']
-        self.log(f'nb_orders to delete: {nb_orders}')
-        while nb_orders > 0:
-            self.connector.cancel_order(self.params['market'],
-                                        self.open_orders['sell'][-1][0],
-                                        self.open_orders['sell'][-1][1],
-                                        self.open_orders['sell'][-1][4],
-                                        'sell')
-
-            if self.open_orders['sell'][-1][0] == new_open_orders['sell'][-1][0]:
-                if new_open_orders['sell'][-1][2] != self.params['amount']:
-                    self.amounts[self.id_list.index(new_open_orders['sell'][-1][0])] = new_open_orders['sell'][-1][2]
-
-                del new_open_orders['sell'][-1]
-
-            del self.open_orders['sell'][-1]
-            nb_orders -= 1
-
-    def open_some_sells(self, nb_orders):
-        """When there is not enough sell order in the order book
-        Ignore if the top of the range is reached"""
-        if self.open_orders['sell'][-1][0]:
-            # Set the range of sell orders to create
-            start_index = self.intervals.index(
-                self.open_orders['sell'][-1][1]) + 1
-            target = start_index + self.params['nb_sell_to_display'] \
-                     - len(self.open_orders['sell']) - 1
-            if target > len(self.intervals) - 2:
-                target = len(self.intervals) - 2
-
-            self.log(f'start_index: {start_index}, target: {target}')
-            if target > self.max_sell_index:
-                target = self.max_sell_index
-
-            orders = self.connector.set_several_sell(start_index, target, self.amounts)
-            for order in orders:
-                self.open_orders['sell'].append(order)
-
     def check_intervals_equal(self, new_intervals):
         return self.intervals == new_intervals
+
+    def set_min_amount(self):
+        """In crypto there is a minimal value for each order to open
+        Due to this - lets calculate minimal amount for order to open"""
+        lowest_price = self.intervals[0].get_bottom()
+        self.min_amount = convert.divider(config.MIN_VALUE_ORDER, lowest_price)
 
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.

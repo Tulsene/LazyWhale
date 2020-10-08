@@ -29,8 +29,6 @@ class APIManager:
         self.empty_intervals = []
         self.market = ''
         self.profits_alloc = 0
-        # # TODO: this is quick fix of a bug with not correct order consuming on zebitex api (impossible to fix from code)
-        # self.min_amount_value_order = Decimal('0.00000003')
 
     def set_zebitex(self, keys, network):
         if network == 'zebitex_testnet':

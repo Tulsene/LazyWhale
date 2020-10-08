@@ -30,7 +30,7 @@ class AnotherUserTests(TestCase):
                   "increment_coef": Decimal('1.0102'),
                   "spread_bot": 3,
                   "spread_top": 6,
-                  "amount": Decimal('0.2'),
+                  "amount": Decimal('0.02'),
                   "stop_at_bot": True,
                   "stop_at_top": True,
                   "nb_buy_to_display": 3,
@@ -91,7 +91,7 @@ class AnotherUserTests(TestCase):
         for i in range(self.lazy_whale.params['spread_top'], len(self.intervals)):
             orders_to_open = self.intervals[i].generate_orders_by_amount(self.lazy_whale.params['amount']
                                                                          + self.epsilon_amount,
-                                                                         Decimal('0'), 2)
+                                                                         self.lazy_whale.min_amount, 2)
             self.user.create_limit_buy_order(self.market, orders_to_open[0]['amount'],
                                              self.intervals[i].get_top())
             self.lazy_whale.main_cycle()
@@ -116,7 +116,7 @@ class AnotherUserTests(TestCase):
         for i in range(self.lazy_whale.params['spread_bot'], -1, -1):
             orders_to_open = self.intervals[i].generate_orders_by_amount(self.lazy_whale.params['amount']
                                                                          + self.epsilon_amount,
-                                                                         Decimal('0'), 2)
+                                                                         self.lazy_whale.min_amount, 2)
             self.user.create_limit_sell_order(self.market, orders_to_open[0]['amount'],
                                               self.intervals[i].get_bottom())
             self.lazy_whale.main_cycle()
@@ -145,7 +145,7 @@ class AnotherUserTests(TestCase):
         for i in range(iterations):
             orders_to_open = self.intervals[0] \
                 .generate_orders_by_amount(multiplier(Decimal('4'), self.lazy_whale.params['amount'])
-                                           + self.epsilon_amount, Decimal('0'), 2)
+                                           + self.epsilon_amount, self.lazy_whale.min_amount, 2)
             self.user.create_limit_buy_order(self.market,
                                              orders_to_open[0]['amount'],
                                              self.intervals[spr_top + 4 * (i + 1) - 1].get_top())
@@ -175,7 +175,7 @@ class AnotherUserTests(TestCase):
         for i in range(iterations):
             orders_to_open = self.intervals[0] \
                 .generate_orders_by_amount(multiplier(Decimal('4'), self.lazy_whale.params['amount'])
-                                           + self.epsilon_amount, Decimal('0'), 2)
+                                           + self.epsilon_amount, self.lazy_whale.min_amount, 2)
             self.user.create_limit_sell_order(self.market,
                                               orders_to_open[0]['amount'],
                                               self.intervals[spr_bot - 4 * (i + 1) + 1].get_bottom())
@@ -251,6 +251,7 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.params['spread_top'] = 9
         self.lazy_whale.params['nb_buy_to_display'] = 3
         self.lazy_whale.params['nb_sell_to_display'] = 3
+        self.lazy_whale.params['amount'] = Decimal('0.02')
         spr_bot = self.lazy_whale.params['spread_bot']
         spr_top = self.lazy_whale.params['spread_top']
 

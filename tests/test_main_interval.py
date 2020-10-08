@@ -8,7 +8,7 @@ from main.order import Order
 
 class IntervalTests(TestCase):
     def setUp(self):
-        self.interval = Interval(Decimal(0.01), Decimal(0.015), Decimal(0.1), Decimal(0.1))
+        self.interval = Interval(Decimal(0.01), Decimal(0.015))
         self.order1 = Order('1', Decimal('0.011'), Decimal('0.01'), 'buy/sell', "1", "_")
         self.order2 = Order('2', Decimal('0.014'), Decimal('0.014'), 'buy/sell', "1", "_")
         self.order3 = Order('3', Decimal('0.012'), Decimal('0.012'), 'buy/sell', "1", "_")
@@ -40,8 +40,7 @@ class IntervalTests(TestCase):
 
     def test_equal_interval(self):
         """Tests that the interval with all same attributes are the same"""
-        same_interval = Interval(self.interval.get_bottom(), self.interval.get_top(),
-                                 self.interval.get_buy_sum_amount(), self.interval.get_sell_sum_amount())
+        same_interval = Interval(self.interval.get_bottom(), self.interval.get_top())
         self.assertEqual(same_interval, self.interval)
 
     def test_generate_orders_by_amount(self):

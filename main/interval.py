@@ -4,7 +4,6 @@ from decimal import Decimal
 from main.order import Order
 from utils.checkers import is_equal_decimal
 import config.config as config
-from utils.converters import multiplier
 
 
 def get_random_decimal(bot, top):
@@ -12,11 +11,9 @@ def get_random_decimal(bot, top):
 
 
 class Interval:
-    def __init__(self, bottom: Decimal, top: Decimal, buy_sum_amount: Decimal = None, sell_sum_amount: Decimal = None):
+    def __init__(self, bottom: Decimal, top: Decimal):
         self.__bottom = bottom
         self.__top = top
-        self.__buy_sum_amount = buy_sum_amount
-        self.__sell_sum_amount = sell_sum_amount
         self.__buy_orders = []
         self.__sell_orders = []
 
@@ -85,12 +82,6 @@ class Interval:
     def get_top(self) -> Decimal:
         return self.__top
 
-    def get_buy_sum_amount(self) -> Decimal:
-        return self.__sell_sum_amount
-
-    def get_sell_sum_amount(self) -> Decimal:
-        return self.__buy_sum_amount
-
     def get_buy_orders_amount(self) -> Decimal:
         """Calculate amount of existing orders in interval
          use_filled - with calculating part of filled orders or with all orders"""
@@ -131,9 +122,7 @@ class Interval:
     def __eq__(self, other):
         return self.__bottom == other.__bottom and self.__top == other.__top \
                and self.__buy_orders == other.get_buy_orders() \
-               and self.__sell_orders == other.get_sell_orders() \
-               and self.__buy_sum_amount == other.get_buy_sum_amount() \
-               and self.__sell_sum_amount == other.get_sell_sum_amount()
+               and self.__sell_orders == other.get_sell_orders()
 
     def __str__(self):
         str_interval = f"Interval({self.__bottom}, {self.__top})"

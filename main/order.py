@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from utils.checkers import is_equal_decimal
-from utils.converters import multiplier, quantizator
+from utils.converters import multiplier
 import config.config as config
 
 
