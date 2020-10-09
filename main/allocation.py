@@ -1,12 +1,13 @@
 from decimal import Decimal
 from abc import ABC, abstractmethod
 
+from main.interval import Interval
 from utils.converters import divider, quantizator
 
 
 def calculate_exponential_coefficient(y1, x2, y2):
     """For simplicity: x1 = 0"""
-    return quantizator((y2 / y1) ** (1 / x2))
+    return quantizator((y2 / y1) ** (Decimal('1') / x2))
 
 
 def exponent(linear_coefficient, exponential_coefficient, power):
@@ -14,65 +15,96 @@ def exponent(linear_coefficient, exponential_coefficient, power):
     return quantizator(linear_coefficient * (exponential_coefficient ** power))
 
 
+def generate_empty_benefits(intervals_count: int):
+    return [Benefit(Decimal('0'), Decimal('0')) for _ in range(intervals_count)]
+
+
+def generate_benefits_by_intervals(intervals: [Interval], profit_allocation: Decimal, fees: Decimal, amount: Decimal):
+    benefits = generate_empty_benefits(len(intervals))
+    for i in range(3, len(intervals)):
+        benefits[i - 3].max_benefit = quantizator((intervals[i].get_bottom() - intervals[i - 3].get_top()) * amount
+                                                  * profit_allocation * (Decimal('1') - fees) * (Decimal('1') - fees))
+
+    return benefits
+
+
+class Benefit:
+    def __init__(self, actual_benefit, max_benefit):
+        self.actual_benefit = actual_benefit
+        self.max_benefit = max_benefit
+
+    def __str__(self):
+        return f"Benefit(actual_benefit = {self.actual_benefit}, max_benefit = {self.max_benefit})"
+
+    def __repr__(self):
+        return str(self)
+
+
 class AbstractAllocation(ABC):
+    def __init__(self, benefits: [Benefit]):
+        self.benefits = benefits
+
     @abstractmethod
-    def get_amount(self, interval_index: int = 0, side: str = 'none', additional_amount: Decimal = Decimal('0'))\
-            -> Decimal:
+    def get_amount(self, interval_index: int = 0, side: str = 'none') -> Decimal:
         """Will be implemented in subclasses:
         function to calculate correct amount of MANA for each interval"""
         pass
 
 
 class NoSpecificAllocation(AbstractAllocation):
-    def __init__(self, constant_amount):
+    def __init__(self, constant_amount: Decimal, intervals_count: int):
+        super().__init__(generate_empty_benefits(intervals_count))
         self.amount = constant_amount
 
-    def get_amount(self, interval_index: int = 0, side: str = 'none', additional_amount: Decimal = Decimal('0')):
+    def get_amount(self, interval_index: int = 0, side: str = 'none'):
         """Just simply returns the same amount for each interval"""
         return self.amount
 
 
 class LinearAllocation(AbstractAllocation):
     def __init__(self, min_amount: Decimal, max_amount: Decimal, intervals_count: int, start_index: int = 0):
+        super().__init__(generate_empty_benefits(intervals_count))
         self.min_amount = min_amount
-        self.linear_coefficient = divider(max_amount - min_amount, intervals_count - start_index)
+        self.linear_coefficient = divider(max_amount - min_amount, intervals_count - start_index - 1)
         self.start_index = start_index
 
-    def get_amount(self, interval_index: int = 0, side: str = 'none', additional_amount: Decimal = Decimal('0')):
+    def get_amount(self, interval_index: int = 0, side: str = 'none'):
         """Linear coefficient makes such computations, that:
         if interval_index = 0 - return min_amount,
         if interval_index = len(intervals) - return max_amount"""
         if side == 'buy' or interval_index < self.start_index:
             return self.min_amount
 
-        return self.min_amount + self.linear_coefficient * interval_index
+        return self.min_amount + self.linear_coefficient * (interval_index - self.start_index)
 
 
 class CurvedAllocation(AbstractAllocation):
     def __init__(self, min_amount: Decimal, max_amount: Decimal, intervals_count: int, start_index: int = 0):
+        super().__init__(generate_empty_benefits(intervals_count))
         self.min_amount = min_amount
-        self.exponent_coefficient = calculate_exponential_coefficient(min_amount, intervals_count - start_index,
+        self.exponent_coefficient = calculate_exponential_coefficient(min_amount, intervals_count - start_index - 1,
                                                                       max_amount)
         self.start_index = start_index
 
-    def get_amount(self, interval_index: int = 0, side: str = 'none', additional_amount: Decimal = Decimal('0')):
+    def get_amount(self, interval_index: int = 0, side: str = 'none'):
         if side == 'buy' or interval_index < self.start_index:
             return self.min_amount
 
-        return exponent(self.min_amount, self.exponent_coefficient, interval_index)
+        return exponent(self.min_amount, self.exponent_coefficient, interval_index - self.start_index)
 
 
-class CurvedLinearAllocation(AbstractAllocation):
+class LinearCurvedAllocation(AbstractAllocation):
     def __init__(self, lowest_interval_amount: Decimal, middle_interval_amount: Decimal,
                  highest_interval_amount: Decimal, intervals_count: int):
+        super().__init__(generate_empty_benefits(intervals_count))
         self.middle_amount = middle_interval_amount
         self.middle_point = intervals_count // 2
-        self.buy_exponent_coefficient\
+        self.buy_exponent_coefficient \
             = calculate_exponential_coefficient(middle_interval_amount, self.middle_point, lowest_interval_amount)
-        self.sell_exponent_coefficient\
+        self.sell_exponent_coefficient \
             = calculate_exponential_coefficient(middle_interval_amount, self.middle_point, highest_interval_amount)
 
-    def get_amount(self, interval_index: int = 0, side: str = 'none', additional_amount: Decimal = Decimal('0')):
+    def get_amount(self, interval_index: int = 0, side: str = 'none'):
         if side == 'buy':
             if interval_index >= self.middle_point:
                 return self.middle_amount
@@ -89,13 +121,16 @@ class CurvedLinearAllocation(AbstractAllocation):
             return self.middle_amount
 
 
-# TODO: implement this
 class ProfitAllocation(AbstractAllocation):
-    def __init__(self, amount: Decimal):
-        pass
+    def __init__(self, intervals: [Interval], profit_allocation_percent: int, fees: Decimal, amount: Decimal):
+        super().__init__(generate_benefits_by_intervals(intervals, Decimal('1') / profit_allocation_percent,
+                                                        fees, amount))
+        self.profit_allocation = Decimal('1') / profit_allocation_percent
+        self.amount = amount
 
-    def get_amount(self, interval_index: int = 0, side: str = 'none',
-                   additional_amount: Decimal = Decimal('0')):
-        pass
-
-
+    def get_amount(self, interval_index: int = 0, side: str = 'none'):
+        if side == 'buy':
+            return max(self.amount + self.benefits[interval_index].actual_benefit,
+                       self.amount + self.benefits[interval_index].max_benefit)
+        else:
+            return self.amount
