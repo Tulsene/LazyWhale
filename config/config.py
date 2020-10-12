@@ -11,3 +11,11 @@ DECIMAL_PRECISION = 8
 
 # Use Decimal('0.001') or near for deploy purpose, but Decimal('1E-5') for testing
 MIN_VALUE_ORDER = Decimal('0.00001')
+
+# to calculate max_amount for linear/curved allocation
+MAX_AMOUNT_COEFFICIENT = Decimal('2')
+
+# to calculate lowest, middle and highest amount for linear/curved allocation
+LOWEST_AMOUNT_COEFFICIENT = Decimal('1')
+MIDDLE_AMOUNT_COEFFICIENT = Decimal('0.8')
+HIGHEST_AMOUNT_COEFFICIENT = Decimal('1.2')

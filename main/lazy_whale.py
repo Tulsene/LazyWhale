@@ -8,6 +8,8 @@ import ccxt
 
 import utils.helpers as helper
 import utils.converters as convert
+from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAllocation, LinearCurvedAllocation, \
+    ProfitAllocation, AbstractAllocation
 from main.interval import Interval
 from main.order import Order
 from ui.user_interface import UserInterface
@@ -47,6 +49,7 @@ class LazyWhale:
         self.min_amount = Decimal('0')
         self.remaining_amount_to_open_buy = Decimal('0')
         self.remaining_amount_to_open_sell = Decimal('0')
+        self.allocation = None
 
     def keys_initialisation(self):
         """Check if a key.json file exist and create one if none.
@@ -280,7 +283,7 @@ class LazyWhale:
         for interval_idx in reversed(range(lowest_interval, self.params['spread_bot'] + 1)):
             if not is_equal_decimal(existing_intervals[interval_idx].get_buy_orders_amount()
                                     + existing_intervals[interval_idx + 2].get_sell_orders_amount(),
-                                    self.params['amount']):
+                                    self.allocation.get_amount(interval_index=interval_idx, side='buy')):
 
                 # TODO: redo here canceling all orders
                 if existing_intervals[interval_idx].get_buy_orders():
@@ -288,14 +291,15 @@ class LazyWhale:
 
                 opened_buy.extend(self.connector.set_several_buy(
                     self.intervals[interval_idx]
-                        .generate_orders_by_amount(self.params['amount'], self.min_amount,
+                        .generate_orders_by_amount(self.allocation.get_amount(interval_index=interval_idx, side='buy'),
+                                                   self.min_amount,
                                                    self.params['orders_per_interval'])
                 ))
 
         for interval_idx in range(self.params['spread_top'], highest_interval + 1):
             if not is_equal_decimal(existing_intervals[interval_idx].get_sell_orders_amount()
                                     + existing_intervals[interval_idx - 2].get_buy_orders_amount(),
-                                    self.params['amount']):
+                                    self.allocation.get_amount(interval_index=interval_idx, side='sell')):
 
                 # TODO: redo here canceling all orders
                 if existing_intervals[interval_idx].get_sell_orders():
@@ -303,7 +307,8 @@ class LazyWhale:
 
                 opened_sell.extend(self.connector.set_several_sell(
                     self.intervals[interval_idx]
-                        .generate_orders_by_amount(self.params['amount'], self.min_amount,
+                        .generate_orders_by_amount(self.allocation.get_amount(interval_index=interval_idx, side='sell'),
+                                                   self.min_amount,
                                                    self.params['orders_per_interval'])
                 ))
 
@@ -334,7 +339,7 @@ class LazyWhale:
         index = lowest_buy_index - 1
         while index >= 0:
             buy_sum += convert.divider(
-                convert.multiplier(self.params['amount'],
+                convert.multiplier(self.allocation.get_amount(interval_index=index, side='buy'),
                                    self.intervals[index].get_top()),
                 self.safety_buy_value)
             index -= 1
@@ -349,7 +354,7 @@ class LazyWhale:
         index = highest_sell_index + 1
 
         while index < len(self.intervals):
-            sell_sum += self.params['amount']
+            sell_sum += self.allocation.get_amount(interval_index=index, side='sell')
             index += 1
 
         self.log(f'sell_sum: {sell_sum}, highest_sell_index: '
@@ -441,8 +446,14 @@ class LazyWhale:
 
         while interval_index < len(new_intervals):
             if self.intervals[interval_index] != new_intervals[interval_index]:
-                amount_to_open_sell += helper.get_amount_to_open(self.intervals[interval_index].get_buy_orders(),
-                                                                 new_intervals[interval_index].get_buy_orders())
+                amount_consumed_buy = helper.get_amount_to_open(self.intervals[interval_index].get_buy_orders(),
+                                                                new_intervals[interval_index].get_buy_orders())
+                amount_to_open_sell += amount_consumed_buy
+
+                if isinstance(self.allocation, ProfitAllocation):
+                    if amount_consumed_buy > self.allocation.amount:
+                        self.allocation.benefits[interval_index] \
+                            .subtract_actual_benefit(amount_consumed_buy - self.allocation.amount)
 
                 amount_to_open_buy += helper.get_amount_to_open(self.intervals[interval_index].get_sell_orders(),
                                                                 new_intervals[interval_index].get_sell_orders())
@@ -451,20 +462,14 @@ class LazyWhale:
 
         return amount_to_open_buy, amount_to_open_sell
 
-    def generate_orders_to_open(self, index, existing_amount, amount_to_open) -> [Order]:
-        """Generates orders by index and amount to open"""
-        return self.intervals[index].generate_orders_by_amount(min(self.params['amount'],
-                                                                   existing_amount + amount_to_open),
-                                                               self.min_amount,
-                                                               self.params['orders_per_interval'])
-
     def get_spread_bot(self, intervals: [Interval]) -> int:
         """Returns highest buy interval with amount >= params['amount']"""
         buy_indexes = helper.get_indexes_buy_intervals(intervals)
 
         for index in reversed(buy_indexes):
-            if intervals[index].get_buy_orders_amount() > self.params['amount'] \
-                    or is_equal_decimal(intervals[index].get_buy_orders_amount(), self.params['amount']):
+            if intervals[index].get_buy_orders_amount() > self.allocation.get_amount(index, 'buy') \
+                    or is_equal_decimal(intervals[index].get_buy_orders_amount(),
+                                        self.allocation.get_amount(index, 'buy')):
                 return index
 
         # fail safe
@@ -478,8 +483,9 @@ class LazyWhale:
         """Returns lowest sell interval with amount >= params['amount']"""
         sell_indexes = helper.get_indexes_sell_intervals(intervals)
         for index in sell_indexes:
-            if intervals[index].get_sell_orders_amount() > self.params['amount'] \
-                    or is_equal_decimal(intervals[index].get_sell_orders_amount(), self.params['amount']):
+            if intervals[index].get_sell_orders_amount() > self.allocation.get_amount(index, 'sell') \
+                    or is_equal_decimal(intervals[index].get_sell_orders_amount(),
+                                        self.allocation.get_amount(index, 'sell')):
                 return index
 
         # fail safe
@@ -491,7 +497,7 @@ class LazyWhale:
 
     def where_to_open_buys(self, new_intervals: [Interval], amount_to_open_buy: Decimal):
         """Decide, depending on amount_to_open and new_intervals, where to open intervals"""
-        buy_orders_to_open = []
+        buy_intervals_to_open = []
         buy_indexes = helper.get_indexes_buy_intervals(new_intervals)
         buy_step = 1
         if buy_indexes:
@@ -504,49 +510,54 @@ class LazyWhale:
             else:
                 highest_buy_index = self.params['spread_bot']
 
-            # TODO: implement dynamic amount
-            last_interval_amount = amount_to_open_buy - self.params['nb_buy_to_display'] * self.params['amount']
-            if last_interval_amount > convert.multiplier(self.min_amount, self.params['orders_per_interval']):
-                buy_orders_to_open.extend(self.intervals[highest_buy_index + 1]
-                                          .generate_orders_by_amount(last_interval_amount,
-                                                                     self.min_amount,
-                                                                     self.params['orders_per_interval']))
-                amount_to_open_buy -= last_interval_amount
-            elif last_interval_amount > Decimal('0'):
-                self.remaining_amount_to_open_buy += last_interval_amount
-                amount_to_open_buy -= last_interval_amount
-
+        intervals_opened_counter = 0
         while amount_to_open_buy > convert.multiplier(self.min_amount, self.params['orders_per_interval']):
             # fail safe, if interval will go so high
             if highest_buy_index >= len(new_intervals):
                 self.when_top_is_reached()
+
             # fail safe, if interval will go so low
-            elif highest_buy_index < 0:
-                if not buy_indexes:
-                    highest_buy_index = self.params['spread_bot']
-                    buy_step *= -1
+            elif highest_buy_index < 0 and not buy_indexes:
+                highest_buy_index = self.params['spread_bot']
+                buy_step *= -1
+
+            # if opened more that enough, when there were no more buy_indexes
+            elif intervals_opened_counter >= self.params['nb_buy_to_display'] and not buy_indexes:
+                index_to_open = max(self.params['spread_bot'], highest_buy_index) + 1
+                amount_to_open = min(self.allocation.get_amount(index_to_open, 'buy'), amount_to_open_buy)
+                buy_intervals_to_open.append({
+                    "interval_index": index_to_open,
+                    "amount": amount_to_open,
+                })
+                amount_to_open_buy -= amount_to_open
+
+            # main purpose - when each order just at correct position
             else:
-                # TODO: implement dynamic amount
                 highest_buy_amount = new_intervals[highest_buy_index].get_buy_orders_amount()
-                missing_amount = self.params['amount'] - highest_buy_amount
+                missing_amount = self.allocation.get_amount(highest_buy_index, 'buy') - highest_buy_amount
                 if missing_amount > Decimal('0'):
                     self.cancel_buy_interval_by_index(new_intervals, highest_buy_index)
-                    buy_orders_to_open.extend(
-                        self.generate_orders_to_open(highest_buy_index,
-                                                     highest_buy_amount, amount_to_open_buy))
+                    amount_to_open = min(self.allocation.get_amount(highest_buy_index, 'buy'),
+                                         highest_buy_amount + amount_to_open_buy)
+                    buy_intervals_to_open.append({
+                        "interval_index": highest_buy_index,
+                        "amount": amount_to_open,
+                    })
+
                     amount_to_open_buy -= missing_amount
 
             highest_buy_index += buy_step
+            intervals_opened_counter += 1
 
         # end while
         if amount_to_open_buy > Decimal('0'):
             self.remaining_amount_to_open_buy += amount_to_open_buy
 
-        return buy_orders_to_open
+        return buy_intervals_to_open
 
     def where_to_open_sells(self, new_intervals: [Interval], amount_to_open_sell: Decimal):
         """Decide, depending on amount_to_open and new_intervals, where to open intervals"""
-        sell_orders_to_open = []
+        sell_intervals_to_open = []
         sell_indexes = helper.get_indexes_sell_intervals(new_intervals)
         sell_step = -1
         if sell_indexes:
@@ -559,47 +570,81 @@ class LazyWhale:
             else:
                 lowest_sell_index = self.params['spread_top']
 
-            # TODO: implement dynamic amount
-            last_interval_amount = amount_to_open_sell - self.params['nb_sell_to_display'] * self.params['amount']
-            if last_interval_amount > convert.multiplier(self.min_amount, self.params['orders_per_interval']):
-                sell_orders_to_open.extend(
-                    self.intervals[lowest_sell_index - 1].generate_orders_by_amount(last_interval_amount,
-                                                                                    self.min_amount,
-                                                                                    self.params['orders_per_interval']))
-                amount_to_open_sell -= last_interval_amount
-            elif last_interval_amount > Decimal('0'):
-                self.remaining_amount_to_open_sell += last_interval_amount
-                amount_to_open_sell -= last_interval_amount
-
+        intervals_opened_counter = 0
         while amount_to_open_sell > convert.multiplier(self.min_amount, self.params['orders_per_interval']):
             # fail safe, if interval will go so low
             if lowest_sell_index < 0:
                 self.when_bottom_is_reached()
+
             # fail safe, if interval will go so high
-            elif lowest_sell_index >= len(self.intervals):
-                if not sell_indexes:
-                    lowest_sell_index = self.params['spread_top']
-                    sell_step *= -1
+            elif lowest_sell_index >= len(self.intervals) and not sell_indexes:
+                lowest_sell_index = self.params['spread_top']
+                sell_step *= -1
+
+            # if opened more that enough, when there were no more sell_indexes
+            elif intervals_opened_counter >= self.params['nb_buy_to_display'] and not sell_indexes:
+                index_to_open = min(self.params['spread_top'], lowest_sell_index) - 1
+                amount_to_open = min(self.allocation.get_amount(index_to_open, 'sell'), amount_to_open_sell)
+                sell_intervals_to_open.append({
+                    "interval_index": index_to_open,
+                    "amount": amount_to_open,
+                })
+                amount_to_open_sell -= amount_to_open
+
+            # main purpose - when each order just at correct position
             else:
-                # TODO: implement dynamic amount
                 lowest_sell_amount = new_intervals[lowest_sell_index].get_sell_orders_amount()
-                missing_amount = self.params['amount'] - lowest_sell_amount
+                missing_amount = self.allocation.get_amount(lowest_sell_index, 'sell') - lowest_sell_amount
                 if missing_amount > Decimal('0'):
                     # cancel existing orders
                     self.cancel_sell_interval_by_index(new_intervals, lowest_sell_index)
-
-                    sell_orders_to_open.extend(
-                        self.generate_orders_to_open(lowest_sell_index,
-                                                     lowest_sell_amount, amount_to_open_sell))
+                    amount_to_open = min(self.allocation.get_amount(lowest_sell_index, 'sell'),
+                                         lowest_sell_amount + amount_to_open_sell)
+                    sell_intervals_to_open.append({
+                        "interval_index": lowest_sell_index,
+                        "amount": amount_to_open,
+                    })
                     amount_to_open_sell -= missing_amount
 
             lowest_sell_index += sell_step
+            intervals_opened_counter += 1
 
         # end while
         if amount_to_open_sell > Decimal('0'):
             self.remaining_amount_to_open_sell += amount_to_open_sell
 
-        return sell_orders_to_open
+        return sell_intervals_to_open
+
+    def update_benefits(self, buy_intervals_to_open: [dict]) -> None:
+        """Set benefits for profit allocation for intervals to open, changes amount due to profit rules
+        buy_intervals_to_open: {
+            'interval_index': index,
+            'amount': amount,
+        }
+        """
+        assert isinstance(self.allocation, ProfitAllocation)
+        for interval in buy_intervals_to_open:
+            prev_actual_benefit = self.allocation.benefits[interval['interval_index']].get_actual_benefit()
+            self.allocation.set_benefit(interval['interval_index'], interval['amount'])
+            additional_benefit = self.allocation.benefits[interval['interval_index']] \
+                                     .get_actual_benefit() - prev_actual_benefit
+            interval['amount'] += additional_benefit
+
+    def prepare_orders(self, intervals: [dict]) -> [Order]:
+        """Prepare orders for opening
+        intervals: {
+            'interval_index': index,
+            'amount': amount,
+        }
+        """
+        orders = []
+        for interval in intervals:
+            orders.extend(self.intervals[interval['interval_index']]
+                          .generate_orders_by_amount(interval['amount'],
+                                                     self.min_amount,
+                                                     self.params['orders_per_interval']))
+
+        return orders
 
     def execute_new_orders(self, new_intervals, buy_orders_to_open, sell_orders_to_open):
         """Open orders saved them in new_intervals and return new_intervals"""
@@ -637,45 +682,36 @@ class LazyWhale:
 
         # some cheats to use things, that spread_bot - spread_top = 3
         if amount_buys > 0 and amount_sells > 0:
-            buy_orders_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
-            sell_orders_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+            buy_intervals_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
+            sell_intervals_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+
         elif amount_buys > 0:
-            buy_orders_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
+            buy_intervals_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
+            if isinstance(self.allocation, ProfitAllocation):
+                self.update_benefits(buy_intervals_to_open)
+
+            buy_orders_to_open = self.prepare_orders(buy_intervals_to_open)
             self.execute_new_orders(new_intervals, buy_orders_to_open, [])
-            buy_orders_to_open = []
-            sell_orders_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+            buy_intervals_to_open = []
+            sell_intervals_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+
         elif amount_sells > 0:
-            sell_orders_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+            sell_intervals_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+            sell_orders_to_open = self.prepare_orders(sell_intervals_to_open)
             self.execute_new_orders(new_intervals, [], sell_orders_to_open)
-            sell_orders_to_open = []
-            buy_orders_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
-        else:
-            sell_orders_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
-            buy_orders_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
+            sell_intervals_to_open = []
+            buy_intervals_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
 
+        else:
+            sell_intervals_to_open = self.where_to_open_sells(new_intervals, amount_to_open_sell)
+            buy_intervals_to_open = self.where_to_open_buys(new_intervals, amount_to_open_buy)
+
+        if isinstance(self.allocation, ProfitAllocation):
+            self.update_benefits(buy_intervals_to_open)
+
+        buy_orders_to_open = self.prepare_orders(buy_intervals_to_open)
+        sell_orders_to_open = self.prepare_orders(sell_intervals_to_open)
         self.intervals = self.execute_new_orders(new_intervals, buy_orders_to_open, sell_orders_to_open)
-
-    # TODO: implement profit allocation
-    def set_amounts(self, missing_orders):
-        if missing_orders['buy']:
-            for order in missing_orders['buy']:
-                self.amounts[self.intervals.index(order[1]) + 1] = self.params['amount']
-
-        if missing_orders['sell']:
-            for order in missing_orders['sell']:
-                self.amounts[self.intervals.index(order[1]) - 1] = self.set_buy_amount(order)
-
-    # TODO: implement profit allocation
-    def set_buy_amount(self, order):
-        if self.params['profits_alloc'] != 0:
-            btc_won = convert.multiplier(order[1], self.params['amount'], self.fees_coef)
-            btc_to_spend = convert.multiplier(self.intervals[self.intervals.index(order[1]) - 2],
-                                              self.params['amount'], self.fees_coef)
-            return convert.quantizator(((btc_won - btc_to_spend) *
-                                        self.params['profits_alloc'] / Decimal('100') +
-                                        btc_to_spend) / self.intervals[self.intervals.index(order[1]) - 2])
-        else:
-            return self.params['amount']
 
     def backup_spread_value(self):
         """Set correct spread bot and spread top depending on currently opened intervals"""
@@ -714,11 +750,15 @@ class LazyWhale:
         if len(buy_indexes) > 0:
             if buy_indexes[0] - 1 >= 0:
                 buy_orders = self.connector.set_several_buy(
-                    self.intervals[buy_indexes[0] - 1].generate_orders_by_amount(self.params['amount'], self.min_amount)
+                    self.intervals[buy_indexes[0] - 1]
+                        .generate_orders_by_amount(self.allocation.get_amount(buy_indexes[0] - 1, 'buy'),
+                                                   self.min_amount)
                 )
         elif len(sell_indexes) >= 0 and sell_indexes[0] - 3 >= 0:
             buy_orders = self.connector.set_several_buy(
-                self.intervals[sell_indexes[0] - 3].generate_orders_by_amount(self.params['amount'], self.min_amount)
+                self.intervals[sell_indexes[0] - 3]
+                    .generate_orders_by_amount(self.allocation.get_amount(sell_indexes[0] - 3, 'buy'),
+                                               self.min_amount)
             )
 
         helper.populate_intervals(self.intervals, buy_orders)
@@ -731,12 +771,15 @@ class LazyWhale:
         if len(sell_indexes) > 0:
             if sell_indexes[-1] + 1 < len(self.intervals):
                 sell_orders = self.connector.set_several_sell(
-                    self.intervals[sell_indexes[-1] + 1].generate_orders_by_amount(self.params['amount'],
-                                                                                   self.min_amount)
+                    self.intervals[sell_indexes[-1] + 1]
+                        .generate_orders_by_amount(self.allocation.get_amount(sell_indexes[-1] + 1, 'sell'),
+                                                   self.min_amount)
                 )
         elif len(buy_indexes) >= 0 and buy_indexes[-1] + 3 < len(self.intervals):
             sell_orders = self.connector.set_several_sell(
-                self.intervals[buy_indexes[-1] + 3].generate_orders_by_amount(self.params['amount'], self.min_amount)
+                self.intervals[buy_indexes[-1] + 3]
+                    .generate_orders_by_amount(self.allocation.get_amount(buy_indexes[-1] + 3, 'sell'),
+                                               self.min_amount)
             )
         helper.populate_intervals(self.intervals, sell_orders)
 
@@ -776,6 +819,29 @@ class LazyWhale:
         lowest_price = self.intervals[0].get_bottom()
         self.min_amount = convert.divider(config.MIN_VALUE_ORDER, lowest_price)
 
+    def choose_allocation(self) -> AbstractAllocation:
+        if self.params['allocation_type'] == 'no_specific_allocation':
+            return NoSpecificAllocation(self.params['amount'], len(self.intervals))
+
+        if self.params['allocation_type'] == 'linear_allocation':
+            return LinearAllocation(self.params['amount'],
+                                    convert.multiplier(self.params['amount'], config.MAX_AMOUNT_COEFFICIENT),
+                                    len(self.intervals), start_index=len(self.intervals) // 2)
+
+        if self.params['allocation_type'] == 'curved_allocation':
+            return CurvedAllocation(self.params['amount'],
+                                    convert.multiplier(self.params['amount'], config.MAX_AMOUNT_COEFFICIENT),
+                                    len(self.intervals), start_index=len(self.intervals) // 2)
+
+        if self.params['allocation_type'] == 'linear_curved_allocation':
+            return LinearCurvedAllocation(convert.multiplier(self.params['amount'], config.LOWEST_AMOUNT_COEFFICIENT),
+                                          convert.multiplier(self.params['amount'], config.MIDDLE_AMOUNT_COEFFICIENT),
+                                          convert.multiplier(self.params['amount'], config.HIGHEST_AMOUNT_COEFFICIENT),
+                                          len(self.intervals))
+
+        if self.params['allocation_type'] == 'profit_allocation':
+            return ProfitAllocation(self.intervals, self.params['profits_alloc'], self.fees_coef, self.params['amount'])
+
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.
         """
@@ -787,6 +853,8 @@ class LazyWhale:
 
         # TODO: move this to ui with user choice
         self.params['orders_per_interval'] = 2
+        self.params['allocation_type'] = 'no_specific_allocation'
+        self.allocation = self.choose_allocation()
 
         self.connector = self.params['api_connector']
         self.intervals = self.params['intervals']

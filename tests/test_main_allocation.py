@@ -99,7 +99,8 @@ class TestAllocations(unittest.TestCase):
             self.assertLessEqual(allocation.get_amount(index, 'buy'), self.min_amount)
             self.assertGreaterEqual(allocation.get_amount(index, 'buy'), self.middle_interval_amount)
             self.assertLessEqual(allocation.get_amount(self.intervals_count - index, 'sell'), self.max_amount)
-            self.assertGreaterEqual(allocation.get_amount(self.intervals_count - index, 'sell'), self.middle_interval_amount)
+            self.assertGreaterEqual(allocation.get_amount(self.intervals_count - index, 'sell'),
+                                    self.middle_interval_amount)
 
     def test_profit_allocation(self):
         self.intervals_count = 40
@@ -107,9 +108,9 @@ class TestAllocations(unittest.TestCase):
                                       50, Decimal('0.0025'), self.min_amount)
         self.assertEqual(len(allocation.benefits), 40)
         for i in range(1, 4):
-            self.assertEqual(allocation.benefits[self.intervals_count - i].max_benefit, 0)
+            self.assertEqual(allocation.benefits[self.intervals_count - i].get_max_benefit(), 0)
 
         for i in range(0, self.intervals_count):
-            self.assertEqual(allocation.benefits[i].actual_benefit, 0)
+            self.assertEqual(allocation.benefits[i].get_actual_benefit(), 0)
             if i >= 4:
-                self.assertNotEqual(allocation.benefits[self.intervals_count - i].max_benefit, 0)
+                self.assertNotEqual(allocation.benefits[self.intervals_count - i].get_max_benefit(), 0)

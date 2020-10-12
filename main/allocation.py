@@ -2,7 +2,7 @@ from decimal import Decimal
 from abc import ABC, abstractmethod
 
 from main.interval import Interval
-from utils.converters import divider, quantizator
+from utils.converters import divider, quantizator, multiplier
 
 
 def calculate_exponential_coefficient(y1, x2, y2):
@@ -22,19 +22,39 @@ def generate_empty_benefits(intervals_count: int):
 def generate_benefits_by_intervals(intervals: [Interval], profit_allocation: Decimal, fees: Decimal, amount: Decimal):
     benefits = generate_empty_benefits(len(intervals))
     for i in range(3, len(intervals)):
-        benefits[i - 3].max_benefit = quantizator((intervals[i].get_bottom() - intervals[i - 3].get_top()) * amount
-                                                  * profit_allocation * (Decimal('1') - fees) * (Decimal('1') - fees))
+        benefits[i - 3].set_max_benefit(quantizator((intervals[i].get_bottom() - intervals[i - 3].get_top()) * amount
+                                                    * profit_allocation * (Decimal('1') - fees) * (
+                                                                Decimal('1') - fees)))
 
     return benefits
 
 
 class Benefit:
     def __init__(self, actual_benefit, max_benefit):
-        self.actual_benefit = actual_benefit
-        self.max_benefit = max_benefit
+        self.__actual_benefit = actual_benefit
+        self.__max_benefit = max_benefit
+
+    def get_max_benefit(self):
+        return self.__max_benefit
+
+    def set_max_benefit(self, max_benefit: Decimal):
+        self.__max_benefit = max_benefit
+
+    def get_actual_benefit(self):
+        return self.__actual_benefit
+
+    def set_actual_benefit(self, actual_benefit: Decimal):
+        actual_benefit = max(Decimal('0'), actual_benefit)
+        self.__actual_benefit = min(actual_benefit, self.__max_benefit)
+
+    def add_actual_benefit(self, additional_benefit: Decimal):
+        self.set_actual_benefit(self.__actual_benefit + additional_benefit)
+
+    def subtract_actual_benefit(self, benefit: Decimal):
+        self.set_actual_benefit(self.__actual_benefit - benefit)
 
     def __str__(self):
-        return f"Benefit(actual_benefit = {self.actual_benefit}, max_benefit = {self.max_benefit})"
+        return f"Benefit(actual_benefit = {self.__actual_benefit}, max_benefit = {self.__max_benefit})"
 
     def __repr__(self):
         return str(self)
@@ -123,10 +143,15 @@ class LinearCurvedAllocation(AbstractAllocation):
 
 class ProfitAllocation(AbstractAllocation):
     def __init__(self, intervals: [Interval], profit_allocation_percent: int, fees: Decimal, amount: Decimal):
-        super().__init__(generate_benefits_by_intervals(intervals, Decimal('1') / profit_allocation_percent,
+        super().__init__(generate_benefits_by_intervals(intervals, profit_allocation_percent / Decimal('100'),
                                                         fees, amount))
-        self.profit_allocation = Decimal('1') / profit_allocation_percent
+        self.profit_allocation = profit_allocation_percent / Decimal('100')
         self.amount = amount
+
+    def set_benefit(self, interval_index: int, amount_buy: Decimal):
+        benefit = self.benefits[interval_index]
+        additional_benefit = multiplier(benefit.get_max_benefit(), divider(amount_buy, self.amount))
+        benefit.add_actual_benefit(additional_benefit)
 
     def get_amount(self, interval_index: int = 0, side: str = 'none'):
         if side == 'buy':

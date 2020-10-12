@@ -6,6 +6,7 @@ from mock import patch
 
 from exchanges.api_manager import APIManager
 from exchanges.zebitexFormatted import ZebitexFormatted
+from main.allocation import NoSpecificAllocation
 from main.lazy_whale import LazyWhale
 from utils import helpers
 from utils.converters import multiplier, divider
@@ -69,7 +70,7 @@ class LazyWhaleTests(TestCase):
             "increment_coef": Decimal('1.0102'),
             "spread_bot": 3,
             "spread_top": 6,
-            "amount": Decimal('0.2'),
+            "amount": Decimal('0.02'),
             "stop_at_bot": True,
             "stop_at_top": True,
             "nb_buy_to_display": 3,
@@ -77,6 +78,8 @@ class LazyWhaleTests(TestCase):
             "profits_alloc": 0,
             "orders_per_interval": 2
         }
+        self.lazy_whale.allocation = NoSpecificAllocation(self.lazy_whale.params['amount'],
+                                                          len(self.lazy_whale.intervals))
 
     def tearDown(self) -> None:
         self.api_manager.cancel_all(self.market)
@@ -159,9 +162,8 @@ class LazyWhaleTests(TestCase):
         self.lazy_whale.compare_intervals(self.api_manager.get_intervals(self.market))
         self.assertEqual(self.lazy_whale.intervals, self.api_manager.get_intervals(self.market))
 
-        self.assertEqual(len(self.api_manager.get_open_orders()), 4)
-        self.assertEqual(len(self.lazy_whale.intervals[2].get_buy_orders()), 2)
-        self.assertEqual(self.lazy_whale.intervals[2].get_buy_orders_amount(), sell_orders[0].amount + Decimal('0.04'))
+        self.assertEqual(len(self.api_manager.get_open_orders()), 7)
+        self.assertEqual(len(self.lazy_whale.intervals[3].get_buy_orders()), 2)
 
     def test_set_first_intervals(self):
         """Tests that first intervals are set using params"""
@@ -169,7 +171,7 @@ class LazyWhaleTests(TestCase):
         spread_top = 7
         buy_display = 3
         sell_display = 3
-        amount = Decimal('0.01')
+        amount = Decimal('0.02')
         orders_per_interval = 2
 
         self.lazy_whale.params['spread_bot'] = spread_bot  # index of interval
@@ -201,8 +203,6 @@ class LazyWhaleTests(TestCase):
 
     def test_create_safety_buy(self):
         lowest_buy_index = 3
-        amount = Decimal('0.01')
-        self.lazy_whale.params['amount'] = amount
         self.lazy_whale.params['market'] = 'DASH/BTC'
         self.lazy_whale.safety_buy_value = Decimal('0.00000001')
         correct_amount = Decimal('0')
@@ -220,8 +220,6 @@ class LazyWhaleTests(TestCase):
 
     def test_create_safety_sell(self):
         highest_sell_value = 7
-        amount = Decimal('0.01')
-        self.lazy_whale.params['amount'] = amount
         self.lazy_whale.params['market'] = 'DASH/BTC'
         self.lazy_whale.safety_sell_value = Decimal('1')
 
@@ -230,16 +228,17 @@ class LazyWhaleTests(TestCase):
         self.assertIsNotNone(self.api_manager.get_safety_sell())
         self.assertEqual(self.api_manager.get_safety_sell().price, self.lazy_whale.safety_sell_value)
         self.assertEqual(self.api_manager.get_safety_sell().amount,
-                         multiplier(amount, Decimal(str(len(self.intervals) - highest_sell_value - 1))))
+                         multiplier(self.lazy_whale.params['amount'],
+                                    Decimal(str(len(self.intervals) - highest_sell_value - 1))))
 
     def test_limit_nb_intervals(self):
-        """Test that nb of intervals is always beetween nb_to_display and nb_to_display + 1
+        """Test that nb of intervals is always between nb_to_display and nb_to_display + 1
         (except bot/top is reached)"""
         spread_bot = 4
         spread_top = 7
         buy_display = 3
         sell_display = 3
-        amount = Decimal('0.01')
+        amount = Decimal('0.02')
         orders_per_interval = 2
 
         self.lazy_whale.params['spread_bot'] = spread_bot  # index of interval
@@ -310,46 +309,67 @@ class LazyWhaleTests(TestCase):
         self.lazy_whale.params['spread_top'] = 6
         self.lazy_whale.params['nb_buy_to_display'] = 3
         self.lazy_whale.params['nb_sell_to_display'] = 3
-        self.lazy_whale.params['amount'] = Decimal('0.2')
+        self.lazy_whale.params['amount'] = Decimal('0.02')
         self.lazy_whale.params['orders_per_interval'] = 2
 
         # 1st
         self.lazy_whale.strat_init()
-        amount_to_open = Decimal('0.15')
+        amount_to_open = Decimal('0.015')
         self.user.create_limit_buy_order(self.market, amount_to_open, self.intervals[-1].get_top())
+        intervals = self.lazy_whale.where_to_open_buys(self.api_manager.get_intervals(self.market),
+                                                       amount_to_open)
 
-        self.helper_test_result_buy_orders(amount_to_open, 2,
-                                           self.lazy_whale.params['spread_bot'] + 1,
-                                           self.lazy_whale.params['spread_bot'] + 1)
+        self.assertEqual(intervals[0], {
+            'interval_index': self.lazy_whale.params['spread_bot'] + 1,
+            'amount': Decimal('0.015'),
+        })
 
         # 2nd
         self.api_manager.cancel_all(self.market)
         self.lazy_whale.strat_init()
-        amount_to_open = Decimal('0.25')
+        amount_to_open = Decimal('0.025')
         self.user.create_limit_buy_order(self.market, amount_to_open, self.intervals[-1].get_top())
-
-        self.helper_test_result_buy_orders(amount_to_open, 4,
-                                           self.lazy_whale.params['spread_bot'] + 1,
-                                           self.lazy_whale.params['spread_bot'] + 2)
+        intervals = self.lazy_whale.where_to_open_buys(self.api_manager.get_intervals(self.market),
+                                                       amount_to_open)
+        correct_intervals = [
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'] + 1,
+                'amount': self.lazy_whale.params['amount']
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'] + 2,
+                'amount': amount_to_open - self.lazy_whale.params['amount']
+            }
+        ]
+        self.assertEqual(intervals, correct_intervals)
 
         # 2.5nd
         self.api_manager.cancel_all(self.market)
         self.lazy_whale.strat_init()
-        amount_to_open = Decimal('0.25')
+        amount_to_open = Decimal('0.025')
         self.user.create_limit_buy_order(self.market, amount_to_open, self.intervals[-1].get_top())
-        self.user.create_limit_sell_order(self.market, Decimal('0.05'), self.intervals[0].get_top())
+        self.user.create_limit_sell_order(self.market, Decimal('0.005'), self.intervals[0].get_top())
+        intervals = self.lazy_whale.where_to_open_buys(self.api_manager.get_intervals(self.market),
+                                                       amount_to_open)
 
-        self.helper_test_result_buy_orders(amount_to_open, 4,
-                                           self.lazy_whale.params['spread_bot'],
-                                           self.lazy_whale.params['spread_bot'] + 1,
-                                           Decimal('0.4'))
+        correct_intervals = [
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'],
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'] + 1,
+                'amount': Decimal('0.02'),
+            }
+        ]
+        self.assertEqual(intervals, correct_intervals)
 
         # 3th
         self.api_manager.cancel_all(self.market)
         self.lazy_whale.strat_init()
 
         # fill one sell
-        amount_to_open = Decimal('0.2')
+        amount_to_open = Decimal('0.02')
         self.user.create_limit_buy_order(self.market, amount_to_open, self.intervals[-1].get_top())
 
         # fill all buys
@@ -364,23 +384,62 @@ class LazyWhaleTests(TestCase):
 
         self.api_manager.set_several_sell(open_sells)
 
-        self.helper_test_result_buy_orders(amount_to_open, 2,
-                                           self.lazy_whale.params['spread_bot'] - 2,
-                                           self.lazy_whale.params['spread_bot'] - 2)
+        intervals = self.lazy_whale.where_to_open_buys(self.api_manager.get_intervals(self.market),
+                                                       amount_to_open)
+
+        correct_intervals = [
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'] - 2,
+                'amount': amount_to_open,
+            }
+        ]
+        self.assertEqual(intervals, correct_intervals)
 
         # 4th
         # if no orders at all lasts (I can simulate it but not needed)
         self.api_manager.cancel_all(self.market)
-        self.helper_test_result_buy_orders(Decimal('0.6'), 6,
-                                           self.lazy_whale.params['spread_bot'] - 2,
-                                           self.lazy_whale.params['spread_bot'])
+        intervals = self.lazy_whale.where_to_open_buys(self.api_manager.get_intervals(self.market),
+                                                       Decimal('0.06'))
+        correct_intervals = [
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'],
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'] - 1,
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'] - 2,
+                'amount': Decimal('0.02'),
+            }
+        ]
+        self.assertEqual(intervals, correct_intervals)
 
         # 4.5th
         # if no orders at all lasts but with greater amount to open
         self.api_manager.cancel_all(self.market)
-        self.helper_test_result_buy_orders(Decimal('0.7'), 8,
-                                           self.lazy_whale.params['spread_bot'] - 2,
-                                           self.lazy_whale.params['spread_bot'] + 1)
+        intervals = self.lazy_whale.where_to_open_buys(self.api_manager.get_intervals(self.market),
+                                                       Decimal('0.07'))
+        correct_intervals = [
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'],
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'] - 1,
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'] - 2,
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_bot'] + 1,
+                'amount': Decimal('0.01'),
+            }
+        ]
+        self.assertEqual(intervals, correct_intervals)
 
     def test_where_to_open_sells(self):
         """1st (or 2nd): Strategy: if buy occurred - open sell under the lowest sell (or on it)
@@ -391,46 +450,66 @@ class LazyWhaleTests(TestCase):
         self.lazy_whale.params['spread_top'] = 6
         self.lazy_whale.params['nb_buy_to_display'] = 3
         self.lazy_whale.params['nb_sell_to_display'] = 3
-        self.lazy_whale.params['amount'] = Decimal('0.2')
+        self.lazy_whale.params['amount'] = Decimal('0.02')
         self.lazy_whale.params['orders_per_interval'] = 2
 
         # 1st
         self.lazy_whale.strat_init()
-        amount_to_open = Decimal('0.15')
+        amount_to_open = Decimal('0.015')
         self.user.create_limit_sell_order(self.market, amount_to_open, self.intervals[0].get_bottom())
+        intervals = self.lazy_whale.where_to_open_sells(self.api_manager.get_intervals(self.market),
+                                                        amount_to_open)
 
-        self.helper_test_result_sell_orders(amount_to_open, 2,
-                                            self.lazy_whale.params['spread_top'] - 1,
-                                            self.lazy_whale.params['spread_top'] - 1)
+        self.assertEqual(intervals[0], {
+            'interval_index': self.lazy_whale.params['spread_top'] - 1,
+            'amount': amount_to_open,
+        })
 
         # 2nd
         self.api_manager.cancel_all(self.market)
         self.lazy_whale.strat_init()
-        amount_to_open = Decimal('0.25')
+        amount_to_open = Decimal('0.025')
         self.user.create_limit_sell_order(self.market, amount_to_open, self.intervals[0].get_bottom())
-
-        self.helper_test_result_sell_orders(amount_to_open, 4,
-                                            self.lazy_whale.params['spread_top'] - 2,
-                                            self.lazy_whale.params['spread_top'] - 1)
+        intervals = self.lazy_whale.where_to_open_sells(self.api_manager.get_intervals(self.market),
+                                                        amount_to_open)
+        correct_intervals = [
+            {
+                'interval_index': self.lazy_whale.params['spread_top'] - 1,
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_top'] - 2,
+                'amount': Decimal('0.005'),
+            },
+        ]
+        self.assertEqual(intervals, correct_intervals)
 
         # 2.5nd
         self.api_manager.cancel_all(self.market)
         self.lazy_whale.strat_init()
-        amount_to_open = Decimal('0.25')
+        amount_to_open = Decimal('0.025')
         self.user.create_limit_sell_order(self.market, amount_to_open, self.intervals[0].get_bottom())
-        self.user.create_limit_buy_order(self.market, Decimal('0.05'), self.intervals[-1].get_top())
-
-        self.helper_test_result_sell_orders(amount_to_open, 4,
-                                            self.lazy_whale.params['spread_top'] - 1,
-                                            self.lazy_whale.params['spread_top'],
-                                            Decimal('0.4'))
+        self.user.create_limit_buy_order(self.market, Decimal('0.005'), self.intervals[-1].get_top())
+        intervals = self.lazy_whale.where_to_open_sells(self.api_manager.get_intervals(self.market),
+                                                        amount_to_open)
+        correct_intervals = [
+            {
+                'interval_index': self.lazy_whale.params['spread_top'],
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_top'] - 1,
+                'amount': Decimal('0.02'),
+            },
+        ]
+        self.assertEqual(intervals, correct_intervals)
 
         # 3th
         self.api_manager.cancel_all(self.market)
         self.lazy_whale.strat_init()
 
         # fill one buy
-        amount_to_open = Decimal('0.2')
+        amount_to_open = Decimal('0.02')
         self.user.create_limit_sell_order(self.market, amount_to_open, self.intervals[0].get_bottom())
 
         # fill all sell
@@ -444,21 +523,59 @@ class LazyWhaleTests(TestCase):
                              .generate_orders_by_amount(amount_to_open, Decimal('0'), 2))
 
         self.api_manager.set_several_buy(open_buys)
-
-        self.helper_test_result_sell_orders(amount_to_open, 2,
-                                            self.lazy_whale.params['spread_top'] + 2,
-                                            self.lazy_whale.params['spread_top'] + 2)
+        intervals = self.lazy_whale.where_to_open_sells(self.api_manager.get_intervals(self.market),
+                                                        amount_to_open)
+        correct_intervals = [
+            {
+                'interval_index': self.lazy_whale.params['spread_top'] + 2,
+                'amount': Decimal('0.02'),
+            },
+        ]
+        self.assertEqual(intervals, correct_intervals)
 
         # 4th
         # if no orders at all lasts (I can simulate it but not needed)
         self.api_manager.cancel_all(self.market)
-        self.helper_test_result_sell_orders(Decimal('0.6'), 6,
-                                            self.lazy_whale.params['spread_top'],
-                                            self.lazy_whale.params['spread_top'] + 2)
+        intervals = self.lazy_whale.where_to_open_sells(self.api_manager.get_intervals(self.market),
+                                                        Decimal('0.06'))
+        correct_intervals = [
+            {
+                'interval_index': self.lazy_whale.params['spread_top'],
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_top'] + 1,
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_top'] + 2,
+                'amount': Decimal('0.02'),
+            },
+        ]
+        self.assertEqual(intervals, correct_intervals)
 
         # 4.5th
         # if no orders at all lasts but with greater amount to open
         self.api_manager.cancel_all(self.market)
-        self.helper_test_result_sell_orders(Decimal('0.7'), 8,
-                                            self.lazy_whale.params['spread_top'] - 1,
-                                            self.lazy_whale.params['spread_top'] + 2)
+
+        intervals = self.lazy_whale.where_to_open_sells(self.api_manager.get_intervals(self.market),
+                                                        Decimal('0.07'))
+        correct_intervals = [
+            {
+                'interval_index': self.lazy_whale.params['spread_top'],
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_top'] + 1,
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_top'] + 2,
+                'amount': Decimal('0.02'),
+            },
+            {
+                'interval_index': self.lazy_whale.params['spread_top'] - 1,
+                'amount': Decimal('0.01'),
+            },
+        ]
+        self.assertEqual(intervals, correct_intervals)
