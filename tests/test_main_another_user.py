@@ -1,18 +1,15 @@
 from copy import deepcopy
 from decimal import Decimal
-import unittest
 from unittest import TestCase
 from unittest.mock import patch
 
 from exchanges.api_manager import APIManager
 from exchanges.zebitexFormatted import ZebitexFormatted
 from main.allocation import NoSpecificAllocation
-from ui.user_interface import UserInterface
 from utils.checkers import is_equal_decimal
 from utils.converters import multiplier
 from utils.helpers import interval_generator
 from utils.logger import Logger
-from unittest.mock import create_autospec
 
 from main.lazy_whale import LazyWhale
 import tests.keys as keys_config
@@ -44,8 +41,7 @@ class AnotherUserTests(TestCase):
             self.lazy_whale = LazyWhale()
 
         self.lazy_whale.params = params
-        self.lazy_whale.allocation = NoSpecificAllocation(self.lazy_whale.params['amount'],
-                                                          len(self.lazy_whale.intervals))
+        self.lazy_whale.allocation = NoSpecificAllocation(self.lazy_whale.params['amount'])
 
         self.api_manager.logger = Logger(name='api_manager',
                                          slack_webhook=keys_config.SLACK_WEBHOOK,

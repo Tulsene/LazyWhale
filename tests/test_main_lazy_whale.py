@@ -6,7 +6,7 @@ from mock import patch
 
 from exchanges.api_manager import APIManager
 from exchanges.zebitexFormatted import ZebitexFormatted
-from main.allocation import NoSpecificAllocation
+from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAllocation
 from main.lazy_whale import LazyWhale
 from utils import helpers
 from utils.converters import multiplier, divider
@@ -78,8 +78,7 @@ class LazyWhaleTests(TestCase):
             "profits_alloc": 0,
             "orders_per_interval": 2
         }
-        self.lazy_whale.allocation = NoSpecificAllocation(self.lazy_whale.params['amount'],
-                                                          len(self.lazy_whale.intervals))
+        self.lazy_whale.allocation = NoSpecificAllocation(self.lazy_whale.params['amount'])
 
     def tearDown(self) -> None:
         self.api_manager.cancel_all(self.market)
@@ -579,3 +578,61 @@ class LazyWhaleTests(TestCase):
             },
         ]
         self.assertEqual(intervals, correct_intervals)
+
+    def test_set_first_intervals_linear_allocation(self):
+        """Tests that first orders are opened due to strict linear rules from middle interval"""
+        min_amount = Decimal('0.02')
+        max_amount = Decimal('0.04')
+        self.lazy_whale.params['spread_bot'] = 3
+        self.lazy_whale.params['spread_top'] = 6
+        self.lazy_whale.allocation = LinearAllocation(min_amount, max_amount, len(self.intervals), start_index=19)
+        self.lazy_whale.set_first_intervals()
+
+        for i in (1, 2, 3):
+            self.assertEqual(self.lazy_whale.intervals[i].get_buy_orders_amount(), min_amount)
+
+        for i in (6, 7, 8):
+            self.assertEqual(self.lazy_whale.intervals[i].get_sell_orders_amount(), min_amount)
+
+        self.api_manager.cancel_all(self.market)
+
+        self.lazy_whale.params['spread_bot'] = 25
+        self.lazy_whale.params['spread_top'] = 28
+        self.lazy_whale.set_first_intervals()
+
+        for i in (23, 24, 25):
+            self.assertEqual(self.lazy_whale.intervals[i].get_buy_orders_amount(),
+                             min_amount)
+
+        for i in (28, 29, 30):
+            self.assertEqual(self.lazy_whale.intervals[i].get_sell_orders_amount(),
+                             min_amount + Decimal('0.001') * (i - 19))
+
+    def test_set_first_intervals_curved_allocation(self):
+        lowest_amount = Decimal('0.02')
+        middle_amount = Decimal('0.016')
+        highest_amount = Decimal('0.024')
+        self.lazy_whale.params['spread_bot'] = 3
+        self.lazy_whale.params['spread_top'] = 6
+        self.lazy_whale.allocation = CurvedAllocation(lowest_amount, middle_amount, highest_amount, len(self.intervals))
+        self.lazy_whale.set_first_intervals()
+        for i in (1, 2, 3):
+            self.assertGreater(self.lazy_whale.intervals[i].get_buy_orders_amount(), Decimal('0.0190'))
+            self.assertLess(self.lazy_whale.intervals[i].get_buy_orders_amount(), Decimal('0.0198'))
+
+        for i in (6, 7, 8):
+            self.assertEqual(self.lazy_whale.intervals[i].get_sell_orders_amount(), middle_amount)
+
+        self.api_manager.cancel_all(self.market)
+
+        self.lazy_whale.params['spread_bot'] = 25
+        self.lazy_whale.params['spread_top'] = 28
+        self.lazy_whale.set_first_intervals()
+
+        for i in (23, 24, 25):
+            self.assertEqual(self.lazy_whale.intervals[i].get_buy_orders_amount(),
+                             middle_amount)
+
+        for i in (28, 29, 30):
+            self.assertGreater(self.lazy_whale.intervals[i].get_sell_orders_amount(), Decimal('0.018'))
+            self.assertLess(self.lazy_whale.intervals[i].get_sell_orders_amount(), Decimal('0.020'))

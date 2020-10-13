@@ -2,9 +2,8 @@ import unittest
 from decimal import Decimal
 import random
 
-from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAllocation, LinearCurvedAllocation, \
-    ProfitAllocation
-from utils.converters import divider, quantizator
+from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAllocation, ProfitAllocation
+from utils.converters import divider
 from utils.helpers import interval_generator
 
 
@@ -23,7 +22,7 @@ class TestAllocations(unittest.TestCase):
         self.highest_interval_amount = Decimal('12000')
 
     def test_no_specific_allocation(self):
-        allocation = NoSpecificAllocation(self.min_amount, self.intervals_count)
+        allocation = NoSpecificAllocation(self.min_amount)
         for _ in range(self.test_cases):
             interval_index = random.choice(self.interval_indexes)
             self.assertEqual(allocation.get_amount(interval_index), self.min_amount)
@@ -53,39 +52,9 @@ class TestAllocations(unittest.TestCase):
             self.assertEqual(allocation_from_the_beginning.get_amount((index - self.intervals_count // 2) * 2),
                              allocation_from_the_middle.get_amount(index))
 
-    def test_curved_allocation(self):
-        allocation_from_the_beginning = CurvedAllocation(min_amount=self.min_amount, max_amount=self.max_amount,
-                                                         intervals_count=self.intervals_count, start_index=0)
-
-        self.assertEqual(allocation_from_the_beginning.exponent_coefficient,
-                         quantizator(Decimal('2') ** (Decimal('1') / Decimal('40'))))
-        self.assertEqual(allocation_from_the_beginning.get_amount(0), self.min_amount)
-        self.assertLess(allocation_from_the_beginning.get_amount(self.intervals_count // 2),
-                        divider((self.min_amount + self.max_amount), 2))
-        self.assertTrue(self.is_equal_big_decimal(allocation_from_the_beginning.get_amount(self.intervals_count - 1),
-                                                  self.max_amount))
-
-        allocation_from_the_middle = CurvedAllocation(min_amount=self.min_amount, max_amount=self.max_amount,
-                                                      intervals_count=self.intervals_count,
-                                                      start_index=self.intervals_count // 2)
-
-        self.assertEqual(allocation_from_the_middle.exponent_coefficient,
-                         quantizator(Decimal('2') ** (Decimal('1') / Decimal('20'))))
-        self.assertEqual(allocation_from_the_middle.get_amount(self.intervals_count // 2), self.min_amount)
-        self.assertLess(allocation_from_the_middle.get_amount(((self.intervals_count // 2) +
-                                                               self.intervals_count - 1) // 2),
-                        divider((self.min_amount + self.max_amount), 2))
-        self.assertTrue(self.is_equal_big_decimal(allocation_from_the_middle.get_amount(self.intervals_count - 1),
-                                                  self.max_amount))
-
-        for index in range(self.intervals_count // 2, self.intervals_count):
-            self.assertTrue(self.is_equal_big_decimal(
-                allocation_from_the_beginning.get_amount((index - self.intervals_count // 2) * 2),
-                allocation_from_the_middle.get_amount(index)))
-
     def test_linear_curved_allocation(self):
-        allocation = LinearCurvedAllocation(self.min_amount, self.middle_interval_amount, self.highest_interval_amount,
-                                            self.intervals_count)
+        allocation = CurvedAllocation(self.min_amount, self.middle_interval_amount, self.highest_interval_amount,
+                                      self.intervals_count)
 
         self.assertTrue(self.is_equal_big_decimal(allocation.get_amount(0, 'buy'), self.min_amount))
         self.assertEqual(allocation.get_amount(0, 'sell'), self.middle_interval_amount)
@@ -105,7 +74,7 @@ class TestAllocations(unittest.TestCase):
     def test_profit_allocation(self):
         self.intervals_count = 40
         allocation = ProfitAllocation(interval_generator(Decimal('0.01'), Decimal('0.015'), Decimal('1.0102')),
-                                      50, Decimal('0.0025'), self.min_amount)
+                                      50, Decimal('0.9975'), self.min_amount)
         self.assertEqual(len(allocation.benefits), 40)
         for i in range(1, 4):
             self.assertEqual(allocation.benefits[self.intervals_count - i].get_max_benefit(), 0)

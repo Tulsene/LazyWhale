@@ -23,8 +23,7 @@ def generate_benefits_by_intervals(intervals: [Interval], profit_allocation: Dec
     benefits = generate_empty_benefits(len(intervals))
     for i in range(3, len(intervals)):
         benefits[i - 3].set_max_benefit(quantizator((intervals[i].get_bottom() - intervals[i - 3].get_top()) * amount
-                                                    * profit_allocation * (Decimal('1') - fees) * (
-                                                                Decimal('1') - fees)))
+                                                    * profit_allocation * fees * fees))
 
     return benefits
 
@@ -61,9 +60,6 @@ class Benefit:
 
 
 class AbstractAllocation(ABC):
-    def __init__(self, benefits: [Benefit]):
-        self.benefits = benefits
-
     @abstractmethod
     def get_amount(self, interval_index: int = 0, side: str = 'none') -> Decimal:
         """Will be implemented in subclasses:
@@ -72,8 +68,7 @@ class AbstractAllocation(ABC):
 
 
 class NoSpecificAllocation(AbstractAllocation):
-    def __init__(self, constant_amount: Decimal, intervals_count: int):
-        super().__init__(generate_empty_benefits(intervals_count))
+    def __init__(self, constant_amount: Decimal):
         self.amount = constant_amount
 
     def get_amount(self, interval_index: int = 0, side: str = 'none'):
@@ -83,7 +78,6 @@ class NoSpecificAllocation(AbstractAllocation):
 
 class LinearAllocation(AbstractAllocation):
     def __init__(self, min_amount: Decimal, max_amount: Decimal, intervals_count: int, start_index: int = 0):
-        super().__init__(generate_empty_benefits(intervals_count))
         self.min_amount = min_amount
         self.linear_coefficient = divider(max_amount - min_amount, intervals_count - start_index - 1)
         self.start_index = start_index
@@ -99,24 +93,8 @@ class LinearAllocation(AbstractAllocation):
 
 
 class CurvedAllocation(AbstractAllocation):
-    def __init__(self, min_amount: Decimal, max_amount: Decimal, intervals_count: int, start_index: int = 0):
-        super().__init__(generate_empty_benefits(intervals_count))
-        self.min_amount = min_amount
-        self.exponent_coefficient = calculate_exponential_coefficient(min_amount, intervals_count - start_index - 1,
-                                                                      max_amount)
-        self.start_index = start_index
-
-    def get_amount(self, interval_index: int = 0, side: str = 'none'):
-        if side == 'buy' or interval_index < self.start_index:
-            return self.min_amount
-
-        return exponent(self.min_amount, self.exponent_coefficient, interval_index - self.start_index)
-
-
-class LinearCurvedAllocation(AbstractAllocation):
     def __init__(self, lowest_interval_amount: Decimal, middle_interval_amount: Decimal,
                  highest_interval_amount: Decimal, intervals_count: int):
-        super().__init__(generate_empty_benefits(intervals_count))
         self.middle_amount = middle_interval_amount
         self.middle_point = intervals_count // 2
         self.buy_exponent_coefficient \
@@ -143,10 +121,11 @@ class LinearCurvedAllocation(AbstractAllocation):
 
 class ProfitAllocation(AbstractAllocation):
     def __init__(self, intervals: [Interval], profit_allocation_percent: int, fees: Decimal, amount: Decimal):
-        super().__init__(generate_benefits_by_intervals(intervals, profit_allocation_percent / Decimal('100'),
-                                                        fees, amount))
         self.profit_allocation = profit_allocation_percent / Decimal('100')
         self.amount = amount
+        self.benefits = generate_benefits_by_intervals(intervals, self.profit_allocation,
+                                                       fees, amount)
+        print('benefits:', self.benefits)
 
     def set_benefit(self, interval_index: int, amount_buy: Decimal):
         benefit = self.benefits[interval_index]
@@ -155,7 +134,7 @@ class ProfitAllocation(AbstractAllocation):
 
     def get_amount(self, interval_index: int = 0, side: str = 'none'):
         if side == 'buy':
-            return max(self.amount + self.benefits[interval_index].actual_benefit,
-                       self.amount + self.benefits[interval_index].max_benefit)
+            return max(self.amount + self.benefits[interval_index].get_actual_benefit(),
+                       self.amount + self.benefits[interval_index].get_max_benefit())
         else:
             return self.amount

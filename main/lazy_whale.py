@@ -8,7 +8,7 @@ import ccxt
 
 import utils.helpers as helper
 import utils.converters as convert
-from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAllocation, LinearCurvedAllocation, \
+from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAllocation, \
     ProfitAllocation, AbstractAllocation
 from main.interval import Interval
 from main.order import Order
@@ -821,23 +821,18 @@ class LazyWhale:
 
     def choose_allocation(self) -> AbstractAllocation:
         if self.params['allocation_type'] == 'no_specific_allocation':
-            return NoSpecificAllocation(self.params['amount'], len(self.intervals))
+            return NoSpecificAllocation(self.params['amount'])
 
         if self.params['allocation_type'] == 'linear_allocation':
             return LinearAllocation(self.params['amount'],
                                     convert.multiplier(self.params['amount'], config.MAX_AMOUNT_COEFFICIENT),
-                                    len(self.intervals), start_index=len(self.intervals) // 2)
+                                    len(self.intervals), start_index=0)
 
         if self.params['allocation_type'] == 'curved_allocation':
-            return CurvedAllocation(self.params['amount'],
-                                    convert.multiplier(self.params['amount'], config.MAX_AMOUNT_COEFFICIENT),
-                                    len(self.intervals), start_index=len(self.intervals) // 2)
-
-        if self.params['allocation_type'] == 'linear_curved_allocation':
-            return LinearCurvedAllocation(convert.multiplier(self.params['amount'], config.LOWEST_AMOUNT_COEFFICIENT),
-                                          convert.multiplier(self.params['amount'], config.MIDDLE_AMOUNT_COEFFICIENT),
-                                          convert.multiplier(self.params['amount'], config.HIGHEST_AMOUNT_COEFFICIENT),
-                                          len(self.intervals))
+            return CurvedAllocation(convert.multiplier(self.params['amount'], config.LOWEST_AMOUNT_COEFFICIENT),
+                                    convert.multiplier(self.params['amount'], config.MIDDLE_AMOUNT_COEFFICIENT),
+                                    convert.multiplier(self.params['amount'], config.HIGHEST_AMOUNT_COEFFICIENT),
+                                    len(self.intervals))
 
         if self.params['allocation_type'] == 'profit_allocation':
             return ProfitAllocation(self.intervals, self.params['profits_alloc'], self.fees_coef, self.params['amount'])
@@ -851,14 +846,10 @@ class LazyWhale:
         else:
             self.params = self.ui.ask_for_params()  # f'{self.root_path}config/params.json')
 
-        # TODO: move this to ui with user choice
-        self.params['orders_per_interval'] = 2
-        self.params['allocation_type'] = 'no_specific_allocation'
-        self.allocation = self.choose_allocation()
-
         self.connector = self.params['api_connector']
         self.intervals = self.params['intervals']
         self.connector.set_params(self.params)
+        self.allocation = self.choose_allocation()
 
         # TODO: do not cancel all existing orders
         self.connector.cancel_all(self.params['market'])

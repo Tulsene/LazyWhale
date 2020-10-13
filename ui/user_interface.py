@@ -19,7 +19,7 @@ class UserInterface:
         self.allowed_exchanges = self.set_keys(api_keys)
         self.root_path = helper.set_root_path()
         self.fees_coef = fees_coef
-        # TODO need to be improved, like with an automatic selection if there is already a bot running on the same market
+        #  TODO need to be improved, like with an automatic selection if there is already a bot running on the same market
         self.safety_buy_value = safety_buy_value
         self.safety_sell_value = safety_sell_value
 
@@ -43,7 +43,7 @@ class UserInterface:
             choice = input(' >> ')
             choice = choice.lower()
             self.log(choice, level='debug', print_=False)
-            if choice in ['yes', 'y', 'o', 'oui', 'j', 'ja','d', 'da']:
+            if choice in ['yes', 'y', 'o', 'oui', 'j', 'ja', 'd', 'da']:
                 return True
             if choice in ['no', 'nein', 'non', 'n', 'niet']:
                 return False
@@ -89,17 +89,17 @@ class UserInterface:
                 choice = input(' >> ')
                 self.log(choice, level='debug')
                 choice = convert.str_to_int(choice)
-                
+
                 if 0 < choice <= i:
                     return choice - 1
                 else:
                     self.log(f'You need to enter a number between 1 and {i}',
-                        level='info', print_=True)
-            
+                             level='info', print_=True)
+
             except Exception as e:
                 self.log(f'{q} invalid choice: {choice} -> {e}',
-                    level='info', print_=True)
-        
+                         level='info', print_=True)
+
         return choice
 
     def ask_for_params(self, test_file_path=None):
@@ -118,7 +118,7 @@ class UserInterface:
             q = 'Do you want to display history from logs?'
             if self.simple_question(q):
                 self.history_reader()
-            
+
             q = 'Do you want to use those params?'
             if self.simple_question(q):
                 params = self.check_for_enough_funds(params)
@@ -126,13 +126,13 @@ class UserInterface:
                 params = None
         else:
             self.log(f'Your parameters are not set correctly: {params}, please enter new one!',
-                        level='info', print_=True)
+                     level='info', print_=True)
 
         if not params:
             params = self.enter_params()
-        
+
         helper.params_writer(file_path, params)
-        
+
         return params
 
     def enter_params(self):
@@ -151,7 +151,14 @@ class UserInterface:
 
         params.update(self.ask_if_stop())
         params.update(self.ask_nb_to_display(params['intervals']))
-        params.update(self.ask_profits_alloc())
+        params.update(self.ask_nb_orders_per_interval())
+
+        allocation_type = self.ask_allocation_type()
+        params.update(allocation_type)
+        if allocation_type['allocation_type'] == 'profit_allocation':
+            params.update(self.ask_profits_alloc())
+        else:
+            params.update({'profits_alloc': 0})
         return params
 
     def set_marketplace(self, marketplace=None, test_mode=None):
@@ -165,7 +172,7 @@ class UserInterface:
 
         if test_mode:
             api_connector.set_zebitex(self.allowed_exchanges['zebitex_testnet'])
-            
+
         else:
             exchanges_list = list(self.allowed_exchanges.keys())
             if not marketplace:
@@ -177,17 +184,17 @@ class UserInterface:
             api_connector.is_kraken = True \
                 if self.allowed_exchanges[exchanges_list[choice]] == 'kraken' \
                 else False
-            
+
             if exchanges_list[choice] in ['zebitex', 'zebitex_testnet']:
                 api_connector.set_zebitex(
                     self.allowed_exchanges[exchanges_list[choice]],
                     exchanges_list[choice])
-                
+
             else:
                 api_connector.exchange = eval(
                     f'ccxt.{exchanges_list[choice]}'
                     f'({self.allowed_exchanges[exchanges_list[choice]]})')
-                
+
         api_connector.load_markets()
 
         return {'marketplace': marketplace if marketplace else exchanges_list[choice],
@@ -201,7 +208,7 @@ class UserInterface:
             if market not in api_connector.exchange.symbols:
                 raise ValueError(f"{market} not in api_connector.exchange.symbols: "
                                  f"{api_connector.exchange.symbols}")
-            
+
             limitation = check.limitation_to_btc_market(market)
             if limitation != True:
                 raise ValueError(limitation)
@@ -230,7 +237,7 @@ class UserInterface:
                                                       increment)
                 return {'range_bot': range_bot, 'range_top': range_top,
                         'increment_coef': increment, 'intervals': intervals}
-            
+
             except Exception as e:
                 self.log(e, level='info', print_=True)
 
@@ -238,21 +245,21 @@ class UserInterface:
         """Ask the user to enter a value for the spread between each order.
         return: decimal."""
         q = ('How much % of spread between two orders? It must be '
-            'between 1% and 50%')
+             'between 1% and 50%')
         return self.ask_question(q, check.increment_coef_buider)
 
     def ask_param_range_bot(self):
         """Ask the user to enter a value for the bottom of the range.
         return: decimal."""
         q = ('Enter a value for the bottom of the range. It must be '
-            'superior to 1 satoshi (10^-8 btc):')
+             'superior to 1 satoshi (10^-8 btc):')
         return self.ask_question(q, convert.str_to_decimal, check.range_bot)
 
     def ask_param_range_top(self, range_bot):
         """Ask the user to enter a value for the top of the range.
         return: decimal."""
         q = ('Enter a value for the top of the range. It must be '
-            'inferior to 0.99 BTC:')
+             'inferior to 0.99 BTC:')
         return self.ask_question(q, convert.str_to_decimal, check.range_top, range_bot)
 
     def ask_params_spread(self, api_connector, selected_market, intervals):
@@ -263,14 +270,14 @@ class UserInterface:
         price = api_connector.get_market_last_price(selected_market)
         msg = f'The actual price of {selected_market} is {price}'
         self.log(msg, level='info', print_=True)
-        
+
         q = ('Please select the price of your highest buy interval '
              f"(spread_bot) in the list. {intervals[-2]} can't be selected")
         position = self.ask_to_select_in_a_list(q, intervals[:-2])
 
         self.log(f'The price of your lowest sell interval is {intervals[position + 2]}',
                  level='info', print_=True)
-        
+
         return {'spread_bot': position,
                 'spread_top': position + 3}
 
@@ -281,7 +288,7 @@ class UserInterface:
         return: Decimal."""
         pair = params['market'].split('/')[0]
         funds = params['api_connector'].get_balances()[pair]['total']
-        suggestion = convert.divider(funds, 
+        suggestion = convert.divider(funds,
                                      (len(params['intervals'])
                                       - params['spread_top']
                                       - 1))
@@ -290,7 +297,7 @@ class UserInterface:
              f'per order? It must be between '
              f"{Decimal('0.001') / params['range_bot']} and 10000000."
              f"Suggestion:  {suggestion}")
-        
+
         while True:
             try:
                 amount = self.ask_question(q, convert.str_to_decimal)
@@ -303,17 +310,32 @@ class UserInterface:
     def ask_nb_to_display(self, intervals):
         """Ask how much buy and sell orders are going to be in the book.
         return: dict, nb_buy_to_display + nb_sell."""
-        max_size = len(intervals)
+        max_size = len(intervals) - 3
         result = []
         for side in ['buy', 'sell']:
-            q = (f'How many {side} orders do you want to display? It must be '
-                f'less than {max_size}. 0 value = {max_size} :')
+            q = (f'How many {side} intervals do you want to display? It must be '
+                 f'less than {max_size}. 0 value = {max_size} :')
             result.append(self.ask_question(q, convert.str_to_int,
-                                                check.nb_to_display,
-                                                max_size))
-        
+                                            check.nb_to_display,
+                                            max_size))
+
         return {'nb_buy_to_display': result[0],
                 'nb_sell_to_display': result[1]}
+
+    def ask_nb_orders_per_interval(self):
+        """Ask user to enter number of orders to be opened in each interval"""
+        q = ('How many orders should be opened in each price interval?'
+             'Suggestion: 2')
+        max_size = 10
+        return {'orders_per_interval': self.ask_question(q, convert.str_to_int,
+                                                         check.nb_orders_per_interval,
+                                                         max_size)}
+
+    def ask_allocation_type(self):
+        types = 'no_specific_allocation', 'linear_allocation', 'curved_allocation', 'profit_allocation'
+        q = 'Please select the amount allocation you want to use'
+        position = self.ask_to_select_in_a_list(q, types)
+        return {'allocation_type': types[position]}
 
     def ask_if_stop(self):
         q1 = 'Do you want to stop LW if range_bot is reach? (y) or (n) only.'
@@ -326,7 +348,7 @@ class UserInterface:
         """Ask for profits allocation.
         return: int."""
         q = ('How do you want to allocate your profits in %. It must '
-            'be between 0 and 100, both included:')
+             'be between 1 and 100, both included:')
         return {'profits_alloc': self.ask_question(q, convert.str_to_int,
                                                    check.profits_alloc)}
 
@@ -345,7 +367,7 @@ class UserInterface:
                          f"The amount of {params['market'].split('/')[0]} per orders?\n",
                          f"Select the highest buy order?: {params['spread_bot']}\n",
                          'Add funds to your account\n']
-        
+
         while True:
             try:
                 choice = self.ask_to_select_in_a_list(question, question_list)
@@ -415,7 +437,7 @@ class UserInterface:
 
         self.log("Reading the strat.log file")
         nb_of_lines = helper.file_line_counter(file_path)
-        
+
         if not isinstance(nb_of_lines, int):
             self.log('Your strat.log file was empty', level='info', print_=True)
             return None
@@ -429,14 +451,14 @@ class UserInterface:
         """
         if helper.create_file_when_none(file_path):
             self.log(f'There was no {file_path}. One have been created',
-                     level='info', print_=True)        
+                     level='info', print_=True)
             return None
-        
+
         try:
             return self.check_params(
                 json.loads(
                     helper.read_one_line(file_path, 0)))
-        
+
         except Exception as e:
             self.log(f'Something went wrong when loading params: {e}',
                      level='info', print_=True)
@@ -456,10 +478,10 @@ class UserInterface:
             if params['marketplace'] not in self.allowed_exchanges:
                 raise ValueError(f"You can't choose {params['marketplace']}"
                                  f" as marketplace")
-            
+
             params.update(self.set_marketplace(params['marketplace']))
             self.select_market(params['api_connector'], params['market'])
-            
+
             check.is_date(params['datetime'])
             check.range_bot(params['range_bot'])
             check.range_top(params['range_top'], params['range_bot'])
@@ -468,10 +490,10 @@ class UserInterface:
             check.profits_alloc(params['profits_alloc'])
 
             params.update({'intervals': helper.interval_generator(
-                                            params['range_bot'],
-                                            params['range_top'],
-                                            params['increment_coef'])})
-            
+                params['range_bot'],
+                params['range_top'],
+                params['increment_coef'])})
+
             if params['spread_top'] - params['spread_bot'] != 3:
                 raise ValueError('Spread_bot isn\'t properly configured')
 
@@ -479,35 +501,35 @@ class UserInterface:
             self.log(f'The LW parameters are not well configured: {e}',
                      level='info', print_=True)
             return False
-        
+
         return params
 
     def check_value_presences(self, params):
         params_names = ['datetime', 'marketplace', 'market', 'range_bot',
                         'range_top', 'spread_bot', 'spread_top',
                         'increment_coef', 'amount', 'stop_at_bot',
-                        'stop_at_top', 'nb_buy_to_display',
-                        'nb_sell_to_display', 'profits_alloc']
-        
+                        'stop_at_top', 'nb_buy_to_display', 'orders_per_interval',
+                        'allocation_type', 'nb_sell_to_display', 'profits_alloc']
+
         for name in params_names:
             if not params[name]:
                 raise ValueError(f'{name} is not set in parameters')
-        
+
         return params
 
     def convert_params(self, params):
         decimal_to_test = ['range_bot', 'range_top',
                            'increment_coef', 'amount', 'profits_alloc']
-        
+
         for name in decimal_to_test:
             error_message = f"params['{name}'] is not a string:"
             params[name] = convert.str_to_decimal(params[name], error_message)
-        
+
         for name in ['stop_at_bot', 'stop_at_top']:
             error_message = f"params['{name}'] is not a boolean:"
             params[name] = convert.str_to_bool(params[name], error_message)
-        
-        for name in ['nb_buy_to_display', 'nb_sell_to_display', 'spread_bot', 'spread_top',]:
+
+        for name in ['nb_buy_to_display', 'nb_sell_to_display', 'spread_bot', 'spread_top', 'orders_per_interval']:
             error_message = f"params['{name}'] is not a boolean:"
             params[name] = convert.str_to_int(params[name], error_message)
 
@@ -550,15 +572,15 @@ class UserInterface:
                     total_buy_funds_needed = self.sum_buy_needs(params,
                                                                 spread_top_index,
                                                                 total_buy_funds_needed,
-                                                                price)                
-                # When the strategy start with spread bot superior to the
+                                                                price)
+                    # When the strategy start with spread bot superior to the
                 # actual price on the market
                 else:
                     total_sell_funds_needed = self.sum_sell_needs(params,
                                                                   spread_bot_index,
                                                                   total_sell_funds_needed,
                                                                   price)
-                    
+
                 msg = (
                     f'Your actual strategy require: {pair[1]} needed: '
                     f'{total_buy_funds_needed} and you have {buy_balance} '
@@ -566,7 +588,6 @@ class UserInterface:
                     f' and you have {sell_balance} {pair[0]}.'
                 )
                 self.log(msg, level='info', print_=True)
-                
 
                 buy_balance, sell_balance = self.search_moar_funds(
                     total_buy_funds_needed,
@@ -574,7 +595,7 @@ class UserInterface:
                     buy_balance,
                     sell_balance,
                     params)
-                
+
                 return params
             except ValueError as e:
                 self.log(f'You need to change some parameters: {e}',
@@ -644,7 +665,7 @@ class UserInterface:
                 i -= 1
                 if i < 0:
                     break
-        
+
         return total_sell_funds_needed - incoming_sell_funds
 
     def look_for_moar_funds(self, params, funds_needed, funds, side):
@@ -658,7 +679,7 @@ class UserInterface:
             params['api_connector'].get_orders(params['market']))
 
         funds, orders_outside_strat = self.sum_open_orders(params, side, orders, funds)
-        
+
         # If there is still not enough funds but there is open orders outside the
         # strategy
         if funds > Decimal('0'):
@@ -668,7 +689,7 @@ class UserInterface:
                                                funds,
                                                funds_needed,
                                                side)
-                
+
         return funds
 
     def sum_open_orders(self, params, side, orders, funds):
@@ -703,7 +724,7 @@ class UserInterface:
             if self.simple_question(q):
                 q = 'Which order do you want to remove:'
                 rsp = self.ask_to_select_in_a_list(q,
-                                                    orders_outside_strat)
+                                                   orders_outside_strat)
                 order = orders_outside_strat[rsp]
                 del orders_outside_strat[rsp]
                 rsp = params['api_connector'].cancel_order(params['market'],
@@ -717,11 +738,11 @@ class UserInterface:
                     else:
                         funds += order[2]
                     self.log((f'You have now {funds} {side} '
-                        f'funds and you need {funds_needed}.'),
-                        level='debug', print_=True)
+                              f'funds and you need {funds_needed}.'),
+                             level='debug', print_=True)
             else:
                 break
-        
+
         return funds
 
     def search_moar_funds(self, total_buy_funds_needed, total_sell_funds_needed, buy_balance, sell_balance, params):
@@ -730,11 +751,11 @@ class UserInterface:
         if total_buy_funds_needed > buy_balance:
             buy_balance = self.look_for_moar_funds(
                 params, total_buy_funds_needed, buy_balance, 'buy')
-        
+
         if total_sell_funds_needed > sell_balance:
             sell_balance = self.look_for_moar_funds(
                 params, total_buy_funds_needed, buy_balance, 'sell')
-        
+
         if total_buy_funds_needed > buy_balance or \
                 total_sell_funds_needed > sell_balance:
             raise ValueError('You don\'t own enough funds!')

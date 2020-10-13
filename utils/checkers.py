@@ -58,11 +58,11 @@ def amount(amount, range_bot):
 
 
 def profits_alloc(nb):
-    """Verifie the nb for benefice allocation
+    """Verify the nb for benefice allocation
     nb: int"""
-    if Decimal('0') <= nb >= Decimal('100'):
-        raise ValueError(f'The benefice allocation too low (<0) or high ' \
-                            f'(>100) {nb}')
+    if nb <= Decimal('1') or nb >= Decimal('100'):
+        raise ValueError(f'The benefice allocation too low (<0) or high '
+                         f'(>100) {nb}')
     return nb
 
 
@@ -88,15 +88,22 @@ def limitation_to_btc_market(market):
 
 
 def nb_to_display(nb, max_size):
-    """Verifie the nb of order to display
+    """Verify the nb of intervals to display
     nb: int"""
-    if nb > max_size and nb < 0:
-        raise ValueError('The number of order to display is too low (<0) '
+    if nb > max_size or nb < 0:
+        raise ValueError('The number of intervals to display is too low (<0) '
                          f'or high {max_size}')
     return True
+
+
+def nb_orders_per_interval(nb, max_size):
+    """Verify the nb of orders per interval
+        nb: int"""
+    if nb > max_size or nb < 0:
+        raise ValueError('The number of orders per interval is too low (<0) '
+                         f'or high {max_size}')
 
 
 def is_equal_decimal(first: Decimal, second: Decimal):
     eps = Decimal(Decimal('10') ** (-config.DECIMAL_PRECISION + 2))
     return (first - second).copy_abs() <= eps
-
