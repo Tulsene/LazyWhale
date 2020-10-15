@@ -887,4 +887,4 @@ class LazyWhale:
 
             self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE STOP',
                      level='info', print_=True)
-            sleep(5)
+            sleep(config.LW_CYCLE_SLEEP_TIME)
