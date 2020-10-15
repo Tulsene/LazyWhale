@@ -185,6 +185,7 @@ class AnotherUserTests(TestCase):
             self.user.cancel_all_orders()
 
             if i == iterations - 1:
+                print(self.lazy_whale.intervals)
                 self.assertRaises(SystemExit, self.lazy_whale.main_cycle)
             else:
                 self.lazy_whale.main_cycle()

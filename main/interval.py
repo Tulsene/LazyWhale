@@ -41,11 +41,19 @@ class Interval:
         orders_filtered = [order for order in self.__sell_orders if is_equal_decimal(order.price, price)]
         return len(orders_filtered) > 0
 
+    def get_random_price_not_in_array(self, orders):
+        price = self.get_random_price_in_interval()
+
+        # failsafe if there is 2 orders with the same price happens (really low frequency, but still)
+        while price in [order['price'] for order in orders]:
+            price = self.get_random_price_in_interval()
+
+        return price
+
     def generate_orders_by_amount(self, total_amount: Decimal, min_amount, count_order: int = 2) -> [dict]:
         """Returns orders(dict) with random price inside interval and with amount sum = total_amount
         Does not store this orders in Interval (cause they are not opened yet)
         """
-        print(min_amount, count_order, total_amount)
         # TODO: redo this assert
         assert min_amount * count_order < total_amount
 
@@ -59,16 +67,17 @@ class Interval:
         for _ in range(count_order - 1):
             order_amount = min_amount + get_random_decimal(rand_max / Decimal('2'), rand_max)
             current_amount += order_amount
-            price = self.get_random_price_in_interval()
+
             orders_to_open.append({
-                "price": price,
+                "price": self.get_random_price_not_in_array(orders_to_open),
                 "amount": order_amount,
             })
 
         assert total_amount >= min_amount + current_amount
+
         # Add last order to have the sum of total_amount
         orders_to_open.append({
-            "price": self.get_random_price_in_interval(),
+            "price": self.get_random_price_not_in_array(orders_to_open),
             "amount": total_amount - current_amount,
         })
 
