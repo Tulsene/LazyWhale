@@ -134,7 +134,7 @@ class ProfitAllocation(AbstractAllocation):
 
     def get_amount(self, interval_index: int = 0, side: str = 'none'):
         if side == 'buy':
-            return max(self.amount + self.benefits[interval_index].get_actual_benefit(),
+            return min(self.amount + self.benefits[interval_index].get_actual_benefit(),
                        self.amount + self.benefits[interval_index].get_max_benefit())
         else:
             return self.amount

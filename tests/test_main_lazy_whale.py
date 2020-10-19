@@ -6,7 +6,7 @@ from mock import patch
 
 from exchanges.api_manager import APIManager
 from exchanges.zebitexFormatted import ZebitexFormatted
-from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAllocation
+from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAllocation, ProfitAllocation
 from main.lazy_whale import LazyWhale
 from utils import helpers
 from utils.converters import multiplier, divider
@@ -56,6 +56,7 @@ class LazyWhaleTests(TestCase):
         self.lazy_whale.connector = self.api_manager
 
         self.api_manager.cancel_all(self.market)
+        self.user.cancel_all_orders()
         self.lazy_whale.fees_coef = Decimal('0.9975')
         self.lazy_whale.min_amount = Decimal('0')
         self.lazy_whale.log = Logger(name='main',
@@ -636,3 +637,44 @@ class LazyWhaleTests(TestCase):
         for i in (28, 29, 30):
             self.assertGreater(self.lazy_whale.intervals[i].get_sell_orders_amount(), Decimal('0.018'))
             self.assertLess(self.lazy_whale.intervals[i].get_sell_orders_amount(), Decimal('0.020'))
+
+    def test_first_intervals_profit_allocation(self):
+        self.lazy_whale.params['spread_bot'] = 3
+        self.lazy_whale.params['spread_top'] = 6
+        amount = Decimal('0.02')
+        self.lazy_whale.allocation = ProfitAllocation(self.intervals, 50, self.lazy_whale.fees_coef, amount)
+        self.lazy_whale.set_first_intervals()
+        for i in (1, 2, 3):
+            self.assertEqual(self.lazy_whale.intervals[i].get_buy_orders_amount(), amount)
+
+        for i in (6, 7, 8):
+            self.assertEqual(self.lazy_whale.intervals[i].get_sell_orders_amount(), amount)
+
+    def test_compare_intervals_profit_allocation(self):
+        self.lazy_whale.params['spread_bot'] = 3
+        self.lazy_whale.params['spread_top'] = 6
+        self.lazy_whale.set_min_amount()
+        amount = Decimal('0.02')
+        self.lazy_whale.allocation = ProfitAllocation(self.intervals, 50, self.lazy_whale.fees_coef, amount)
+        self.lazy_whale.set_first_intervals()
+        self.user.create_limit_buy_order(self.market, Decimal('0.01'), self.intervals[6].get_top())
+
+        self.lazy_whale.compare_intervals(self.api_manager.get_intervals(self.market))
+        self.assertTrue(self.lazy_whale.allocation.benefits[4].get_actual_benefit() in
+                        (Decimal('0.00000107'), Decimal('0.00000108')))
+
+        self.user.create_limit_buy_order(self.market, Decimal('0.01'), self.intervals[6].get_top())
+        self.lazy_whale.compare_intervals(self.api_manager.get_intervals(self.market))
+        self.assertEqual(self.lazy_whale.allocation.benefits[4].get_actual_benefit(), Decimal('0.00000215'))
+
+        self.user.create_limit_sell_order(self.market, Decimal('0.02000215'), self.intervals[4].get_bottom())
+        self.lazy_whale.compare_intervals(self.api_manager.get_intervals(self.market))
+        self.assertEqual(self.lazy_whale.allocation.benefits[4].get_actual_benefit(), Decimal('0'))
+
+        self.user.create_limit_buy_order(self.market, Decimal('0.03'), self.intervals[7].get_top())
+        self.lazy_whale.compare_intervals(self.api_manager.get_intervals(self.market))
+        self.assertEqual(self.lazy_whale.allocation.benefits[4].get_actual_benefit(), Decimal('0.00000215'))
+        self.assertTrue(self.lazy_whale.allocation.benefits[5].get_actual_benefit() in
+                        (Decimal('0.00000107'), Decimal('0.00000108')))
+
+        self.assertEqual(self.lazy_whale.intervals[4].get_buy_orders_amount(), Decimal('0.02') + Decimal('0.00000215'))

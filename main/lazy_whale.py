@@ -440,7 +440,6 @@ class LazyWhale:
     def amount_compare_intervals(self, new_intervals: [Interval]) -> (Decimal, Decimal):
         """Compare intervals and return amount of MANA to open with correct side"""
         interval_index = 0
-        # check length of intervals are same
         amount_to_open_sell = Decimal('0')
         amount_to_open_buy = Decimal('0')
 
