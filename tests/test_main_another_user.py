@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from exchanges.api_manager import APIManager
 from exchanges.zebitexFormatted import ZebitexFormatted
-from main.allocation import NoSpecificAllocation
+from main.allocation import NoSpecificAllocation, LinearAllocation
 from utils.checkers import is_equal_decimal
 from utils.converters import multiplier
 from utils.helpers import interval_generator
@@ -78,7 +78,7 @@ class AnotherUserTests(TestCase):
         self.api_manager.cancel_all(self.market)
         self.user.cancel_all_orders()
 
-    def test_top_is_reached_small(self):
+    def helper_test_top_is_reached_small(self):
         """Tests scenario 1 - user buy LW orders until top is reached (buy small orders)"""
         self.lazy_whale.params['stop_at_top'] = True
         self.lazy_whale.params['spread_bot'] = len(self.intervals) - 7
@@ -88,9 +88,11 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.set_safety_orders()
 
         for i in range(self.lazy_whale.params['spread_top'], len(self.intervals)):
-            orders_to_open = self.intervals[i].generate_orders_by_amount(self.lazy_whale.params['amount']
-                                                                         + self.epsilon_amount,
-                                                                         self.lazy_whale.min_amount, 2)
+            orders_to_open = self.intervals[i] \
+                .generate_orders_by_amount(self.lazy_whale.allocation.get_amount(i, "sell")
+                                           + self.epsilon_amount,
+                                           self.lazy_whale.min_amount, 2)
+
             self.user.create_limit_buy_order(self.market, orders_to_open[0]['amount'],
                                              self.intervals[i].get_top())
             self.lazy_whale.main_cycle()
@@ -103,7 +105,7 @@ class AnotherUserTests(TestCase):
             else:
                 self.lazy_whale.main_cycle()
 
-    def test_bottom_is_reached_small(self):
+    def helper_test_bottom_is_reached_small(self):
         """Tests scenario 2 - user sell orders to LW until bottom is reached (sell small orders)"""
         self.lazy_whale.params['stop_at_bot'] = True
         self.lazy_whale.params['spread_bot'] = 3
@@ -113,9 +115,10 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.set_safety_orders()
 
         for i in range(self.lazy_whale.params['spread_bot'], -1, -1):
-            orders_to_open = self.intervals[i].generate_orders_by_amount(self.lazy_whale.params['amount']
-                                                                         + self.epsilon_amount,
-                                                                         self.lazy_whale.min_amount, 2)
+            orders_to_open = self.intervals[i] \
+                .generate_orders_by_amount(self.lazy_whale.allocation.get_amount(i, "buy")
+                                           + self.epsilon_amount,
+                                           self.lazy_whale.min_amount, 2)
             self.user.create_limit_sell_order(self.market, orders_to_open[0]['amount'],
                                               self.intervals[i].get_bottom())
             self.lazy_whale.main_cycle()
@@ -507,3 +510,17 @@ class AnotherUserTests(TestCase):
 
         self.assertEqual(self.lazy_whale.params['spread_bot'], spr_top + 2)
         self.assertEqual(self.lazy_whale.params['spread_top'], spr_top + 5)
+
+    def test_top_is_reached_small_no_specific_allocation(self):
+        self.helper_test_top_is_reached_small()
+
+    def test_top_is_reached_small_linear_allocation(self):
+        self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
+        self.helper_test_top_is_reached_small()
+
+    def test_bottom_is_reached_small_no_specific_allocation(self):
+        self.helper_test_bottom_is_reached_small()
+
+    def test_bottom_is_reached_small_linear_allocation(self):
+        self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
+        self.helper_test_bottom_is_reached_small()

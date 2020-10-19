@@ -89,7 +89,7 @@ class LinearAllocation(AbstractAllocation):
         if side == 'buy' or interval_index < self.start_index:
             return self.min_amount
 
-        return self.min_amount + self.linear_coefficient * (interval_index - self.start_index)
+        return self.min_amount + multiplier(self.linear_coefficient, (interval_index - self.start_index))
 
 
 class CurvedAllocation(AbstractAllocation):

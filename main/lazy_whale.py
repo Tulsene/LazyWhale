@@ -454,8 +454,18 @@ class LazyWhale:
                         self.allocation.benefits[interval_index] \
                             .subtract_actual_benefit(amount_consumed_buy - self.allocation.amount)
 
-                amount_to_open_buy += helper.get_amount_to_open(self.intervals[interval_index].get_sell_orders(),
-                                                                new_intervals[interval_index].get_sell_orders())
+                amount_consumed_sell = helper.get_amount_to_open(self.intervals[interval_index].get_sell_orders(),
+                                                                 new_intervals[interval_index].get_sell_orders())
+
+                if isinstance(self.allocation, LinearAllocation):
+                    amount_to_open_buy += \
+                        convert.multiplier(self.allocation.get_amount(interval_index, 'buy'),
+                                           convert.divider(amount_consumed_sell,
+                                                           self.allocation.get_amount(interval_index, 'sell')))
+                else:
+                    amount_to_open_buy = amount_consumed_sell
+
+                # TODO: write logic for CurvedAllocation
 
             interval_index += 1
 
@@ -782,6 +792,7 @@ class LazyWhale:
             )
         helper.populate_intervals(self.intervals, sell_orders)
 
+    # TODO: rewrite with KISS logic
     def limit_nb_intervals(self):
         buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
         sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
@@ -794,6 +805,7 @@ class LazyWhale:
                     and buy_indexes[-1] == self.get_spread_bot(self.intervals):
                 self.cancel_extra_buy_interval()
 
+            # TODO: logic error here
             if nb_sell_intervals > self.params['nb_sell_to_display'] \
                     and sell_indexes[0] == self.get_spread_top(self.intervals):
                 self.cancel_extra_sell_interval()
