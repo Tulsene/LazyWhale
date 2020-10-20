@@ -463,7 +463,7 @@ class LazyWhale:
                                            convert.divider(amount_consumed_sell,
                                                            self.allocation.get_amount(interval_index, 'sell')))
                 else:
-                    amount_to_open_buy = amount_consumed_sell
+                    amount_to_open_buy += amount_consumed_sell
 
                 # TODO: write logic for CurvedAllocation
 
@@ -773,7 +773,7 @@ class LazyWhale:
         helper.populate_intervals(self.intervals, buy_orders)
 
     def open_deficit_sell_interval(self):
-        """When there is more than needed sell intervals are active - open it"""
+        """When there is less than needed sell intervals are active - open it"""
         sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
         buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
         sell_orders = []
@@ -798,16 +798,17 @@ class LazyWhale:
         sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
         nb_buy_intervals = len(buy_indexes)
         nb_sell_intervals = len(sell_indexes)
+        iterations = abs(nb_buy_intervals - nb_sell_intervals)
 
-        # TODO: think about non-fully filled - cause it will close, if they exist
-        for _ in range(abs(nb_buy_intervals - nb_sell_intervals)):
-            if nb_buy_intervals > self.params['nb_buy_to_display'] \
-                    and buy_indexes[-1] == self.get_spread_bot(self.intervals):
+        for _ in range(iterations):
+            if nb_buy_intervals > self.params['nb_buy_to_display'] + 1 \
+                    or (nb_buy_intervals == self.params['nb_buy_to_display'] + 1
+                        and buy_indexes[-1] == self.get_spread_bot(self.intervals)):
                 self.cancel_extra_buy_interval()
 
-            # TODO: logic error here
-            if nb_sell_intervals > self.params['nb_sell_to_display'] \
-                    and sell_indexes[0] == self.get_spread_top(self.intervals):
+            if nb_sell_intervals > self.params['nb_sell_to_display'] + 1 \
+                    or (nb_sell_intervals == self.params['nb_sell_to_display'] + 1
+                        and sell_indexes[0] == self.get_spread_top(self.intervals)):
                 self.cancel_extra_sell_interval()
 
             if self.params['spread_bot'] - self.params['nb_buy_to_display'] + 1 >= 0 \
