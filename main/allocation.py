@@ -66,6 +66,16 @@ class AbstractAllocation(ABC):
         function to calculate correct amount of MANA for each interval"""
         pass
 
+    @abstractmethod
+    def get_buy_to_open(self, interval_index: int, amount_consumed_sell: Decimal) -> Decimal:
+        """Calculate amount buy to open in interval when amount_consumed_sell is known"""
+        pass
+
+    @abstractmethod
+    def get_sell_to_open(self, interval_index: int, amount_consumed_buy: Decimal) -> Decimal:
+        """Calculate amount buy to open in interval when amount_consumed_sell is known"""
+        pass
+
 
 class NoSpecificAllocation(AbstractAllocation):
     def __init__(self, constant_amount: Decimal):
@@ -74,6 +84,12 @@ class NoSpecificAllocation(AbstractAllocation):
     def get_amount(self, interval_index: int = 0, side: str = 'none'):
         """Just simply returns the same amount for each interval"""
         return self.amount
+
+    def get_buy_to_open(self, interval_index: int, amount_consumed_sell: Decimal) -> Decimal:
+        return amount_consumed_sell
+
+    def get_sell_to_open(self, interval_index: int, amount_consumed_buy: Decimal) -> Decimal:
+        return amount_consumed_buy
 
 
 class LinearAllocation(AbstractAllocation):
@@ -90,6 +106,14 @@ class LinearAllocation(AbstractAllocation):
             return self.min_amount
 
         return self.min_amount + multiplier(self.linear_coefficient, (interval_index - self.start_index))
+
+    def get_buy_to_open(self, interval_index: int, amount_consumed_sell: Decimal) -> Decimal:
+        return multiplier(self.get_amount(interval_index, 'buy'),
+                          divider(amount_consumed_sell,
+                                  self.get_amount(interval_index, 'sell')))
+
+    def get_sell_to_open(self, interval_index: int, amount_consumed_buy: Decimal) -> Decimal:
+        return amount_consumed_buy
 
 
 class CurvedAllocation(AbstractAllocation):
@@ -118,6 +142,16 @@ class CurvedAllocation(AbstractAllocation):
         else:
             return self.middle_amount
 
+    def get_buy_to_open(self, interval_index: int, amount_consumed_sell: Decimal) -> Decimal:
+        return multiplier(self.get_amount(interval_index, 'buy'),
+                          divider(amount_consumed_sell,
+                                  self.get_amount(interval_index, 'sell')))
+
+    def get_sell_to_open(self, interval_index: int, amount_consumed_buy: Decimal) -> Decimal:
+        return multiplier(self.get_amount(interval_index, 'sell'),
+                          divider(amount_consumed_buy,
+                                  self.get_amount(interval_index, 'buy')))
+
 
 class ProfitAllocation(AbstractAllocation):
     def __init__(self, intervals: [Interval], profit_allocation_percent: int, fees: Decimal, amount: Decimal):
@@ -138,3 +172,12 @@ class ProfitAllocation(AbstractAllocation):
                        self.amount + self.benefits[interval_index].get_max_benefit())
         else:
             return self.amount
+
+    def get_buy_to_open(self, interval_index: int, amount_consumed_sell: Decimal) -> Decimal:
+        return amount_consumed_sell
+
+    def get_sell_to_open(self, interval_index: int, amount_consumed_buy: Decimal) -> Decimal:
+        self.benefits[interval_index] \
+            .subtract_actual_benefit(amount_consumed_buy - self.amount)
+
+        return amount_consumed_buy

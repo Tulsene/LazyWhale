@@ -447,25 +447,12 @@ class LazyWhale:
             if self.intervals[interval_index] != new_intervals[interval_index]:
                 amount_consumed_buy = helper.get_amount_to_open(self.intervals[interval_index].get_buy_orders(),
                                                                 new_intervals[interval_index].get_buy_orders())
-                amount_to_open_sell += amount_consumed_buy
-
-                if isinstance(self.allocation, ProfitAllocation):
-                    if amount_consumed_buy > self.allocation.amount:
-                        self.allocation.benefits[interval_index] \
-                            .subtract_actual_benefit(amount_consumed_buy - self.allocation.amount)
 
                 amount_consumed_sell = helper.get_amount_to_open(self.intervals[interval_index].get_sell_orders(),
                                                                  new_intervals[interval_index].get_sell_orders())
 
-                if isinstance(self.allocation, LinearAllocation):
-                    amount_to_open_buy += \
-                        convert.multiplier(self.allocation.get_amount(interval_index, 'buy'),
-                                           convert.divider(amount_consumed_sell,
-                                                           self.allocation.get_amount(interval_index, 'sell')))
-                else:
-                    amount_to_open_buy += amount_consumed_sell
-
-                # TODO: write logic for CurvedAllocation
+                amount_to_open_buy += self.allocation.get_buy_to_open(interval_index, amount_consumed_sell)
+                amount_to_open_sell += self.allocation.get_sell_to_open(interval_index, amount_consumed_buy)
 
             interval_index += 1
 

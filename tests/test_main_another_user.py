@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from exchanges.api_manager import APIManager
 from exchanges.zebitexFormatted import ZebitexFormatted
-from main.allocation import NoSpecificAllocation, LinearAllocation
+from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAllocation
 from utils.checkers import is_equal_decimal
 from utils.converters import multiplier
 from utils.helpers import interval_generator
@@ -384,7 +384,7 @@ class AnotherUserTests(TestCase):
             self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot - 1)
             self.assertEqual(self.lazy_whale.params['spread_top'], spr_top - 1)
 
-    def test_run_forever(self):
+    def helper_test_run_forever(self):
         """Tests scenario 8:
         going to bot, after to top, to bot with bigger step and to top once more (bigger step)
         Really large test and really slow test, but still important
@@ -449,19 +449,27 @@ class AnotherUserTests(TestCase):
         iterations = len(self.intervals) // self.lazy_whale.params['nb_buy_to_display'] + 1
         for i in range(iterations):
             with self.subTest(i=i):
+                print(self.lazy_whale.params['spread_bot'])
+                # print("Intervals: ", self.lazy_whale.intervals)
+                # print("Order book:", self.user.get_order_book(self.market))
+                # print("Opened intervals:", self.api_manager.get_intervals())
                 self.assertEqual(self.lazy_whale.params['spread_bot'],
                                  len(self.intervals) - 4 - self.lazy_whale.params['nb_buy_to_display'] * i)
 
-                bottom_index = max(0, self.intervals - 4 - self.lazy_whale.params['nb_buy_to_display'] * (i + 1) + 1)
+                bottom_index = max(0, len(self.intervals) - 4 - self.lazy_whale.params['nb_buy_to_display'] * (i + 1) + 1)
+                print("Bottom index", bottom_index)
                 amount_to_open = self.helper_amount_by_indexes(
                     bottom_index,
                     bottom_index + self.lazy_whale.params['nb_buy_to_display'],
                     "buy"
                 )
+                print("amount_to_open", amount_to_open)
                 self.user.create_limit_sell_order(self.market,
                                                   amount_to_open + self.epsilon_amount,
                                                   self.intervals[bottom_index].get_bottom())
 
+                import time
+                time.sleep(5)
                 self.user.cancel_all_orders()
                 self.lazy_whale.main_cycle()
 
@@ -488,16 +496,19 @@ class AnotherUserTests(TestCase):
                                  3 + self.lazy_whale.params['nb_buy_to_display'] * i)
 
                 bottom_index = 3 + self.lazy_whale.params['nb_buy_to_display'] * i
-                top_index = bottom_index + self.lazy_whale.params['nb_buy_to_display']
+                top_index = min(len(self.intervals) - 1, bottom_index + self.lazy_whale.params['nb_buy_to_display'])
                 amount_to_open = self.helper_amount_by_indexes(
                     bottom_index,
                     top_index,
                     "sell"
                 )
-                self.user.create_limit_buy_order(self.market,
-                                                 amount_to_open + self.epsilon_amount,
-                                                 self.intervals[top_index].get_top())
+                if amount_to_open > Decimal('0'):
+                    self.user.create_limit_buy_order(self.market,
+                                                     amount_to_open + self.epsilon_amount,
+                                                     self.intervals[top_index].get_top())
 
+                import time
+                time.sleep(5)
                 self.user.cancel_all_orders()
                 self.lazy_whale.main_cycle()
 
@@ -602,6 +613,7 @@ class AnotherUserTests(TestCase):
         self.assertEqual(self.lazy_whale.params['spread_bot'], spr_top + 2)
         self.assertEqual(self.lazy_whale.params['spread_top'], spr_top + 5)
 
+    # SCENARIO 1
     def test_top_is_reached_small_no_specific_allocation(self):
         self.helper_test_top_is_reached_small()
 
@@ -609,6 +621,11 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
         self.helper_test_top_is_reached_small()
 
+    def test_top_is_reached_small_curved_allocation(self):
+        self.lazy_whale.allocation = CurvedAllocation(Decimal('0.02'), Decimal('0.016'), Decimal('0.24'), 40)
+        self.helper_test_top_is_reached_small()
+
+    # SCENARIO 2
     def test_bottom_is_reached_small_no_specific_allocation(self):
         self.helper_test_bottom_is_reached_small()
 
@@ -616,6 +633,11 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
         self.helper_test_bottom_is_reached_small()
 
+    def test_bottom_is_reached_small_curved_allocation(self):
+        self.lazy_whale.allocation = CurvedAllocation(Decimal('0.02'), Decimal('0.016'), Decimal('0.024'), 40)
+        self.helper_test_bottom_is_reached_small()
+
+    # SCENARIO 3
     def test_top_is_reached_big_no_specific_allocation(self):
         self.helper_test_top_is_reached_big()
 
@@ -623,6 +645,11 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
         self.helper_test_top_is_reached_big()
 
+    def test_top_is_reached_big_curved_allocation(self):
+        self.lazy_whale.allocation = CurvedAllocation(Decimal('0.02'), Decimal('0.016'), Decimal('0.024'), 40)
+        self.helper_test_top_is_reached_big()
+
+    # SCENARIO 4
     def test_bottom_is_reached_big_no_specific_allocation(self):
         self.helper_test_bottom_is_reached_big()
 
@@ -630,6 +657,11 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
         self.helper_test_bottom_is_reached_big()
 
+    def test_bottom_is_reached_big_curved_allocation(self):
+        self.lazy_whale.allocation = CurvedAllocation(Decimal('0.02'), Decimal('0.016'), Decimal('0.024'), 40)
+        self.helper_test_bottom_is_reached_big()
+
+    # SCENARIO 5
     def test_mad_market_volatility_tp_is_reached_no_specific_allocation(self):
         self.helper_test_mad_market_volatility_top_is_reached()
 
@@ -637,6 +669,11 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
         self.helper_test_mad_market_volatility_top_is_reached()
 
+    def test_mad_market_volatility_tp_is_reached_curved_allocation(self):
+        self.lazy_whale.allocation = CurvedAllocation(Decimal('0.02'), Decimal('0.016'), Decimal('0.024'), 40)
+        self.helper_test_mad_market_volatility_top_is_reached()
+
+    # SCENARIO 6
     def test_mad_market_volatility_bottom_is_reached_no_specific_allocation(self):
         self.helper_test_mad_market_volatility_bottom_is_reached()
 
@@ -644,6 +681,11 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
         self.helper_test_mad_market_volatility_bottom_is_reached()
 
+    def test_mad_market_volatility_bottom_is_reached_curved_allocation(self):
+        self.lazy_whale.allocation = CurvedAllocation(Decimal('0.02'), Decimal('0.016'), Decimal('0.024'), 40)
+        self.helper_test_mad_market_volatility_bottom_is_reached()
+
+    # SCENARIO 7
     def test_consume_buys_sells_no_specific_allocation(self):
         self.helper_test_consume_buys_sells()
 
@@ -651,6 +693,23 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
         self.helper_test_consume_buys_sells()
 
+    def test_consume_buys_sells_curved_allocation(self):
+        self.lazy_whale.allocation = CurvedAllocation(Decimal('0.02'), Decimal('0.016'), Decimal('0.024'), 40)
+        self.helper_test_consume_buys_sells()
+
+    # SCENARIO 8
+    def test_run_forever_no_specific_allocation(self):
+        self.helper_test_run_forever()
+
+    def test_run_forever_linear_allocation(self):
+        self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
+        self.helper_test_run_forever()
+
+    def test_run_forever_curved_allocation(self):
+        self.lazy_whale.allocation = CurvedAllocation(Decimal('0.02'), Decimal('0.016'), Decimal('0.024'), 40)
+        self.helper_test_run_forever()
+
+    # SCENARIO 9
     def test_buy_after_startup_no_specific_allocation(self):
         self.helper_test_buy_after_startup()
 
@@ -658,9 +717,18 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
         self.helper_test_buy_after_startup()
 
+    def test_buy_after_startup_curved_allocation(self):
+        self.lazy_whale.allocation = CurvedAllocation(Decimal('0.02'), Decimal('0.016'), Decimal('0.024'), 40)
+        self.helper_test_buy_after_startup()
+
+    # SCENARIO 10
     def test_sell_after_startup_no_specific_allocation(self):
         self.helper_test_sell_after_startup()
 
     def test_sell_after_startup_linear_allocation(self):
         self.lazy_whale.allocation = LinearAllocation(Decimal('0.02'), Decimal('0.04'), 40)
+        self.helper_test_sell_after_startup()
+
+    def test_sell_after_startup_curved_allocation(self):
+        self.lazy_whale.allocation = CurvedAllocation(Decimal('0.02'), Decimal('0.016'), Decimal('0.024'), 40)
         self.helper_test_sell_after_startup()
