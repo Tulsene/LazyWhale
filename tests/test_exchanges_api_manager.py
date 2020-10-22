@@ -252,10 +252,10 @@ class APIManagerTests(TestCase):
         self.assertIsNone(self.api_manager.get_safety_buy())
         self.assertIsNone(self.api_manager.get_safety_sell())
 
-        self.api_manager.create_limit_buy_order(self.market, Decimal('0.001'), self.api_manager.safety_buy_value)
+        self.api_manager.create_limit_buy_order(self.market, Decimal('100'), self.api_manager.safety_buy_value)
         self.assertEqual(self.api_manager.get_safety_buy().price, self.api_manager.safety_buy_value)
 
-        self.api_manager.create_limit_sell_order(self.market, Decimal('0.001'), self.api_manager.safety_sell_value)
+        self.api_manager.create_limit_sell_order(self.market, Decimal('0.00001'), self.api_manager.safety_sell_value)
         self.assertEqual(self.api_manager.get_safety_sell().price, self.api_manager.safety_sell_value)
 
     def test_set_several_buy(self):

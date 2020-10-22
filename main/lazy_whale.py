@@ -748,13 +748,15 @@ class LazyWhale:
                 buy_orders = self.connector.set_several_buy(
                     self.intervals[buy_indexes[0] - 1]
                         .generate_orders_by_amount(self.allocation.get_amount(buy_indexes[0] - 1, 'buy'),
-                                                   self.min_amount)
+                                                   self.min_amount,
+                                                   self.params['orders_per_interval'])
                 )
         elif len(sell_indexes) >= 0 and sell_indexes[0] - 3 >= 0:
             buy_orders = self.connector.set_several_buy(
                 self.intervals[sell_indexes[0] - 3]
                     .generate_orders_by_amount(self.allocation.get_amount(sell_indexes[0] - 3, 'buy'),
-                                               self.min_amount)
+                                               self.min_amount,
+                                               self.params['orders_per_interval'])
             )
 
         helper.populate_intervals(self.intervals, buy_orders)
@@ -769,17 +771,18 @@ class LazyWhale:
                 sell_orders = self.connector.set_several_sell(
                     self.intervals[sell_indexes[-1] + 1]
                         .generate_orders_by_amount(self.allocation.get_amount(sell_indexes[-1] + 1, 'sell'),
-                                                   self.min_amount)
+                                                   self.min_amount,
+                                                   self.params['orders_per_interval'])
                 )
         elif len(buy_indexes) >= 0 and buy_indexes[-1] + 3 < len(self.intervals):
             sell_orders = self.connector.set_several_sell(
                 self.intervals[buy_indexes[-1] + 3]
                     .generate_orders_by_amount(self.allocation.get_amount(buy_indexes[-1] + 3, 'sell'),
-                                               self.min_amount)
+                                               self.min_amount,
+                                               self.params['orders_per_interval'])
             )
         helper.populate_intervals(self.intervals, sell_orders)
 
-    # TODO: rewrite with KISS logic
     def limit_nb_intervals(self):
         buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
         sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
@@ -876,6 +879,7 @@ class LazyWhale:
         while True:
             self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE START',
                      level='info', print_=True)
+            # TODO: implement here working with orders of strategy
             # orders = self.safety_orders_checkpoint(self.remove_orders_off_strat(
             #     self.connector.orders_price_ordering(
             #         self.connector.get_orders(

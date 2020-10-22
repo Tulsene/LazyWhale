@@ -143,11 +143,16 @@ class CurvedAllocation(AbstractAllocation):
             return self.middle_amount
 
     def get_buy_to_open(self, interval_index: int, amount_consumed_sell: Decimal) -> Decimal:
+        if interval_index < self.middle_point:
+            return amount_consumed_sell
+
         return multiplier(self.get_amount(interval_index, 'buy'),
                           divider(amount_consumed_sell,
                                   self.get_amount(interval_index, 'sell')))
 
     def get_sell_to_open(self, interval_index: int, amount_consumed_buy: Decimal) -> Decimal:
+        if interval_index > self.middle_point:
+            return amount_consumed_buy
         return multiplier(self.get_amount(interval_index, 'sell'),
                           divider(amount_consumed_buy,
                                   self.get_amount(interval_index, 'buy')))
@@ -177,7 +182,7 @@ class ProfitAllocation(AbstractAllocation):
         return amount_consumed_sell
 
     def get_sell_to_open(self, interval_index: int, amount_consumed_buy: Decimal) -> Decimal:
-        self.benefits[interval_index] \
-            .subtract_actual_benefit(amount_consumed_buy - self.amount)
+        if amount_consumed_buy > self.amount:
+            self.benefits[interval_index].subtract_actual_benefit(amount_consumed_buy - self.amount)
 
         return amount_consumed_buy
