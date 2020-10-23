@@ -8,8 +8,7 @@ import ccxt
 
 import utils.helpers as helper
 import utils.converters as convert
-from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAllocation, \
-    ProfitAllocation, AbstractAllocation
+from main.allocation import ProfitAllocation
 from main.interval import Interval
 from main.order import Order
 from ui.user_interface import UserInterface
@@ -821,24 +820,6 @@ class LazyWhale:
         lowest_price = self.intervals[0].get_bottom()
         self.min_amount = convert.divider(config.MIN_VALUE_ORDER, lowest_price)
 
-    def choose_allocation(self) -> AbstractAllocation:
-        if self.params['allocation_type'] == 'no_specific_allocation':
-            return NoSpecificAllocation(self.params['amount'])
-
-        if self.params['allocation_type'] == 'linear_allocation':
-            return LinearAllocation(self.params['amount'],
-                                    convert.multiplier(self.params['amount'], config.MAX_AMOUNT_COEFFICIENT),
-                                    len(self.intervals), start_index=0)
-
-        if self.params['allocation_type'] == 'curved_allocation':
-            return CurvedAllocation(convert.multiplier(self.params['amount'], config.LOWEST_AMOUNT_COEFFICIENT),
-                                    convert.multiplier(self.params['amount'], config.MIDDLE_AMOUNT_COEFFICIENT),
-                                    convert.multiplier(self.params['amount'], config.HIGHEST_AMOUNT_COEFFICIENT),
-                                    len(self.intervals))
-
-        if self.params['allocation_type'] == 'profit_allocation':
-            return ProfitAllocation(self.intervals, self.params['profits_alloc'], self.fees_coef, self.params['amount'])
-
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.
         """
@@ -850,8 +831,8 @@ class LazyWhale:
 
         self.connector = self.params['api_connector']
         self.intervals = self.params['intervals']
+        self.allocation = self.params['allocation']
         self.connector.set_params(self.params)
-        self.allocation = self.choose_allocation()
 
         # TODO: do not cancel all existing orders
         self.connector.cancel_all(self.params['market'])

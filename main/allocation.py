@@ -3,6 +3,8 @@ from abc import ABC, abstractmethod
 
 from main.interval import Interval
 from utils.converters import divider, quantizator, multiplier
+import config.config as config
+import utils.converters as convert
 
 
 def calculate_exponential_coefficient(y1, x2, y2):
@@ -186,3 +188,30 @@ class ProfitAllocation(AbstractAllocation):
             self.benefits[interval_index].subtract_actual_benefit(amount_consumed_buy - self.amount)
 
         return amount_consumed_buy
+
+
+class AllocationFactory:
+    def __init__(self, allocation_type: str, amount: Decimal, intervals: [Interval],
+                 fees_coefficient: Decimal = None, profits_alloc: int = None):
+        self.allocation_type = allocation_type
+        self.amount = amount
+        self.intervals = intervals
+        self.fees_coefficient = fees_coefficient
+        self.profits_alloc = profits_alloc
+
+    def get_allocation(self):
+        if self.allocation_type == 'profit_allocation':
+            return ProfitAllocation(self.intervals, self.profits_alloc, self.fees_coefficient, self.amount)
+
+        elif self.allocation_type == 'linear_allocation':
+            return LinearAllocation(self.amount,
+                                    convert.multiplier(self.amount, config.MAX_AMOUNT_COEFFICIENT),
+                                    len(self.intervals), start_index=0)
+
+        elif self.allocation_type == 'curved_allocation':
+            return CurvedAllocation(convert.multiplier(self.amount, config.LOWEST_AMOUNT_COEFFICIENT),
+                                    convert.multiplier(self.amount, config.MIDDLE_AMOUNT_COEFFICIENT),
+                                    convert.multiplier(self.amount, config.HIGHEST_AMOUNT_COEFFICIENT),
+                                    len(self.intervals))
+        else:
+            return NoSpecificAllocation(self.amount)

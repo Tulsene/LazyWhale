@@ -9,6 +9,8 @@ import utils.helpers as helper
 import utils.converters as convert
 import utils.checkers as check
 import exchanges.api_manager as api_manager
+from main.allocation import AllocationFactory, AbstractAllocation
+from main.interval import Interval
 from utils.logger import Logger
 
 
@@ -145,7 +147,23 @@ class UserInterface:
         params.update(self.ask_params_spread(params['api_connector'],
                                              params['market'],
                                              params['intervals']))
+        allocation_type = self.ask_allocation_type()
+        params.update(allocation_type)
+        if allocation_type['allocation_type'] == 'profit_allocation':
+            params.update(self.ask_profits_alloc())
+        else:
+            params.update({'profits_alloc': 0})
         params.update(self.ask_param_amount(params))
+
+        allocation_factory = AllocationFactory(
+            params['allocation_type'],
+            params['amount'],
+            params['intervals'],
+            self.fees_coef,
+            params['profits_alloc'],
+        )
+        params.update({'allocation': allocation_factory.get_allocation()})
+
         # No need to continue further without enough funds
         params = self.check_for_enough_funds(params)
 
@@ -153,12 +171,6 @@ class UserInterface:
         params.update(self.ask_nb_to_display(params['intervals']))
         params.update(self.ask_nb_orders_per_interval())
 
-        allocation_type = self.ask_allocation_type()
-        params.update(allocation_type)
-        if allocation_type['allocation_type'] == 'profit_allocation':
-            params.update(self.ask_profits_alloc())
-        else:
-            params.update({'profits_alloc': 0})
         return params
 
     def set_marketplace(self, marketplace=None, test_mode=None):
@@ -281,6 +293,22 @@ class UserInterface:
         return {'spread_bot': position,
                 'spread_top': position + 3}
 
+    def calculate_amount_suggestion(self, params: dict, funds: Decimal):
+        """Calculate amount suggestion for user to simplify user calculation (depends on allocation strategy)"""
+        allocation_factory = AllocationFactory(
+            params['allocation_type'],
+            Decimal('1'),
+            params['intervals'],
+            self.fees_coef,
+            params['profits_alloc'],
+        )
+        total_interval_amount_coefficient = Decimal('0')
+        allocation = allocation_factory.get_allocation()
+        for i in range(params['spread_top'], len(params['intervals'])):
+            total_interval_amount_coefficient += allocation.get_amount(i, 'sell')
+
+        return convert.divider(funds, total_interval_amount_coefficient)
+
     def ask_param_amount(self, params):
         """Ask the user to enter a value of ALT to sell at each order.
         selected_market: string.
@@ -288,13 +316,11 @@ class UserInterface:
         return: Decimal."""
         pair = params['market'].split('/')[0]
         funds = params['api_connector'].get_balances()[pair]['total']
-        suggestion = convert.divider(funds,
-                                     (len(params['intervals'])
-                                      - params['spread_top']
-                                      - 1))
+
+        suggestion = self.calculate_amount_suggestion(params, funds)
 
         q = (f"How much {params['market'][:4]} do you want to sell "
-             f'per order? It must be between '
+             f'per interval? It must be between '
              f"{Decimal('0.001') / params['range_bot']} and 10000000."
              f"Suggestion:  {suggestion}")
 
@@ -308,7 +334,7 @@ class UserInterface:
                 self.log(e, level='info', print_=True)
 
     def ask_nb_to_display(self, intervals):
-        """Ask how much buy and sell orders are going to be in the book.
+        """Ask how much buy and sell intervals are going to be in the book.
         return: dict, nb_buy_to_display + nb_sell."""
         max_size = len(intervals) - 3
         result = []
@@ -411,7 +437,7 @@ class UserInterface:
 
     def history_reader(self):
         """Import the last 20 order from strat.log and organize it.
-        return: None or dict containing : list of exectuted buy,
+        return: None or dict containing : list of executed buy,
                                           list of executed sell,
                                           dict of parameters
         """
@@ -554,9 +580,9 @@ class UserInterface:
             spread_top_index = spread_bot_index + 1
             try:
                 total_buy_funds_needed = self.calculate_buy_funds(
-                    spread_bot_index, params['amount'], params['intervals'])
+                    spread_bot_index, params['allocation'], params['intervals'])
                 total_sell_funds_needed = self.calculate_sell_funds(
-                    spread_top_index, params['amount'], params['intervals'])
+                    spread_top_index, params['allocation'], params['intervals'])
 
                 msg = (
                     f'check_for_enough_funds total_buy_funds_needed: '
@@ -573,7 +599,7 @@ class UserInterface:
                                                                 spread_top_index,
                                                                 total_buy_funds_needed,
                                                                 price)
-                    # When the strategy start with spread bot superior to the
+                # When the strategy start with spread bot superior to the
                 # actual price on the market
                 else:
                     total_sell_funds_needed = self.sum_sell_needs(params,
@@ -589,7 +615,7 @@ class UserInterface:
                 )
                 self.log(msg, level='info', print_=True)
 
-                buy_balance, sell_balance = self.search_moar_funds(
+                buy_balance, sell_balance = self.search_more_funds(
                     total_buy_funds_needed,
                     total_sell_funds_needed,
                     buy_balance,
@@ -602,7 +628,7 @@ class UserInterface:
                          level='info', print_=True)
                 params = self.change_params(params)
 
-    def calculate_buy_funds(self, index, amount, intervals):
+    def calculate_buy_funds(self, index: int, allocation: AbstractAllocation, intervals: [Interval]):
         """Calculate the buy funds required to execute the strategy
         amount: Decimal, allocated ALT per order
         return: Decimal, funds needed
@@ -610,11 +636,11 @@ class UserInterface:
         buy_funds_needed = Decimal('0')
         i = 0
         while i <= index:
-            buy_funds_needed += intervals[i].get_top() * amount
+            buy_funds_needed += intervals[i].get_top() * allocation.get_amount(i, 'buy')
             i += 1
         return buy_funds_needed
 
-    def calculate_sell_funds(self, index, amount, intervals):
+    def calculate_sell_funds(self, index: int, allocation: AbstractAllocation, intervals: [Interval]):
         """Calculate the sell funds required to execute the strategy
         amount: Decimal, allocated ALT per order
         return: Decimal, funds needed
@@ -622,7 +648,7 @@ class UserInterface:
         sell_funds_needed = Decimal('0')
         i = len(intervals) - 1
         while i >= index:
-            sell_funds_needed += amount
+            sell_funds_needed += allocation.get_amount(i, 'sell')
             i -= 1
         return sell_funds_needed
 
@@ -633,7 +659,7 @@ class UserInterface:
         if params['range_top'] < price:
             while i < len(params['intervals']):
                 incoming_buy_funds += convert.multiplier(
-                    params['intervals'][i].get_top(), params['amount'],
+                    params['intervals'][i].get_top(), params['allocation'].get_amount(i, 'buy'),
                     self.fees_coef)
                 i += 1
         # When only few sell orders are planned to be under the
@@ -641,7 +667,7 @@ class UserInterface:
         else:
             while params['intervals'][i].get_top() <= price:
                 incoming_buy_funds += convert.multiplier(
-                    params['intervals'][i].get_top(), params['amount'])
+                    params['intervals'][i].get_top(), params['allocation'].get_amount(i, 'buy'))
                 i += 1
                 # It crash when price >= range_top
                 if i == len(params['intervals']):
@@ -655,20 +681,21 @@ class UserInterface:
         # When the whole strategy is upper than actual price
         if params['spread_bot'] > price:
             while i >= 0:
-                incoming_sell_funds += params['amount']
+                incoming_sell_funds += params['allocation'].get_amount(i, 'sell')
                 i -= 1
         # When only few buy orders are planned to be upper the
         # actual price
         else:
             while params['intervals'][i].get_bottom() >= price:
-                incoming_sell_funds += params['amount']
+                incoming_sell_funds += params['allocation'].get_amount(i, 'sell')
                 i -= 1
                 if i < 0:
                     break
 
         return total_sell_funds_needed - incoming_sell_funds
 
-    def look_for_moar_funds(self, params, funds_needed, funds, side):
+    # TODO: rewrite due to new functionality (no more orders_price_ordering)
+    def look_for_more_funds(self, params, funds_needed, funds, side):
         """Look into open orders how much funds there is, offer to cancel orders not
         in the strategy.
         funds_needed: Decimal, how much funds are needed for the strategy.
@@ -745,16 +772,16 @@ class UserInterface:
 
         return funds
 
-    def search_moar_funds(self, total_buy_funds_needed, total_sell_funds_needed, buy_balance, sell_balance, params):
+    def search_more_funds(self, total_buy_funds_needed, total_sell_funds_needed, buy_balance, sell_balance, params):
         """In case there is not enough funds, check if there is none stuck
         before asking to change params"""
         if total_buy_funds_needed > buy_balance:
-            buy_balance = self.look_for_moar_funds(
+            buy_balance = self.look_for_more_funds(
                 params, total_buy_funds_needed, buy_balance, 'buy')
 
         if total_sell_funds_needed > sell_balance:
-            sell_balance = self.look_for_moar_funds(
-                params, total_buy_funds_needed, buy_balance, 'sell')
+            sell_balance = self.look_for_more_funds(
+                params, total_sell_funds_needed, buy_balance, 'sell')
 
         if total_buy_funds_needed > buy_balance or \
                 total_sell_funds_needed > sell_balance:
