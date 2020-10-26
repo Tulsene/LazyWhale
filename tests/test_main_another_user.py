@@ -1,3 +1,4 @@
+import time
 from copy import deepcopy
 from decimal import Decimal
 from unittest import TestCase
@@ -18,6 +19,7 @@ import tests.keys as keys_config
 class AnotherUserTests(TestCase):
     @patch('utils.helpers.set_root_path')
     def setUp(self, set_root_path_patch) -> None:
+        self.time_to_sleep = 0.1
         self.market = "DASH/BTC"
         set_root_path_patch.return_value = keys_config.PATH_TO_PROJECT_ROOT
         params = {"datetime": "2020-09-25 12:45:16.243709",
@@ -164,10 +166,12 @@ class AnotherUserTests(TestCase):
             self.user.create_limit_buy_order(self.market,
                                              orders_to_open[0]['amount'],
                                              self.intervals[spr_top + 4 * (i + 1) - 1].get_top())
+            time.sleep(self.time_to_sleep)
 
             self.lazy_whale.main_cycle()
             self.user.create_limit_buy_order(self.market, orders_to_open[1]['amount'],
                                              self.intervals[spr_top + 4 * (i + 1) - 1].get_top())
+            time.sleep(self.time_to_sleep)
             self.user.cancel_all_orders()
 
             if i == iterations - 1:
@@ -195,10 +199,12 @@ class AnotherUserTests(TestCase):
             self.user.create_limit_sell_order(self.market,
                                               orders_to_open[0]['amount'],
                                               self.intervals[spr_bot - 4 * (i + 1) + 1].get_bottom())
+            time.sleep(self.time_to_sleep)
 
             self.lazy_whale.main_cycle()
             self.user.create_limit_sell_order(self.market, orders_to_open[1]['amount'],
                                               self.intervals[spr_bot - 4 * (i + 1) + 1].get_bottom())
+            time.sleep(self.time_to_sleep)
             self.user.cancel_all_orders()
 
             if i == iterations - 1:
@@ -221,6 +227,7 @@ class AnotherUserTests(TestCase):
         self.user.create_limit_buy_order(self.market, multiplier(self.lazy_whale.allocation.get_amount(0, 'buy'),
                                                                  Decimal(str(len(self.intervals)))),
                                          self.intervals[-1].get_top())
+        time.sleep(self.time_to_sleep)
         self.lazy_whale.main_cycle()
         self.lazy_whale.main_cycle()
         self.assertRaises(SystemExit, self.lazy_whale.main_cycle)
@@ -239,6 +246,7 @@ class AnotherUserTests(TestCase):
         self.user.create_limit_sell_order(self.market, multiplier(self.lazy_whale.allocation.get_amount(0, 'buy'),
                                                                   Decimal(str(len(self.intervals)))),
                                           self.intervals[0].get_bottom())
+        time.sleep(self.time_to_sleep)
         self.lazy_whale.main_cycle()
         self.lazy_whale.main_cycle()
         self.assertRaises(SystemExit, self.lazy_whale.main_cycle)

@@ -14,6 +14,14 @@ from main.interval import Interval
 from utils.logger import Logger
 
 
+def get_free_balance(params, side):
+    if side == 'sell':
+        crypto = params['market'].split('/')[0]
+    else:
+        crypto = params['market'].split('/')[1]
+    return convert.str_to_decimal(params['api_connector'].get_balances()[crypto]['free'])
+
+
 class UserInterface:
     def __init__(self, api_keys, fees_coef, safety_buy_value, safety_sell_value):
         self.log = Logger('user_interface').log
@@ -314,10 +322,9 @@ class UserInterface:
         selected_market: string.
         range_bot: Decimal.
         return: Decimal."""
-        pair = params['market'].split('/')[0]
-        funds = params['api_connector'].get_balances()[pair]['total']
+        sell_balance = get_free_balance(params, 'sell')
 
-        suggestion = self.calculate_amount_suggestion(params, funds)
+        suggestion = self.calculate_amount_suggestion(params, sell_balance)
 
         q = (f"How much {params['market'][:4]} do you want to sell "
              f'per interval? It must be between '
@@ -577,13 +584,12 @@ class UserInterface:
             sell_balance = convert.str_to_decimal(balances[pair[0]]['free'])
             buy_balance = convert.str_to_decimal(balances[pair[1]]['free'])
             spread_bot_index = params['spread_bot']
-            spread_top_index = spread_bot_index + 1
+            spread_top_index = spread_bot_index + 3
             try:
                 total_buy_funds_needed = self.calculate_buy_funds(
                     spread_bot_index, params['allocation'], params['intervals'])
                 total_sell_funds_needed = self.calculate_sell_funds(
                     spread_top_index, params['allocation'], params['intervals'])
-
                 msg = (
                     f'check_for_enough_funds total_buy_funds_needed: '
                     f'{total_buy_funds_needed}, buy_balance: {buy_balance}, '
@@ -694,7 +700,6 @@ class UserInterface:
 
         return total_sell_funds_needed - incoming_sell_funds
 
-    # TODO: rewrite due to new functionality (no more orders_price_ordering)
     def look_for_more_funds(self, params, funds_needed, funds, side):
         """Look into open orders how much funds there is, offer to cancel orders not
         in the strategy.
@@ -702,8 +707,7 @@ class UserInterface:
         funds: Decimal, sum of available funds for the strategy.
         side: string, buy or sell.
         return: Decimal, sum of available funds for the strategy."""
-        orders = params['api_connector'].orders_price_ordering(
-            params['api_connector'].get_orders(params['market']))
+        orders = params['api_connector'].get_open_orders()
 
         funds, orders_outside_strat = self.sum_open_orders(params, side, orders, funds)
 
@@ -723,20 +727,22 @@ class UserInterface:
         """simple addition of funds stuck in open order and will be used for the
         strategy"""
         orders_outside_strat = []
-        if side == 'buy':
-            for order in orders['buy']:
-                if order[1] in params['intervals'] \
-                        or order[1] == self.safety_buy_value:
-                    funds += order[1] * order[2]
-                else:
-                    orders_outside_strat.append(order)
-        else:
-            for order in orders['sell']:
-                if order[1] in params['intervals'] \
-                        or order[1] == self.safety_sell_value:
-                    funds += order[2]
-                else:
-                    orders_outside_strat.append(order)
+        for order in orders:
+            if side == 'buy':
+                if order.side == 'buy':
+                    if order.price < params['range_bot'] \
+                            or order.price == self.safety_buy_value:
+                        funds += order.price * order.amount
+                    else:
+                        orders_outside_strat.append(order)
+
+            else:
+                if order.side == 'sell':
+                    if order.price > params['range_top'] \
+                            or order.price == self.safety_sell_value:
+                        funds += order.amount
+                    else:
+                        orders_outside_strat.append(order)
 
         return funds, orders_outside_strat
 
@@ -754,17 +760,13 @@ class UserInterface:
                                                    orders_outside_strat)
                 order = orders_outside_strat[rsp]
                 del orders_outside_strat[rsp]
-                rsp = params['api_connector'].cancel_order(params['market'],
-                                                           order[0],
-                                                           order[1],
-                                                           order[4],
-                                                           side)
+                rsp = params['api_connector'].cancel_order(order)
                 if rsp:
                     if side == 'buy':
-                        funds += order[1] * order[2]
+                        funds += order.price * order.amount
                     else:
-                        funds += order[2]
-                    self.log((f'You have now {funds} {side} '
+                        funds += order.amount
+                    self.log((f'You have now {get_free_balance(params, side)} {side} '
                               f'funds and you need {funds_needed}.'),
                              level='debug', print_=True)
             else:

@@ -8,7 +8,6 @@ import utils.helpers as helpers
 from utils.checkers import is_equal_decimal
 import utils.converters as convert
 from exchanges.zebitexFormatted import ZebitexFormatted
-from main.interval import Interval
 from main.order import Order
 from utils.logger import Logger
 import config.config as config

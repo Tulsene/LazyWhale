@@ -471,8 +471,7 @@ class LazyWhale:
         if buy_indexes:
             return buy_indexes[-1]
         else:
-            # TODO: should not be at all
-            assert 1 == 0
+            raise ValueError('Could not get spread_bot because there is no buy intervals!')
 
     def get_spread_top(self, intervals: [Interval]) -> int:
         """Returns lowest sell interval with amount >= params['amount']"""
@@ -487,8 +486,7 @@ class LazyWhale:
         if sell_indexes:
             return sell_indexes[-1]
         else:
-            # TODO: should be at all
-            assert 1 == 0
+            raise ValueError('Could not get spread_top because there is no sell intervals!')
 
     def where_to_open_buys(self, new_intervals: [Interval], amount_to_open_buy: Decimal):
         """Decide, depending on amount_to_open and new_intervals, where to open intervals"""
@@ -842,6 +840,7 @@ class LazyWhale:
         self.strat_init()
         self.set_safety_orders()
 
+    # TODO: Implement working with case, when intervals are not close to spread_bot, spread_top
     def main_cycle(self):
         """One cycle of LW activity"""
         new_intervals = self.connector.get_intervals()
