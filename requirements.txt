@@ -1,2 +1,3 @@
 ccxt
 mock
+python-json-logger

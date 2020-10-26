@@ -1,6 +1,7 @@
 import json
 import requests
 
+
 class Slack:
     def __init__(self, webhook_url):
         self.webhook_url = self.webhook_check(webhook_url)

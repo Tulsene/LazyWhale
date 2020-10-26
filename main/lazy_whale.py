@@ -1,6 +1,5 @@
 import json
 from copy import deepcopy
-from datetime import datetime
 from decimal import Decimal
 from time import sleep
 
@@ -13,8 +12,9 @@ from main.interval import Interval
 from main.order import Order
 from ui.user_interface import UserInterface
 from utils.checkers import is_equal_decimal
-from utils.logger import Logger
 import config.config as config
+import utils.logger_factory as lf
+from utils.logger_factory import Logger
 
 
 class LazyWhale:
@@ -22,12 +22,10 @@ class LazyWhale:
     open order = [id, price, amount, value, timestamp, date]"""
 
     def __init__(self, preset_params=False):
-        self.logger = Logger('main')
-        self.log = self.logger.log
-        self.preset_params = preset_params
         self.root_path = helper.set_root_path()
+        self.log = self.set_app_log()
+        self.preset_params = preset_params
         self.keys = self.keys_initialisation()
-
         self.fees_coef = config.FEES_COEFFICIENT
 
         self.safety_buy_value = config.SAFETY_BUY_VALUE
@@ -50,23 +48,26 @@ class LazyWhale:
         self.remaining_amount_to_open_sell = Decimal('0')
         self.allocation = None
 
+    def set_app_log(self) -> Logger:
+        lf.set_simple_logger(self.root_path)
+
+        return lf.get_simple_logger('lazy_whale')
+
     def keys_initialisation(self):
         """Check if a key.json file exist and create one if none.
         return: dict, with all api keys found.
         """
         keys_path = f'{self.root_path}config/keys.json'
         if helper.create_file_when_none(keys_path):
-            self.log(('No file keys.json was found, an empty one has been created, '
-                      'please fill it as indicated in the documentation'),
-                     level='critical')
+            self.log.critical(('No file keys.json was found, an empty one has been created, '
+                               'please fill it as indicated in the documentation'))
             raise SystemExit
 
         else:
             api_keys = self.keys_file_reader(keys_path)
             if not api_keys:
-                self.log(('Your keys.json file is empty, please '
-                          'fill it as indicated to the documentation'),
-                         level='critical')
+                self.log.critical(('Your keys.json file is empty, please '
+                                   'fill it as indicated to the documentation'))
                 raise SystemExit
 
         return api_keys
@@ -82,7 +83,7 @@ class LazyWhale:
                 keys_json = json.load(keys_file)
 
             except Exception as e:
-                self.log(f'keys.json file is not correct : {e}', level='critical')
+                self.log.critical(f'keys.json file is not correct : {e}')
                 raise SystemExit
 
             try:
@@ -98,12 +99,11 @@ class LazyWhale:
                 if 'slack_webhook' not in keys_json:
                     raise IndexError("json is not formatted correctly: slack_webhook key not exists")
 
-                self.logger.set_slack(keys_json['slack_webhook'])
-                self.log = self.logger.log
+                self.log.set_slack(keys_json['slack_webhook'])
                 api_keys['slack_webhook'] = keys_json['slack_webhook']
 
             except Exception as e:
-                self.log(f'Something went wrong : {e}', level='critical')
+                self.log.critical(f'Something went wrong : {e}')
                 raise SystemExit
 
         return api_keys
@@ -125,7 +125,7 @@ class LazyWhale:
                 id_list.append(order[0])
         # Remove id or orders no longer in open_order.
         self.id_list[:] = [None if x not in id_list else x for x in self.id_list]
-        self.log(f'self.id_list: {self.id_list}')
+        self.log.debug(f'self.id_list: {self.id_list}')
 
     def remove_safety_before_init(self, open_orders):
         """Remove safety orders before strat init if there is some.
@@ -159,18 +159,17 @@ class LazyWhale:
         the right amount of alts.
         return: dict, of open orders used for the strategy.
         """
-        self.log('strat_init()')
+        self.log.debug('strat_init()')
         self.set_min_amount()
         self.connector.intervals = self.intervals
 
         lowest_buy, highest_sell = self.get_lowest_highest_interval_index()
 
-        self.log(
+        self.log.info(
             f'self.intervals: {self.intervals}, '
             f'lowest_buy: {lowest_buy}, self.params["spread_bot"]: '
             f"{self.params['spread_bot']}, self.params['spread_top']: "
-            f"{self.params['spread_top']}, highest_sell: {highest_sell}",
-            level='info', print_=True)
+            f"{self.params['spread_top']}, highest_sell: {highest_sell}")
 
         # TODO: understand, what this code does
         # orders_to_remove = {'sell': [], 'buy': []}
@@ -191,10 +190,9 @@ class LazyWhale:
         #                                                              open_orders, orders_to_remove,
         #                                                              remaining_orders_price)
         #
-        # self.log(
+        # self.log.debug(
         #     f'orders_to_remove: {orders_to_remove}, open_orders: {open_orders}'
-        #     f', remaining_orders_price: {remaining_orders_price}',
-        #     level='debug')
+        #     f', remaining_orders_price: {remaining_orders_price}')
 
         self.set_first_intervals()
 
@@ -319,7 +317,7 @@ class LazyWhale:
         lowest_buy_index: int.
         highest_sell_index: int."""
         lowest_interval, highest_interval = self.get_lowest_highest_interval_index()
-        self.log(
+        self.log.debug(
             f'set_safety_orders(), lowest_buy_index: {lowest_interval}, '
             f'highest_sell_index: {highest_interval}')
 
@@ -329,7 +327,7 @@ class LazyWhale:
         if highest_interval < len(self.intervals) - 1:
             self.create_safety_sell(highest_interval)
 
-        self.log(
+        self.log.info(
             f'safety buy: {self.connector.get_safety_buy()} , '
             f'safety sell: {self.connector.get_safety_sell()}')
 
@@ -343,8 +341,7 @@ class LazyWhale:
                 self.safety_buy_value)
             index -= 1
 
-        self.log(f'buy_sum: {buy_sum}, lowest_buy_index: {lowest_buy_index}',
-                 level='debug')
+        self.log.debug(f'buy_sum: {buy_sum}, lowest_buy_index: {lowest_buy_index}')
 
         self.connector.init_limit_buy_order(self.params['market'], buy_sum, self.safety_buy_value)
 
@@ -356,9 +353,9 @@ class LazyWhale:
             sell_sum += self.allocation.get_amount(interval_index=index, side='sell')
             index += 1
 
-        self.log(f'sell_sum: {sell_sum}, highest_sell_index: '
-                 f'{highest_sell_index}, max_index: '
-                 f'{index}')
+        self.log.debug(f'sell_sum: {sell_sum}, highest_sell_index: '
+                       f'{highest_sell_index}, max_index: '
+                       f'{index}')
 
         self.connector.init_limit_sell_order(self.params['market'], sell_sum, self.safety_sell_value)
 
@@ -381,8 +378,7 @@ class LazyWhale:
         """Remove all orders that are not included in the strategy
         new_open_orders: dict, every open orders on the market
         return: dict, open orders wich are included in the strategy"""
-        self.log(f'remove_orders_off_strat(), new_open_orders: {new_open_orders}',
-                 level='debug')
+        self.log.debug(f'remove_orders_off_strat(), new_open_orders: {new_open_orders}')
         orders_to_remove = {'sell': [], 'buy': []}
 
         for side in self.sides:
@@ -396,7 +392,7 @@ class LazyWhale:
                 for i, index in enumerate(orders_to_remove[side]):
                     del new_open_orders[side][index - i]
 
-        self.log(f'orders_to_remove: {orders_to_remove}')
+        self.log.debug(f'orders_to_remove: {orders_to_remove}')
         return new_open_orders
 
     def cancel_all_intervals(self):
@@ -423,8 +419,7 @@ class LazyWhale:
         if self.params['stop_at_bot']:
             self.cancel_safety_orders()
             self.cancel_all_intervals()
-            self.log(f'Bottom target reached!',
-                     level='critical', slack=True, print_=True)
+            self.log.ext_critical(f'Bottom target reached!')
             raise SystemExit()
 
     def when_top_is_reached(self):
@@ -432,8 +427,7 @@ class LazyWhale:
         if self.params['stop_at_bot']:
             self.cancel_safety_orders()
             self.cancel_all_intervals()
-            self.log(f'Top target reached!',
-                     level='critical', slack=True, print_=True)
+            self.log.ext_critical(f'Top target reached!')
             raise SystemExit()
 
     def amount_compare_intervals(self, new_intervals: [Interval]) -> (Decimal, Decimal):
@@ -662,6 +656,9 @@ class LazyWhale:
         if amount_to_open_buy == amount_to_open_sell == Decimal('0'):
             return
 
+        self.log.info(f"Amount to open buy: {amount_to_open_buy} \n"
+                      f"Amount to open sell: {amount_to_open_sell}")
+
         if self.remaining_amount_to_open_buy > Decimal('0'):
             amount_to_open_buy += self.remaining_amount_to_open_buy
             self.remaining_amount_to_open_buy = Decimal('0')
@@ -835,7 +832,7 @@ class LazyWhale:
         # TODO: do not cancel all existing orders
         self.connector.cancel_all(self.params['market'])
 
-        self.log('LW is starting', slack=True)
+        self.log.ext_info('LW is starting')
 
         self.strat_init()
         self.set_safety_orders()
@@ -857,8 +854,7 @@ class LazyWhale:
     def main(self):
         self.lw_initialisation()
         while True:
-            self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE START',
-                     level='info', print_=True)
+            self.log.info(f'CYCLE START')
             # TODO: implement here working with orders of strategy
             # orders = self.safety_orders_checkpoint(self.remove_orders_off_strat(
             #     self.connector.orders_price_ordering(
@@ -868,6 +864,5 @@ class LazyWhale:
             # core functionality is here
             self.main_cycle()
 
-            self.log(f'{convert.datetime_to_string(datetime.now())} CYCLE STOP',
-                     level='info', print_=True)
+            self.log.info(f'CYCLE STOP')
             sleep(config.LW_CYCLE_SLEEP_TIME)

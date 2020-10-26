@@ -11,7 +11,7 @@ import utils.checkers as check
 import exchanges.api_manager as api_manager
 from main.allocation import AllocationFactory, AbstractAllocation
 from main.interval import Interval
-from utils.logger import Logger
+import utils.logger_factory as lf
 
 
 def get_free_balance(params, side):
@@ -24,7 +24,7 @@ def get_free_balance(params, side):
 
 class UserInterface:
     def __init__(self, api_keys, fees_coef, safety_buy_value, safety_sell_value):
-        self.log = Logger('user_interface').log
+        self.log = lf.get_simple_logger('user_interface')
         self.slack_webhook = None
         self.allowed_exchanges = self.set_keys(api_keys)
         self.root_path = helper.set_root_path()
@@ -49,10 +49,10 @@ class UserInterface:
         return: boolean True or None, yes of no
         """
         while True:
-            self.log(q, level='info', print_=True)
+            self.log.info(q)
             choice = input(' >> ')
             choice = choice.lower()
-            self.log(choice, level='debug', print_=False)
+            self.log.debug(choice)
             if choice in ['yes', 'y', 'o', 'oui', 'j', 'ja', 'd', 'da']:
                 return True
             if choice in ['no', 'nein', 'non', 'n', 'niet']:
@@ -66,11 +66,11 @@ class UserInterface:
                        within the requested parameters
         return: formated (int, decimal, ...) choice of the user
         """
-        self.log(q, level='info', print_=True)
+        self.log.info(q)
         while True:
             try:
                 choice = input(' >> ')
-                self.log(choice, level='debug', print_=False)
+                self.log.debug(choice)
                 choice = formater_func(choice)
 
                 if control_func:
@@ -81,34 +81,32 @@ class UserInterface:
                 return choice
 
             except Exception as e:
-                self.log(f'{q} invalid choice: {choice} -> {e}', level='info', print_=True)
+                self.log.info(f'{q} invalid choice: {choice} -> {e}')
 
     def ask_to_select_in_a_list(self, q, a_list):
         """Ask to the user to choose between items in a list
         a_list: list.
         q: string.
         return: int, the position of this item """
-        self.log(q, level='info', print_=True)
+        self.log.info(q)
         q = ''
         for i, item in enumerate(a_list, start=1):
             q += f'{i}: {item}, '
-        self.log(q, level='info', print_=True)
+        self.log.info(q)
 
         while True:
             try:
                 choice = input(' >> ')
-                self.log(choice, level='debug')
+                self.log.debug(choice)
                 choice = convert.str_to_int(choice)
 
                 if 0 < choice <= i:
                     return choice - 1
                 else:
-                    self.log(f'You need to enter a number between 1 and {i}',
-                             level='info', print_=True)
+                    self.log.info(f'You need to enter a number between 1 and {i}')
 
             except Exception as e:
-                self.log(f'{q} invalid choice: {choice} -> {e}',
-                         level='info', print_=True)
+                self.log.info(f'{q} invalid choice: {choice} -> {e}')
 
         return choice
 
@@ -122,7 +120,7 @@ class UserInterface:
 
         file_path = f'{self.root_path}config/params.json'
         params = self.params_reader(file_path)
-        self.log(f'Your previous parameters are: {params}', level='info', print_=True)
+        self.log.info(f'Your previous parameters are: {params}')
 
         if params:
             q = 'Do you want to display history from logs?'
@@ -135,8 +133,7 @@ class UserInterface:
             else:
                 params = None
         else:
-            self.log(f'Your parameters are not set correctly: {params}, please enter new one!',
-                     level='info', print_=True)
+            self.log.info(f'Your parameters are not set correctly: {params}, please enter new one!')
 
         if not params:
             params = self.enter_params()
@@ -234,15 +231,14 @@ class UserInterface:
                 raise ValueError(limitation)
         else:
             while True:
-                self.log(f"Please enter the name of a market: {api_connector.exchange.symbols}",
-                         level='info', print_=True)
+                self.log.info(f"Please enter the name of a market: {api_connector.exchange.symbols}")
                 market = input(' >> ').upper()
                 allowed = check.limitation_to_btc_market(market)
                 if allowed == True:
                     if market in api_connector.exchange.symbols:
                         return {'market': market}
                 else:
-                    self.log(allowed, level='info', print_=True)
+                    self.log.info(allowed)
 
     def ask_range_setup(self):
         """Ask to the user to enter the range and increment parameters.
@@ -259,7 +255,7 @@ class UserInterface:
                         'increment_coef': increment, 'intervals': intervals}
 
             except Exception as e:
-                self.log(e, level='info', print_=True)
+                self.log.exception(e)
 
     def ask_param_increment(self):
         """Ask the user to enter a value for the spread between each order.
@@ -289,14 +285,13 @@ class UserInterface:
         """
         price = api_connector.get_market_last_price(selected_market)
         msg = f'The actual price of {selected_market} is {price}'
-        self.log(msg, level='info', print_=True)
+        self.log.info(msg)
 
         q = ('Please select the price of your highest buy interval '
              f"(spread_bot) in the list. {intervals[-2]} can't be selected")
         position = self.ask_to_select_in_a_list(q, intervals[:-2])
 
-        self.log(f'The price of your lowest sell interval is {intervals[position + 2]}',
-                 level='info', print_=True)
+        self.log.info(f'The price of your lowest sell interval is {intervals[position + 2]}')
 
         return {'spread_bot': position,
                 'spread_top': position + 3}
@@ -338,7 +333,7 @@ class UserInterface:
                 return {'amount': amount}
 
             except Exception as e:
-                self.log(e, level='info', print_=True)
+                self.log.info(e)
 
     def ask_nb_to_display(self, intervals):
         """Ask how much buy and sell intervals are going to be in the book.
@@ -425,7 +420,7 @@ class UserInterface:
                 break
 
             except Exception as e:
-                self.log(e, level='info', print_=True)
+                self.log.exception(e)
 
         return params
 
@@ -465,14 +460,14 @@ class UserInterface:
         file_path: string.
         return: int."""
         if helper.create_file_when_none(file_path):
-            self.log("history.txt file have been created", level='info', print_=True)
+            self.log.info("history.txt file have been created")
             return None
 
-        self.log("Reading the strat.log file")
+        self.log.debug("Reading the strat.log file")
         nb_of_lines = helper.file_line_counter(file_path)
 
         if not isinstance(nb_of_lines, int):
-            self.log('Your strat.log file was empty', level='info', print_=True)
+            self.log.info('Your strat.log file was empty')
             return None
 
         return nb_of_lines
@@ -483,8 +478,7 @@ class UserInterface:
         return: dict with valid parameters, or False.
         """
         if helper.create_file_when_none(file_path):
-            self.log(f'There was no {file_path}. One have been created',
-                     level='info', print_=True)
+            self.log.info(f'There was no {file_path}. One have been created')
             return None
 
         try:
@@ -493,8 +487,7 @@ class UserInterface:
                     helper.read_one_line(file_path, 0)))
 
         except Exception as e:
-            self.log(f'Something went wrong when loading params: {e}',
-                     level='info', print_=True)
+            self.log.exception(f'Something went wrong when loading params: {e}')
             return None
 
     def check_params(self, params):
@@ -531,8 +524,7 @@ class UserInterface:
                 raise ValueError('Spread_bot isn\'t properly configured')
 
         except Exception as e:
-            self.log(f'The LW parameters are not well configured: {e}',
-                     level='info', print_=True)
+            self.log.exception(f'The LW parameters are not well configured: {e}')
             return False
 
         return params
@@ -596,7 +588,7 @@ class UserInterface:
                     f'total_sell_funds_needed: {total_sell_funds_needed}, '
                     f'sell_balance: {sell_balance}, price: {price}'
                 )
-                self.log(msg, level='info', print_=True)
+                self.log.info(msg)
 
                 # When the strategy start with spread bot inferior or
                 # equal to the actual market price
@@ -619,7 +611,7 @@ class UserInterface:
                     f'{pair[1]}; {pair[0]} needed: {total_sell_funds_needed}'
                     f' and you have {sell_balance} {pair[0]}.'
                 )
-                self.log(msg, level='info', print_=True)
+                self.log.info(msg)
 
                 buy_balance, sell_balance = self.search_more_funds(
                     total_buy_funds_needed,
@@ -630,8 +622,7 @@ class UserInterface:
 
                 return params
             except ValueError as e:
-                self.log(f'You need to change some parameters: {e}',
-                         level='info', print_=True)
+                self.log.exception(f'You need to change some parameters: {e}')
                 params = self.change_params(params)
 
     def calculate_buy_funds(self, index: int, allocation: AbstractAllocation, intervals: [Interval]):
@@ -766,9 +757,8 @@ class UserInterface:
                         funds += order.price * order.amount
                     else:
                         funds += order.amount
-                    self.log((f'You have now {get_free_balance(params, side)} {side} '
-                              f'funds and you need {funds_needed}.'),
-                             level='debug', print_=True)
+                    self.log.info((f'You have now {get_free_balance(params, side)} {side} '
+                                   f'funds and you need {funds_needed}.'))
             else:
                 break
 
