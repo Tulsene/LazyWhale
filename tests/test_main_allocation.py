@@ -25,10 +25,9 @@ class TestNoSpecificAllocation(unittest.TestCase):
         self.test_cases = TEST_CASES
         self.interval_indexes = range(self.intervals_count)
         self.min_amount = Decimal('10000')
-        self.allocation = allocation = NoSpecificAllocation(self.min_amount)
+        self.allocation = NoSpecificAllocation(self.min_amount)
 
     def test_no_specific_allocation(self):
-
         for _ in range(self.test_cases):
             interval_index = random.choice(self.interval_indexes)
             self.assertEqual(self.allocation.get_amount(interval_index), self.min_amount)
@@ -84,6 +83,10 @@ class TestLinearAllocation(unittest.TestCase):
             .get_buy_to_open(self.intervals_count // 2, Decimal('1500'))
         self.assertEqual(amount_to_open_buy, Decimal('1000'))
 
+        amount_to_open_buy = self.allocation_from_the_beginning \
+            .get_buy_to_open(self.intervals_count // 2, Decimal('1500'))
+        self.assertTrue(is_equal_big_decimal(amount_to_open_buy, Decimal('1111.11')))
+
     def test_get_sell_to_open(self):
         for _ in range(TEST_CASES):
             interval_index = random.choice(range(self.intervals_count))
@@ -129,11 +132,12 @@ class TestCurvedAllocation(unittest.TestCase):
             self.allocation.get_buy_to_open(self.intervals_count // 4 * 3,
                                             self.allocation.get_amount(self.intervals_count // 4 * 3, 'sell')),
             Decimal('8000'))
-        self.assertLess(self.allocation.get_buy_to_open(self.intervals_count // 4 * 3, Decimal('2000')),
-                        Decimal('1700'))
+        # once full sell occurred: there is middle_amount to sell, so:
+        self.assertEqual(self.allocation.get_buy_to_open(self.intervals_count // 4 * 3, Decimal('2000')),
+                         Decimal('2000'))
 
         self.assertTrue(is_equal_big_decimal(self.allocation.get_buy_to_open(self.intervals_count - 1, Decimal('1200')),
-                        Decimal('800')))
+                                             Decimal('800')))
 
     def test_get_sell_to_open(self):
         self.assertEqual(self.allocation.get_sell_to_open(0, Decimal('1000')), Decimal('800'))
@@ -157,7 +161,7 @@ class TestProfitAllocation(unittest.TestCase):
         self.min_amount = Decimal('10000')
         self.intervals_count = 40
         self.allocation = ProfitAllocation(interval_generator(Decimal('0.01'), Decimal('0.015'), Decimal('1.0102')),
-                                      50, Decimal('0.9975'), self.min_amount)
+                                           50, Decimal('0.9975'), self.min_amount)
 
     def test_profit_allocation(self):
 

@@ -806,6 +806,21 @@ class LazyWhale:
             nb_buy_intervals = len(helper.get_indexes_buy_intervals(self.intervals))
             nb_sell_intervals = len(helper.get_indexes_sell_intervals(self.intervals))
 
+    def check_intervals_position(self) -> bool:
+        """Checks if intervals spread has correct difference between buys and sells"""
+        buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
+        sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
+        if not buy_indexes or not sell_indexes:
+            return True
+        highest_buy = max(buy_indexes)
+        lowest_sell = min(sell_indexes)
+        if lowest_sell - highest_buy > 3:
+            return False
+
+    # TODO: implement moving intervals if check_interval_position return False
+    def move_intervals(self):
+        """Moves intervals 1 step up or 1 step down if check_interval_position returns False"""
+
     def check_intervals_equal(self, new_intervals):
         return self.intervals == new_intervals
 

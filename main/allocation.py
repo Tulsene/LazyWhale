@@ -83,7 +83,7 @@ class NoSpecificAllocation(AbstractAllocation):
     def __init__(self, constant_amount: Decimal):
         self.amount = constant_amount
 
-    def get_amount(self, interval_index: int = 0, side: str = 'none'):
+    def get_amount(self, interval_index: int = 0, side: str = 'none') -> Decimal:
         """Just simply returns the same amount for each interval"""
         return self.amount
 
@@ -99,20 +99,34 @@ class LinearAllocation(AbstractAllocation):
         self.min_amount = min_amount
         self.linear_coefficient = divider(max_amount - min_amount, intervals_count - start_index - 1)
         self.start_index = start_index
+        self.sell_amounts = self._get_sell_amounts(intervals_count)
 
-    def get_amount(self, interval_index: int = 0, side: str = 'none'):
+    def _get_sell_amounts(self, intervals_count: int) -> [Decimal]:
+        sell_amounts = []
+        for index in range(intervals_count):
+            sell_amounts.append(self.min_amount + multiplier(self.linear_coefficient, (index - self.start_index)))
+
+        return sell_amounts
+
+    def get_amount(self, interval_index: int = 0, side: str = 'none') -> Decimal:
         """Linear coefficient makes such computations, that:
         if interval_index = 0 - return min_amount,
         if interval_index = len(intervals) - return max_amount"""
         if side == 'buy' or interval_index < self.start_index:
             return self.min_amount
 
-        return self.min_amount + multiplier(self.linear_coefficient, (interval_index - self.start_index))
+        return self.sell_amounts[interval_index]
 
     def get_buy_to_open(self, interval_index: int, amount_consumed_sell: Decimal) -> Decimal:
-        return multiplier(self.get_amount(interval_index, 'buy'),
-                          divider(amount_consumed_sell,
-                                  self.get_amount(interval_index, 'sell')))
+        buy_to_open = multiplier(self.get_amount(interval_index, 'buy'),
+                                 divider(amount_consumed_sell,
+                                         self.get_amount(interval_index, 'sell')))
+
+        # update amounts to not sell second time this additional amount
+        self.sell_amounts[interval_index] = max(self.min_amount,
+                                                self.get_amount(interval_index, 'sell') - amount_consumed_sell)
+
+        return buy_to_open
 
     def get_sell_to_open(self, interval_index: int, amount_consumed_buy: Decimal) -> Decimal:
         return amount_consumed_buy
@@ -127,37 +141,64 @@ class CurvedAllocation(AbstractAllocation):
             = calculate_exponential_coefficient(middle_interval_amount, self.middle_point, lowest_interval_amount)
         self.sell_exponent_coefficient \
             = calculate_exponential_coefficient(middle_interval_amount, self.middle_point, highest_interval_amount)
+        # buy and sells amount, that will change during runtime: under self.middle_point - buy, over - sell
+        self.amounts = self._get_amounts(intervals_count)
 
-    def get_amount(self, interval_index: int = 0, side: str = 'none'):
+    def _get_amounts(self, intervals_count) -> [Decimal]:
+        amounts = []
+        for index in range(self.middle_point):
+            amounts.append(exponent(self.middle_amount, self.buy_exponent_coefficient, self.middle_point - index))
+
+        amounts.append(self.middle_amount)
+
+        for index in range(self.middle_point + 1, intervals_count):
+            amounts.append(exponent(self.middle_amount, self.sell_exponent_coefficient, index - self.middle_point))
+
+        return amounts
+
+    def get_amount(self, interval_index: int = 0, side: str = 'none') -> Decimal:
         if side == 'buy':
             if interval_index >= self.middle_point:
                 return self.middle_amount
 
-            return exponent(self.middle_amount, self.buy_exponent_coefficient, self.middle_point - interval_index)
+            return self.amounts[interval_index]
 
         elif side == 'sell':
             if interval_index <= self.middle_point:
                 return self.middle_amount
 
-            return exponent(self.middle_amount, self.sell_exponent_coefficient, interval_index - self.middle_point)
+            return self.amounts[interval_index]
 
         else:
             return self.middle_amount
 
     def get_buy_to_open(self, interval_index: int, amount_consumed_sell: Decimal) -> Decimal:
-        if interval_index < self.middle_point:
+        if interval_index <= self.middle_point:
             return amount_consumed_sell
 
-        return multiplier(self.get_amount(interval_index, 'buy'),
-                          divider(amount_consumed_sell,
-                                  self.get_amount(interval_index, 'sell')))
+        buy_to_open = multiplier(self.get_amount(interval_index, 'buy'),
+                                 divider(amount_consumed_sell,
+                                         self.get_amount(interval_index, 'sell')))
+
+        # update amounts to not sell second time this additional amount
+        self.amounts[interval_index] = max(self.middle_amount,
+                                           self.get_amount(interval_index, 'sell') - amount_consumed_sell)
+
+        return buy_to_open
 
     def get_sell_to_open(self, interval_index: int, amount_consumed_buy: Decimal) -> Decimal:
-        if interval_index > self.middle_point:
+        if interval_index >= self.middle_point:
             return amount_consumed_buy
-        return multiplier(self.get_amount(interval_index, 'sell'),
-                          divider(amount_consumed_buy,
-                                  self.get_amount(interval_index, 'buy')))
+
+        sell_to_open = multiplier(self.get_amount(interval_index, 'sell'),
+                                  divider(amount_consumed_buy,
+                                          self.get_amount(interval_index, 'buy')))
+
+        # update amounts to not buy second time this additional amount
+        self.amounts[interval_index] = max(self.middle_amount,
+                                           self.get_amount(interval_index, 'buy') - amount_consumed_buy)
+
+        return sell_to_open
 
 
 class ProfitAllocation(AbstractAllocation):
@@ -173,7 +214,7 @@ class ProfitAllocation(AbstractAllocation):
         additional_benefit = multiplier(benefit.get_max_benefit(), divider(amount_buy, self.amount))
         benefit.add_actual_benefit(additional_benefit)
 
-    def get_amount(self, interval_index: int = 0, side: str = 'none'):
+    def get_amount(self, interval_index: int = 0, side: str = 'none') -> Decimal:
         if side == 'buy':
             return min(self.amount + self.benefits[interval_index].get_actual_benefit(),
                        self.amount + self.benefits[interval_index].get_max_benefit())

@@ -443,8 +443,8 @@ class AnotherUserTests(TestCase):
         has been reached (not to stop there)"""
         self.lazy_whale.params['stop_at_bot'] = False
         self.lazy_whale.params['stop_at_top'] = False
-        self.lazy_whale.params['spread_bot'] = 2
-        self.lazy_whale.params['spread_top'] = 5
+        self.lazy_whale.params['spread_bot'] = 20
+        self.lazy_whale.params['spread_top'] = 23
         self.lazy_whale.params['nb_buy_to_display'] = 6
         self.lazy_whale.params['nb_sell_to_display'] = 6
         spr_bot = self.lazy_whale.params['spread_bot']
@@ -452,13 +452,12 @@ class AnotherUserTests(TestCase):
         self.lazy_whale.strat_init()
         self.lazy_whale.set_safety_orders()
         for i in reversed(range(spr_bot + 1)):
-            with self.subTest(i=i):
-                self.assertEqual(self.lazy_whale.params['spread_bot'], i)
-                self.user.create_limit_sell_order(self.market,
-                                                  self.lazy_whale.allocation.get_amount(i, 'buy') + self.epsilon_amount,
-                                                  self.intervals[i].get_bottom())
-                self.user.cancel_all_orders()
-                self.lazy_whale.main_cycle()
+            self.assertEqual(self.lazy_whale.params['spread_bot'], i)
+            self.user.create_limit_sell_order(self.market,
+                                              self.lazy_whale.allocation.get_amount(i, 'buy') + self.epsilon_amount,
+                                              self.intervals[i].get_bottom())
+            self.user.cancel_all_orders()
+            self.lazy_whale.main_cycle()
 
         # bot is reached but continue
         self.assertEqual(self.lazy_whale.params['spread_bot'], 0)
@@ -470,7 +469,8 @@ class AnotherUserTests(TestCase):
         self.user.cancel_all_orders()
         self.lazy_whale.main_cycle()
 
-        if isinstance(self.lazy_whale.allocation, LinearAllocation):
+        if isinstance(self.lazy_whale.allocation, LinearAllocation) \
+                or isinstance(self.lazy_whale.allocation, CurvedAllocation):
             self.lazy_whale.cancel_buy_interval_by_index(self.lazy_whale.intervals, 0)
             orders = self.lazy_whale.connector.set_several_buy(
                 self.lazy_whale.intervals[0].generate_orders_by_amount(
@@ -482,13 +482,12 @@ class AnotherUserTests(TestCase):
 
         spr_top = self.lazy_whale.params['spread_top']
         for i in range(spr_top, len(self.intervals)):
-            with self.subTest(i=i):
-                self.assertEqual(self.lazy_whale.params['spread_top'], i)
-                self.user.create_limit_buy_order(self.market,
-                                                 self.lazy_whale.allocation.get_amount(i, 'sell') + self.epsilon_amount,
-                                                 self.intervals[i].get_top())
-                self.user.cancel_all_orders()
-                self.lazy_whale.main_cycle()
+            self.assertEqual(self.lazy_whale.params['spread_top'], i)
+            self.user.create_limit_buy_order(self.market,
+                                             self.lazy_whale.allocation.get_amount(i, 'sell') + self.epsilon_amount,
+                                             self.intervals[i].get_top())
+            self.user.cancel_all_orders()
+            self.lazy_whale.main_cycle()
 
         self.user.create_limit_buy_order(self.market,
                                          self.lazy_whale.allocation.get_amount(0, 'buy'),
@@ -509,31 +508,24 @@ class AnotherUserTests(TestCase):
 
         iterations = len(self.intervals) // self.lazy_whale.params['nb_buy_to_display'] + 1
         for i in range(iterations):
-            with self.subTest(i=i):
-                print(self.lazy_whale.params['spread_bot'])
-                # print("Intervals: ", self.lazy_whale.intervals)
-                # print("Order book:", self.user.get_order_book(self.market))
-                # print("Opened intervals:", self.api_manager.get_intervals())
-                self.assertEqual(self.lazy_whale.params['spread_bot'],
-                                 len(self.intervals) - 4 - self.lazy_whale.params['nb_buy_to_display'] * i)
+            self.assertEqual(self.lazy_whale.params['spread_bot'],
+                             len(self.intervals) - 4 - self.lazy_whale.params['nb_buy_to_display'] * i)
 
-                bottom_index = max(0,
-                                   len(self.intervals) - 4 - self.lazy_whale.params['nb_buy_to_display'] * (i + 1) + 1)
-                print("Bottom index", bottom_index)
-                amount_to_open = self.helper_amount_by_indexes(
-                    bottom_index,
-                    bottom_index + self.lazy_whale.params['nb_buy_to_display'],
-                    "buy"
-                )
-                print("amount_to_open", amount_to_open)
-                self.user.create_limit_sell_order(self.market,
-                                                  amount_to_open + self.epsilon_amount,
-                                                  self.intervals[bottom_index].get_bottom())
+            bottom_index = max(0,
+                               len(self.intervals) - 4 - self.lazy_whale.params['nb_buy_to_display'] * (i + 1) + 1)
+            amount_to_open = self.helper_amount_by_indexes(
+                bottom_index,
+                bottom_index + self.lazy_whale.params['nb_buy_to_display'],
+                "buy"
+            )
+            self.user.create_limit_sell_order(self.market,
+                                              amount_to_open + self.epsilon_amount,
+                                              self.intervals[bottom_index].get_bottom())
 
-                import time
-                time.sleep(5)
-                self.user.cancel_all_orders()
-                self.lazy_whale.main_cycle()
+            import time
+            time.sleep(5)
+            self.user.cancel_all_orders()
+            self.lazy_whale.main_cycle()
 
         self.user.cancel_all_orders()
         # bot is reached once more time
@@ -553,26 +545,25 @@ class AnotherUserTests(TestCase):
 
         iterations = len(self.intervals) // self.lazy_whale.params['nb_sell_to_display'] + 1
         for i in range(iterations):
-            with self.subTest(i=i):
-                self.assertEqual(self.lazy_whale.params['spread_top'],
-                                 3 + self.lazy_whale.params['nb_buy_to_display'] * i)
+            self.assertEqual(self.lazy_whale.params['spread_top'],
+                             3 + self.lazy_whale.params['nb_buy_to_display'] * i)
 
-                bottom_index = 3 + self.lazy_whale.params['nb_buy_to_display'] * i
-                top_index = min(len(self.intervals) - 1, bottom_index + self.lazy_whale.params['nb_buy_to_display'])
-                amount_to_open = self.helper_amount_by_indexes(
-                    bottom_index,
-                    top_index,
-                    "sell"
-                )
-                if amount_to_open > Decimal('0'):
-                    self.user.create_limit_buy_order(self.market,
-                                                     amount_to_open + self.epsilon_amount,
-                                                     self.intervals[top_index].get_top())
+            bottom_index = 3 + self.lazy_whale.params['nb_buy_to_display'] * i
+            top_index = min(len(self.intervals) - 1, bottom_index + self.lazy_whale.params['nb_buy_to_display'])
+            amount_to_open = self.helper_amount_by_indexes(
+                bottom_index,
+                top_index,
+                "sell"
+            )
+            if amount_to_open > Decimal('0'):
+                self.user.create_limit_buy_order(self.market,
+                                                 amount_to_open + self.epsilon_amount,
+                                                 self.intervals[top_index].get_top())
 
-                import time
-                time.sleep(5)
-                self.user.cancel_all_orders()
-                self.lazy_whale.main_cycle()
+            import time
+            time.sleep(5)
+            self.user.cancel_all_orders()
+            self.lazy_whale.main_cycle()
 
         self.assertEqual(self.lazy_whale.params['spread_top'], len(self.intervals) - 1)
 
