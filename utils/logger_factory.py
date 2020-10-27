@@ -14,7 +14,8 @@ import utils.logging_config_checkers as check
 def slack_log(func):
     def wrapper(*args):
         func(*args)
-        args[0].slack.post_message(args[1])
+        if args[0].slack is not None:
+            args[0].slack.post_message(args[1])
 
     return wrapper
 

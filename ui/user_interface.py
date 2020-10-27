@@ -129,6 +129,7 @@ class UserInterface:
 
             q = 'Do you want to use those params?'
             if self.simple_question(q):
+
                 params = self.check_for_enough_funds(params)
             else:
                 params = None
@@ -141,6 +142,16 @@ class UserInterface:
         helper.params_writer(file_path, params)
 
         return params
+
+    def get_allocation_from_params(self, params):
+        allocation_factory = AllocationFactory(
+            params['allocation_type'],
+            params['amount'],
+            params['intervals'],
+            self.fees_coef,
+            params['profits_alloc'],
+        )
+        return allocation_factory.get_allocation()
 
     def enter_params(self):
         """Series of questions to setup LW parameters.
@@ -160,14 +171,7 @@ class UserInterface:
             params.update({'profits_alloc': 0})
         params.update(self.ask_param_amount(params))
 
-        allocation_factory = AllocationFactory(
-            params['allocation_type'],
-            params['amount'],
-            params['intervals'],
-            self.fees_coef,
-            params['profits_alloc'],
-        )
-        params.update({'allocation': allocation_factory.get_allocation()})
+        params.update({'allocation': self.get_allocation_from_params(params)})
 
         # No need to continue further without enough funds
         params = self.check_for_enough_funds(params)
@@ -298,15 +302,10 @@ class UserInterface:
 
     def calculate_amount_suggestion(self, params: dict, funds: Decimal):
         """Calculate amount suggestion for user to simplify user calculation (depends on allocation strategy)"""
-        allocation_factory = AllocationFactory(
-            params['allocation_type'],
-            Decimal('1'),
-            params['intervals'],
-            self.fees_coef,
-            params['profits_alloc'],
-        )
+        # cheat to use allocation_factory
+        params.update({'amount': Decimal('1')})
+        allocation = self.get_allocation_from_params(params)
         total_interval_amount_coefficient = Decimal('0')
-        allocation = allocation_factory.get_allocation()
         for i in range(params['spread_top'], len(params['intervals'])):
             total_interval_amount_coefficient += allocation.get_amount(i, 'sell')
 
@@ -519,6 +518,8 @@ class UserInterface:
                 params['range_bot'],
                 params['range_top'],
                 params['increment_coef'])})
+
+            params.update({'allocation': self.get_allocation_from_params(params)})
 
             if params['spread_top'] - params['spread_bot'] != 3:
                 raise ValueError('Spread_bot isn\'t properly configured')

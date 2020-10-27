@@ -7,16 +7,8 @@ from exchanges.api_manager import APIManager
 import tests.keys as keys_config
 from mock import patch
 
-from main.order import Order
-from utils import helpers
 from utils.helpers import interval_generator, populate_intervals
-from utils.logger import Logger
-
-
-def patch_log_formatter(*args, **kwargs):
-    timestamp = 2134
-    date = '_'
-    return timestamp, date
+import utils.logger_factory as lf
 
 
 class APIManagerTests(TestCase):
@@ -24,12 +16,10 @@ class APIManagerTests(TestCase):
     def setUp(self, set_root_path_patch) -> None:
         set_root_path_patch.return_value = keys_config.PATH_TO_PROJECT_ROOT
 
-        with patch.object(Logger, "__init__", lambda x, name, slack_webhook: None):
-            self.api_manager = APIManager(keys_config.SLACK_WEBHOOK, Decimal('1E-8'), Decimal('1'))
+        lf.set_simple_logger(keys_config.PATH_TO_PROJECT_ROOT)
+        self.api_manager = APIManager(keys_config.SLACK_WEBHOOK, Decimal('1E-8'), Decimal('1'))
+        self.api_manager.log = lf.get_simple_logger("test.api_manager")
 
-        self.api_manager.log = Logger(name='api_manager',
-                                      slack_webhook=keys_config.SLACK_WEBHOOK,
-                                      common_path=keys_config.PATH_TO_PROJECT_ROOT).log
         self.api_manager.intervals = interval_generator(Decimal('0.01'), Decimal('0.015'),
                                                         Decimal('1') + Decimal('1.02') / Decimal('100'))
         self.api_manager.empty_intervals = deepcopy(self.api_manager.intervals)

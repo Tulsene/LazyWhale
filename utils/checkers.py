@@ -60,7 +60,7 @@ def amount(amount, range_bot):
 def profits_alloc(nb):
     """Verify the nb for benefice allocation
     nb: int"""
-    if nb <= Decimal('0') or nb >= Decimal('100'):
+    if nb < Decimal('0') or nb > Decimal('100'):
         raise ValueError(f'The benefice allocation too low (<0) or high '
                          f'(>100) {nb}')
     return nb

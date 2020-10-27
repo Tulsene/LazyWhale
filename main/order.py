@@ -24,13 +24,13 @@ class Order:
                and self.id == other.id and self.side == other.side
 
     def __str__(self):
-        return f"id: {self.id}\n" \
-               f"price: {self.price}\n" \
-               f"amount: {self.amount}\n" \
-               f"side: {self.side}\n" \
-               f"filled: {self.filled}\n" \
-               f"value: {self.value}\n" \
-               f"timestamp: {self.timestamp}\n" \
+        return f"id: {self.id} " \
+               f"price: {self.price} " \
+               f"amount: {self.amount} " \
+               f"side: {self.side} " \
+               f"filled: {self.filled} " \
+               f"value: {self.value} " \
+               f"timestamp: {self.timestamp} " \
                f"date: {self.date}\n"
 
     def __repr__(self):

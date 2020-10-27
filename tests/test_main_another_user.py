@@ -10,7 +10,7 @@ from main.allocation import NoSpecificAllocation, LinearAllocation, CurvedAlloca
 from utils.checkers import is_equal_decimal
 from utils.converters import multiplier
 from utils.helpers import interval_generator, get_indexes_buy_intervals, get_indexes_sell_intervals, populate_intervals
-from utils.logger import Logger
+import utils.logger_factory as lf
 
 from main.lazy_whale import LazyWhale
 import tests.keys as keys_config
@@ -22,6 +22,7 @@ class AnotherUserTests(TestCase):
         self.time_to_sleep = 0.1
         self.market = "DASH/BTC"
         set_root_path_patch.return_value = keys_config.PATH_TO_PROJECT_ROOT
+        lf.set_simple_logger(keys_config.PATH_TO_PROJECT_ROOT)
         params = {"datetime": "2020-09-25 12:45:16.243709",
                   "marketplace": "zebitex_testnet",
                   "market": "DASH/BTC",
@@ -38,21 +39,14 @@ class AnotherUserTests(TestCase):
                   "profits_alloc": 0,
                   "orders_per_interval": 2}
 
-        with patch.object(Logger, "__init__", lambda x, name, slack_webhook=None: None):
-            self.api_manager = APIManager(keys_config.SLACK_WEBHOOK, Decimal('1E-8'), Decimal('1'))
-            self.lazy_whale = LazyWhale()
+        self.api_manager = APIManager(keys_config.SLACK_WEBHOOK, Decimal('1E-8'), Decimal('1'))
+        self.lazy_whale = LazyWhale()
 
         self.lazy_whale.params = params
         self.lazy_whale.allocation = NoSpecificAllocation(self.lazy_whale.params['amount'])
 
-        self.api_manager.logger = Logger(name='api_manager',
-                                         slack_webhook=keys_config.SLACK_WEBHOOK,
-                                         common_path=keys_config.PATH_TO_PROJECT_ROOT)
-        self.lazy_whale.logger = Logger(name='main',
-                                        slack_webhook=keys_config.SLACK_WEBHOOK,
-                                        common_path=keys_config.PATH_TO_PROJECT_ROOT)
-        self.api_manager.log = self.api_manager.logger.log
-        self.lazy_whale.log = self.lazy_whale.logger.log
+        self.api_manager.log = lf.get_simple_logger("test.api_manager")
+        self.lazy_whale.log = lf.get_simple_logger("test.lazy_whale")
 
         self.intervals = interval_generator(params['range_bot'], params['range_top'],
                                             params['increment_coef'])

@@ -26,14 +26,41 @@
             "class": "logging.handlers.RotatingFileHandler",
             "maxBytes": 1000000,
             "backupCount": 10,
-            "filename": "mplog.log",
+            "filename": "main.log",
             "mode": "a",
             "formatter": "detailed"
         },
-        "spam": {
+        "lazy_whale": {
             "level": "DEBUG",
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": "spam.log",
+            "filename": "lazy_whale.log",
+            "mode": "a",
+            "formatter": "simple",
+            "maxBytes": 1000000,
+            "backupCount": 10
+        },
+        "user_interface": {
+            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "user_interface.log",
+            "mode": "a",
+            "formatter": "simple",
+            "maxBytes": 1000000,
+            "backupCount": 10
+        },
+        "api_manager": {
+            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "api_manager.log",
+            "mode": "a",
+            "formatter": "simple",
+            "maxBytes": 1000000,
+            "backupCount": 10
+        },
+        "tests": {
+            "level": "DEBUG",
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "tests.log",
             "mode": "a",
             "formatter": "detailed",
             "maxBytes": 1000000,
@@ -48,8 +75,17 @@
         }
     },
     "loggers": {
-        "spam": {
-            "handlers": ["spam"]
+        "lazy_whale": {
+            "handlers": ["lazy_whale"]
+        },
+        "user_interface": {
+            "handlers": ["user_interface"]
+        },
+        "api_manager": {
+            "handlers": ["api_manager"]
+        },
+        "test": {
+            "handlers": ["tests"]
         }
     },
     "root": {

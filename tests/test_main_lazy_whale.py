@@ -11,21 +11,16 @@ from main.lazy_whale import LazyWhale
 from utils import helpers
 from utils.converters import multiplier, divider
 from utils.helpers import interval_generator
-from utils.logger import Logger
+import utils.logger_factory as lf
 
 import tests.keys as keys_config
-
-
-def patch_log_formatter(*args, **kwargs):
-    timestamp = 12345
-    date = 'test'
-    return timestamp, date
 
 
 class LazyWhaleTests(TestCase):
     @patch('utils.helpers.set_root_path')
     def setUp(self, set_root_path_patch) -> None:
         set_root_path_patch.return_value = keys_config.PATH_TO_PROJECT_ROOT
+        lf.set_simple_logger(keys_config.PATH_TO_PROJECT_ROOT)
 
         self.market = "DASH/BTC"
         self.intervals = interval_generator(Decimal('0.01'), Decimal('0.015'),
@@ -34,13 +29,11 @@ class LazyWhaleTests(TestCase):
         # Another user for testing purpose
         self.user = ZebitexFormatted(keys_config.ANOTHER_USER_API_KEY, keys_config.ANOTHER_USER_SECRET, True)
 
-        with patch.object(Logger, "__init__", lambda x, name, slack_webhook=None: None):
-            self.api_manager = APIManager(keys_config.SLACK_WEBHOOK, Decimal('1E-8'), Decimal('1'))
-            self.lazy_whale = LazyWhale()
+        self.api_manager = APIManager(keys_config.SLACK_WEBHOOK, Decimal('1E-8'), Decimal('1'))
+        self.lazy_whale = LazyWhale()
 
-        self.api_manager.log = Logger(name='api_manager',
-                                      slack_webhook=keys_config.SLACK_WEBHOOK,
-                                      common_path=keys_config.PATH_TO_PROJECT_ROOT).log
+        self.api_manager.log = lf.get_simple_logger("test.api_manager")
+        self.lazy_whale.log = lf.get_simple_logger("test.lazy_whale")
         self.api_manager.intervals = deepcopy(self.intervals)
         self.api_manager.empty_intervals = deepcopy(self.api_manager.intervals)
         keys = {
@@ -59,9 +52,6 @@ class LazyWhaleTests(TestCase):
         self.user.cancel_all_orders()
         self.lazy_whale.fees_coef = Decimal('0.9975')
         self.lazy_whale.min_amount = Decimal('0')
-        self.lazy_whale.log = Logger(name='main',
-                                     slack_webhook=keys_config.SLACK_WEBHOOK,
-                                     common_path=keys_config.PATH_TO_PROJECT_ROOT).log
         self.lazy_whale.params = {
             "datetime": "2020-09-25 12:45:16.243709",
             "marketplace": "zebitex_testnet",
