@@ -1,4 +1,3 @@
-import sys
 from copy import deepcopy
 from time import sleep
 from datetime import datetime
@@ -53,7 +52,7 @@ class APIManager:
         try:
             self.exchange.load_markets()
         except Exception as e:
-            self.log.warning(f'WARNING: {sys._getframe().f_code.co_name}: {e}')
+            self.log.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
             self.load_markets()
@@ -65,7 +64,7 @@ class APIManager:
         try:
             return self.exchange.fetch_balance()
         except Exception as e:
-            self.log.warning(f'WARNING: {sys._getframe().f_code.co_name}: {e}')
+            self.log.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_balance()
@@ -80,7 +79,7 @@ class APIManager:
                 market = self.market
             return self.exchange.fetch_open_orders(market)
         except Exception as e:
-            self.log.warning(f'WARNING: {sys._getframe().f_code.co_name}: {e}')
+            self.log.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_open_orders(market)
@@ -116,7 +115,7 @@ class APIManager:
                 market = self.market
             return self.exchange.fetch_trades(market)
         except Exception as e:
-            self.log.warning(f'WARNING: {sys._getframe().f_code.co_name}: {e}')
+            self.log.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_trades(market)
@@ -131,7 +130,7 @@ class APIManager:
                 market = self.market
             return self.exchange.fetch_ticker(market)
         except Exception as e:
-            self.log.warning(f'WARNING: {sys._getframe().f_code.co_name}: {e}')
+            self.log.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_ticker(market)
@@ -154,7 +153,7 @@ class APIManager:
                                                amount)
             return Order(order['id'], price, amount, 'buy', date[0], date[1], self.fees_coef)
         except Exception as e:
-            self.log.warning(f'WARNING: {sys._getframe().f_code.co_name}: {e}')
+            self.log.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
             rsp = self.check_limit_order(market, price, 'buy')
@@ -190,7 +189,7 @@ class APIManager:
                                                amount)
             return Order(order['id'], price, amount, 'sell', date[0], date[1], self.fees_coef)
         except Exception as e:
-            self.log.warning(f'WARNING: {sys._getframe().f_code.co_name}: {e}')
+            self.log.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
             rsp = self.check_limit_order(market, price, 'sell')
@@ -279,7 +278,7 @@ class APIManager:
             else:
                 self.log.warning(f'WARNING: Unexpected order history: {history}')
         except Exception as e:
-            self.log.warning(f'WARNING: {sys._getframe().f_code.co_name}: {e}')
+            self.log.warning(f'WARNING: {e}')
 
     def cancel_orders(self, orders):
         """Cancel multiple orders"""
@@ -311,7 +310,7 @@ class APIManager:
 
                 return rsp
         except Exception as e:
-            self.log.warning(f'WARNING: {sys._getframe().f_code.co_name}: {e}')
+            self.log.warning(f'WARNING: {e}')
             sleep(0.5)
             self.api_fail_message_handler()
             is_open = self.check_an_order_is_open(order.price, order.side)

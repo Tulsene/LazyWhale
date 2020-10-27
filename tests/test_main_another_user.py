@@ -349,7 +349,7 @@ class AnotherUserTests(TestCase):
         self.user.create_limit_buy_order(self.market,
                                          amount_to_open + self.epsilon_amount,
                                          self.intervals[self.lazy_whale.params['spread_top'] + 2].get_top())
-
+        time.sleep(self.time_to_sleep)
         self.user.cancel_all_orders()
 
         amount_to_open = self.helper_amount_by_indexes(self.lazy_whale.params['spread_bot'] - 2,
@@ -359,6 +359,7 @@ class AnotherUserTests(TestCase):
                                           amount_to_open + self.epsilon_amount,
                                           self.intervals[self.lazy_whale.params['spread_bot'] - 2].get_bottom())
 
+        time.sleep(self.time_to_sleep)
         self.user.cancel_all_orders()
         self.lazy_whale.main_cycle()
         self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot)
@@ -376,6 +377,8 @@ class AnotherUserTests(TestCase):
         self.user.create_limit_buy_order(self.market,
                                          amount_to_open + self.epsilon_amount,
                                          self.intervals[self.lazy_whale.params['spread_top'] + 1].get_top())
+
+        time.sleep(self.time_to_sleep)
         self.user.cancel_all_orders()
 
         amount_to_open = self.helper_amount_by_indexes(self.lazy_whale.params['spread_bot'] - 1,
@@ -385,6 +388,7 @@ class AnotherUserTests(TestCase):
                                           amount_to_open + self.epsilon_amount,
                                           self.intervals[self.lazy_whale.params['spread_bot'] - 1].get_bottom())
 
+        time.sleep(self.time_to_sleep)
         self.user.cancel_all_orders()
         self.lazy_whale.main_cycle()
         if isinstance(self.lazy_whale.allocation, CurvedAllocation):
@@ -405,6 +409,7 @@ class AnotherUserTests(TestCase):
                                                                                'sell') + self.epsilon_amount,
                                          self.intervals[self.lazy_whale.params['spread_top']].get_top())
 
+        time.sleep(self.time_to_sleep)
         self.user.cancel_all_orders()
 
         amount_to_open = self.helper_amount_by_indexes(self.lazy_whale.params['spread_bot'] - 2,
@@ -414,6 +419,7 @@ class AnotherUserTests(TestCase):
                                           amount_to_open + self.epsilon_amount,
                                           self.intervals[self.lazy_whale.params['spread_bot'] - 2].get_bottom())
 
+        time.sleep(self.time_to_sleep)
         self.user.cancel_all_orders()
         self.lazy_whale.main_cycle()
 

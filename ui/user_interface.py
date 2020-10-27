@@ -259,7 +259,7 @@ class UserInterface:
                         'increment_coef': increment, 'intervals': intervals}
 
             except Exception as e:
-                self.log.exception(e)
+                self.log.exception(f'{e}')
 
     def ask_param_increment(self):
         """Ask the user to enter a value for the spread between each order.
@@ -332,7 +332,7 @@ class UserInterface:
                 return {'amount': amount}
 
             except Exception as e:
-                self.log.info(e)
+                self.log.info(f'{e}')
 
     def ask_nb_to_display(self, intervals):
         """Ask how much buy and sell intervals are going to be in the book.
@@ -419,7 +419,7 @@ class UserInterface:
                 break
 
             except Exception as e:
-                self.log.exception(e)
+                self.log.exception(f'{e}')
 
         return params
 

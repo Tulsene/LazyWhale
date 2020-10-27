@@ -83,7 +83,7 @@ class LazyWhale:
                 keys_json = json.load(keys_file)
 
             except Exception as e:
-                self.log.critical(f'keys.json file is not correct : {e}')
+                self.log.exception(f'keys.json file is not correct : {e}')
                 raise SystemExit
 
             try:
@@ -103,7 +103,7 @@ class LazyWhale:
                 api_keys['slack_webhook'] = keys_json['slack_webhook']
 
             except Exception as e:
-                self.log.critical(f'Something went wrong : {e}')
+                self.log.exception(f'Something went wrong : {e}')
                 raise SystemExit
 
         return api_keys
