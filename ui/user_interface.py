@@ -1,9 +1,6 @@
 import json
 from datetime import datetime
 from decimal import Decimal
-from copy import deepcopy
-
-import ccxt
 
 import utils.helpers as helper
 import utils.converters as convert

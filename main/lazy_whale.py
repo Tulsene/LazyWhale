@@ -262,7 +262,6 @@ class LazyWhale:
         highest_interval = min(len(self.intervals), self.params['spread_top'] + self.params['nb_sell_to_display'] - 1)
         return lowest_interval, highest_interval
 
-    # TODO: refactor with using prepare_orders and execute_orders
     def set_first_intervals(self) -> None:
         """Open intervals due to parameters and store in the self.intervals:
         spread_bot - index of bottom interval
