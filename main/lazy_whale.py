@@ -172,91 +172,7 @@ class LazyWhale:
             f"{self.params['spread_bot']}, self.params['spread_top']: "
             f"{self.params['spread_top']}, highest_sell: {highest_sell}")
 
-        # TODO: understand, what this code does
-        # orders_to_remove = {'sell': [], 'buy': []}
-        # remaining_orders_price = {'buy': [], 'sell': []}
-        # orders_to_remove['buy'] = self.init_remove_orders('buy',
-        #                                                   open_orders['buy'],
-        #                                                   lowest_buy,
-        #                                                   self.params['spread_bot'],
-        #                                                   orders_to_remove['buy'])
-        # orders_to_remove['sell'] = self.init_remove_orders('sell',
-        #                                                    open_orders['sell'],
-        #                                                    self.params['spread_top'],
-        #                                                    highest_sell,
-        #                                                    orders_to_remove['sell'])
-        #
-        # for side in self.sides:
-        #     open_orders, remaining_orders_price = self.update_orders(side,
-        #                                                              open_orders, orders_to_remove,
-        #                                                              remaining_orders_price)
-        #
-        # self.log.debug(
-        #     f'orders_to_remove: {orders_to_remove}, open_orders: {open_orders}'
-        #     f', remaining_orders_price: {remaining_orders_price}')
-
         self.set_first_intervals()
-
-    # TODO: rewrite due to new functionality
-    def init_remove_orders(self, side, open_orders, lowest_price, highest_price, orders_to_remove):
-        """Remove unwanted buys orders for the strategy.
-        open_orders: dict.
-        lowest_buy: Decimal.
-        orders_to_remove: dict.
-        q, q2, q3: string.
-        return: dict """
-        q = 'Do you want to remove this order ? (y or n)'
-        q2 = (f"This order has an amount inferior or superior to "
-              f"{self.params['amount']}. Do you want to cancel it? (y or no)")
-        for i, order in enumerate(open_orders):
-            if order[1] in self.intervals:
-                if not lowest_price <= order[1] <= highest_price:
-                    self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
-                    orders_to_remove.append(i)
-                    continue
-
-                if order[2] != self.params['amount']:
-                    if not self.preset_params:
-                        if self.ui.simple_question(f'{order} {q2}'):
-                            self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
-                            orders_to_remove.append(i)
-                            continue
-
-            else:
-                if not self.preset_params:
-                    if self.ui.simple_question(f'{q} {order}'):
-                        self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
-
-                orders_to_remove.append(i)
-                continue
-
-            # Two order of the same price could crash the bot
-            if i > 0:
-                if order[1] == open_orders[i - 1][1] \
-                        and i - 1 not in orders_to_remove:
-                    orders_to_remove = self.remove_one_of_two_orders(side, open_orders, order, i, orders_to_remove)
-
-        return orders_to_remove
-
-    def remove_one_of_two_orders(self, side, open_orders, order, i, orders_to_remove):
-        q = 'Those two orders have the same price, which one do you want to cancel : '
-        order_to_select = [order, open_orders[i - 1]]
-
-        if self.preset_params:
-            rsp = 1
-        else:
-            rsp = int(self.ui.ask_to_select_in_a_list(q, order_to_select))
-
-        if rsp == 1:
-            self.connector.cancel_order(self.params['market'], order[0], order[1], order[4], side)
-            orders_to_remove.append(i)
-        else:
-            self.connector.cancel_order(self.params['market'], order_to_select[1][0],
-                                        order_to_select[1][1],
-                                        order_to_select[1][4], side)
-            orders_to_remove.append(i - 1)
-
-        return orders_to_remove
 
     def get_lowest_highest_interval_index(self):
         lowest_interval = max(0, self.params['spread_bot'] - self.params['nb_buy_to_display'] + 1)
@@ -279,32 +195,22 @@ class LazyWhale:
         intervals_sell = []
 
         for interval_idx in reversed(range(lowest_interval, self.params['spread_bot'] + 1)):
-            if not is_equal_decimal(existing_intervals[interval_idx].get_buy_orders_amount()
-                                    + existing_intervals[interval_idx + 2].get_sell_orders_amount(),
-                                    self.allocation.get_amount(interval_index=interval_idx, side='buy')):
+            if existing_intervals[interval_idx].get_buy_orders():
+                self.connector.cancel_orders(existing_intervals[interval_idx].get_buy_orders())
 
-                # TODO: redo here canceling all orders
-                if existing_intervals[interval_idx].get_buy_orders():
-                    self.connector.cancel_orders(existing_intervals[interval_idx].get_buy_orders())
-
-                intervals_buy.append({
-                    "interval_index": interval_idx,
-                    "amount": self.allocation.get_amount(interval_index=interval_idx, side='buy'),
-                })
+            intervals_buy.append({
+                "interval_index": interval_idx,
+                "amount": self.allocation.get_amount(interval_index=interval_idx, side='buy'),
+            })
 
         for interval_idx in range(self.params['spread_top'], highest_interval + 1):
-            if not is_equal_decimal(existing_intervals[interval_idx].get_sell_orders_amount()
-                                    + existing_intervals[interval_idx - 2].get_buy_orders_amount(),
-                                    self.allocation.get_amount(interval_index=interval_idx, side='sell')):
+            if existing_intervals[interval_idx].get_sell_orders():
+                self.connector.cancel_orders(existing_intervals[interval_idx].get_sell_orders())
 
-                # TODO: redo here canceling all orders
-                if existing_intervals[interval_idx].get_sell_orders():
-                    self.connector.cancel_orders(existing_intervals[interval_idx].get_sell_orders())
-
-                intervals_sell.append({
-                    "interval_index": interval_idx,
-                    "amount": self.allocation.get_amount(interval_index=interval_idx, side='sell'),
-                })
+            intervals_sell.append({
+                "interval_index": interval_idx,
+                "amount": self.allocation.get_amount(interval_index=interval_idx, side='sell'),
+            })
 
         self.execute_orders(self.intervals, self.prepare_orders(intervals_buy), self.prepare_orders(intervals_sell))
 
@@ -799,7 +705,7 @@ class LazyWhale:
             nb_buy_intervals = len(helper.get_indexes_buy_intervals(self.intervals))
             nb_sell_intervals = len(helper.get_indexes_sell_intervals(self.intervals))
 
-    # TODO: think if we need not only check but return side and step for move_intervals
+    # TD: think if we need not only check but return side and step for move_intervals
     def check_intervals_position(self) -> bool:
         """Checks if intervals spread has correct difference between buys and sells"""
         buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
@@ -813,7 +719,7 @@ class LazyWhale:
 
         return True
 
-    # TODO: implement for buy side (if needed) - don't know exactly, do we need for buy
+    # TD: implement for buy side (if needed) - don't know exactly, do we need for buy
     def move_intervals(self, side: str, step: int):
         """Moves intervals 1 step up or 1 step down if check_interval_position returns False
         side: sell or buy
@@ -831,7 +737,6 @@ class LazyWhale:
                 })
                 self.cancel_sell_interval_by_index(self.intervals, index)
             self.execute_orders(self.intervals, [], self.prepare_orders(intervals_to_open))
-            # return intervals_to_open
 
     def check_intervals_equal(self, new_intervals):
         return self.intervals == new_intervals
@@ -871,7 +776,7 @@ class LazyWhale:
         if not is_equal:
             self.cancel_safety_orders()
             self.compare_intervals(new_intervals)
-            # TODO: here only sell moves to buy (spread_top closer to spread_bot) - redo if needed
+            # TD: here only sell moves to buy (spread_top closer to spread_bot) - redo if needed
             if not self.check_intervals_position():
                 self.move_intervals('sell', -1)
 

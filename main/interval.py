@@ -55,7 +55,7 @@ class Interval:
         """Returns orders(dict) with random price inside interval and with amount sum = total_amount
         Does not store this orders in Interval (cause they are not opened yet)
         """
-        # TODO: redo this assert
+        # TD: redo this assert if needed
         assert min_amount * count_order < total_amount
 
         random_amount = total_amount - min_amount * count_order
