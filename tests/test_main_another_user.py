@@ -328,15 +328,12 @@ class AnotherUserTests(TestCase):
                                                                                 'buy') + self.epsilon_amount,
                                           self.intervals[self.lazy_whale.params['spread_bot']].get_bottom())
 
+        time.sleep(self.time_to_sleep)
         self.user.cancel_all_orders()
         self.lazy_whale.main_cycle()
 
-        if isinstance(self.lazy_whale.allocation, CurvedAllocation):
-            self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot - 1)
-            self.assertEqual(self.lazy_whale.params['spread_top'], spr_top - 1)
-        else:
-            self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot)
-            self.assertEqual(self.lazy_whale.params['spread_top'], spr_top)
+        self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot)
+        self.assertEqual(self.lazy_whale.params['spread_top'], spr_top)
 
         test_amount()
 
@@ -391,12 +388,9 @@ class AnotherUserTests(TestCase):
         time.sleep(self.time_to_sleep)
         self.user.cancel_all_orders()
         self.lazy_whale.main_cycle()
-        if isinstance(self.lazy_whale.allocation, CurvedAllocation):
-            self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot - 1)
-            self.assertEqual(self.lazy_whale.params['spread_top'], spr_top - 1)
-        else:
-            self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot)
-            self.assertEqual(self.lazy_whale.params['spread_top'], spr_top)
+
+        self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot)
+        self.assertEqual(self.lazy_whale.params['spread_top'], spr_top)
 
         test_amount()
 
@@ -426,10 +420,6 @@ class AnotherUserTests(TestCase):
         if isinstance(self.lazy_whale.allocation, LinearAllocation):
             self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot - 1)
             self.assertEqual(self.lazy_whale.params['spread_top'], spr_top - 1)
-
-        elif isinstance(self.lazy_whale.allocation, CurvedAllocation):
-            self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot - 3)
-            self.assertEqual(self.lazy_whale.params['spread_top'], spr_top - 3)
 
         else:
             self.assertEqual(self.lazy_whale.params['spread_bot'], spr_bot - 2)

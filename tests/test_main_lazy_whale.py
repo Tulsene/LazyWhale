@@ -702,3 +702,15 @@ class LazyWhaleTests(TestCase):
         self.lazy_whale.main_cycle()
         self.assertEqual(self.lazy_whale.remaining_amount_to_open_sell, Decimal('0'))
         self.assertEqual(self.lazy_whale.intervals[5].get_sell_orders_amount(), Decimal('0.005002'))
+
+    def test_move_intervals(self):
+        """Tests that moving intervals is working correctly:
+         when spread_bot - spread_top > 3 we need to make one step down to return to the strategy"""
+        self.lazy_whale.params['spread_bot'] = 6
+        self.lazy_whale.params['spread_top'] = 9
+        self.lazy_whale.params['amount'] = Decimal('0.02')
+        self.lazy_whale.strat_init()
+        self.lazy_whale.cancel_sell_interval_by_index(self.lazy_whale.intervals, 9)
+        self.assertEqual(helpers.get_indexes_sell_intervals(self.lazy_whale.intervals), [10, 11])
+        self.lazy_whale.move_intervals(side="sell", step=-1)
+        self.assertEqual(helpers.get_indexes_sell_intervals(self.lazy_whale.intervals), [9, 10])

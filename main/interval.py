@@ -7,7 +7,8 @@ import config.config as config
 
 
 def get_random_decimal(bot, top):
-    return Decimal(str(round(uniform(float(bot), float(top)), config.DECIMAL_PRECISION)))
+    return Decimal(str(round(uniform(float(bot + Decimal('1E-8')), float(top - Decimal('1e-8'))),  # failsafe
+                             config.DECIMAL_PRECISION)))
 
 
 class Interval:

@@ -149,10 +149,14 @@ class CurvedAllocation(AbstractAllocation):
         for index in range(self.middle_point):
             amounts.append(exponent(self.middle_amount, self.buy_exponent_coefficient, self.middle_point - index))
 
-        amounts.append(self.middle_amount)
+        additional = 0
+        if intervals_count % 2 == 1:
+            amounts.append(self.middle_amount)
+            additional = 1
 
-        for index in range(self.middle_point + 1, intervals_count):
-            amounts.append(exponent(self.middle_amount, self.sell_exponent_coefficient, index - self.middle_point))
+        for index in range(self.middle_point + additional, intervals_count):
+            amounts.append(exponent(self.middle_amount, self.sell_exponent_coefficient,
+                                    index + 1 - additional - self.middle_point))
 
         return amounts
 
