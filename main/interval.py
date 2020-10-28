@@ -115,6 +115,16 @@ class Interval:
     def get_sell_orders(self) -> [Order]:
         return self.__sell_orders
 
+    def set_buy_orders(self, buy_orders: [Order]) -> None:
+        self.remove_buy_orders()
+        for order in buy_orders:
+            self.insert_buy_order(order)
+
+    def set_sell_orders(self, sell_orders: [Order]) -> None:
+        self.remove_sell_orders()
+        for order in sell_orders:
+            self.insert_sell_order(order)
+
     def remove_buy_orders(self) -> None:
         self.__buy_orders = []
 

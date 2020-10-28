@@ -368,27 +368,31 @@ class LazyWhale:
         if safety_sell:
             self.connector.cancel_order(safety_sell)
 
-    # TODO: rewrite due to new functionality
-    def remove_orders_off_strat(self, new_open_orders):
-        """Remove all orders that are not included in the strategy
-        new_open_orders: dict, every open orders on the market
-        return: dict, open orders wich are included in the strategy"""
-        self.log.debug(f'remove_orders_off_strat(), new_open_orders: {new_open_orders}')
-        orders_to_remove = {'sell': [], 'buy': []}
+    def get_orders_id_list(self) -> [str]:
+        """Get the list of all opened orders id"""
+        orders_id_list: [str] = []
+        for index in helper.get_indexes_buy_intervals(self.intervals):
+            orders_id_list.extend([order.id for order in self.intervals[index].get_buy_orders()])
 
-        for side in self.sides:
-            if new_open_orders[side]:
-                for i, order in enumerate(new_open_orders[side]):
-                    if order[0] not in self.id_list:
-                        orders_to_remove[side].append(i)
+        for index in helper.get_indexes_sell_intervals(self.intervals):
+            orders_id_list.extend([order.id for order in self.intervals[index].get_sell_orders()])
 
-        for side in self.sides:
-            if orders_to_remove[side]:
-                for i, index in enumerate(orders_to_remove[side]):
-                    del new_open_orders[side][index - i]
+        return orders_id_list
 
-        self.log.debug(f'orders_to_remove: {orders_to_remove}')
-        return new_open_orders
+    def omit_orders_off_strat(self, new_intervals):
+        """Omit all orders, that are not included to the strategy"""
+        self.log.debug(f'omit_orders_off_strat(), new_intervals: {new_intervals}')
+
+        lw_orders_id_list = self.get_orders_id_list()
+        for index in helper.get_indexes_buy_intervals(new_intervals):
+            new_intervals[index].set_buy_orders([order for order in new_intervals[index].get_buy_orders()
+                                                 if order.id in lw_orders_id_list])
+
+        for index in helper.get_indexes_sell_intervals(new_intervals):
+            new_intervals[index].set_sell_orders([order for order in new_intervals[index].get_sell_orders()
+                                                  if order.id in lw_orders_id_list])
+
+        return new_intervals
 
     def cancel_all_intervals(self):
         """Cancel all orders inside all intervals and make self.intervals empty"""
@@ -862,6 +866,9 @@ class LazyWhale:
     def main_cycle(self):
         """One cycle of LW activity"""
         new_intervals = self.connector.get_intervals()
+        if not self.check_intervals_equal(new_intervals):
+            new_intervals = self.omit_orders_off_strat(new_intervals)
+
         is_equal = self.check_intervals_equal(new_intervals)
         if not is_equal:
             self.cancel_safety_orders()
@@ -879,11 +886,6 @@ class LazyWhale:
         self.lw_initialisation()
         while True:
             self.log.info(f'CYCLE START')
-            # TODO: implement here working with orders of strategy
-            # orders = self.safety_orders_checkpoint(self.remove_orders_off_strat(
-            #     self.connector.orders_price_ordering(
-            #         self.connector.get_orders(
-            #             self.params['market']))))
 
             # core functionality is here
             self.main_cycle()

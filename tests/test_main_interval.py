@@ -9,9 +9,15 @@ from main.order import Order
 class IntervalTests(TestCase):
     def setUp(self):
         self.interval = Interval(Decimal(0.01), Decimal(0.015))
-        self.order1 = Order('1', Decimal('0.011'), Decimal('0.01'), 'buy/sell', "1", "_")
-        self.order2 = Order('2', Decimal('0.014'), Decimal('0.014'), 'buy/sell', "1", "_")
-        self.order3 = Order('3', Decimal('0.012'), Decimal('0.012'), 'buy/sell', "1", "_")
+        self.order1 = Order(
+            "1", Decimal("0.011"), Decimal("0.01"), "buy/sell", "1", "_"
+        )
+        self.order2 = Order(
+            "2", Decimal("0.014"), Decimal("0.014"), "buy/sell", "1", "_"
+        )
+        self.order3 = Order(
+            "3", Decimal("0.012"), Decimal("0.012"), "buy/sell", "1", "_"
+        )
 
     def test_insert_order(self):
         """Tests that inserted order in the interval are always ordered by 'order.price'"""
@@ -45,13 +51,15 @@ class IntervalTests(TestCase):
 
     def test_generate_orders_by_amount(self):
         """Tests that generates correct number of orders with correct sum amount"""
-        total_amount = Decimal('1')
+        total_amount = Decimal("1")
         count_of_orders = 5
-        min_amount = Decimal('0.1')
-        orders = self.interval.generate_orders_by_amount(total_amount, min_amount, count_of_orders)
+        min_amount = Decimal("0.1")
+        orders = self.interval.generate_orders_by_amount(
+            total_amount, min_amount, count_of_orders
+        )
 
         self.assertEqual(len(orders), 5)
-        sum_amount = sum([order['amount'] for order in orders])
+        sum_amount = sum([order["amount"] for order in orders])
         self.assertEqual(sum_amount, total_amount)
 
     def test_get_orders_amount(self):
@@ -65,8 +73,8 @@ class IntervalTests(TestCase):
         amount_all_buy = self.interval.get_buy_orders_amount()
         amount_all_sell = self.interval.get_sell_orders_amount()
 
-        self.assertEqual(amount_all_buy, Decimal('0.036'))
-        self.assertEqual(amount_all_sell, Decimal('0.024'))
+        self.assertEqual(amount_all_buy, Decimal("0.036"))
+        self.assertEqual(amount_all_sell, Decimal("0.024"))
 
 
 if __name__ == "__main__":
