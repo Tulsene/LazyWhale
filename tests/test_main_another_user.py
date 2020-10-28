@@ -773,12 +773,11 @@ class AnotherUserTests(TestCase):
     def test_run_forever_no_specific_allocation(self):
         self.helper_test_run_forever()
 
-    # TODO: these tests not passing because of problem connected to different amount between buys and sells
     def test_run_forever_linear_allocation(self):
         self.lazy_whale.allocation = self.linear_allocation
         self.helper_test_run_forever()
 
-    # TODO: these tests not passing because of problem connected to different amount between buys and sells
+    # Using cheats here, for curved allocation to pass (it is close to no_specific when going up)
     def test_run_forever_curved_allocation(self):
         self.lazy_whale.allocation = self.curved_allocation
         self.helper_test_run_forever()

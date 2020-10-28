@@ -795,6 +795,7 @@ class LazyWhale:
             nb_buy_intervals = len(helper.get_indexes_buy_intervals(self.intervals))
             nb_sell_intervals = len(helper.get_indexes_sell_intervals(self.intervals))
 
+    # TODO: think if we need not only check but return side and step for move_intervals
     def check_intervals_position(self) -> bool:
         """Checks if intervals spread has correct difference between buys and sells"""
         buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
@@ -805,6 +806,8 @@ class LazyWhale:
         lowest_sell = min(sell_indexes)
         if lowest_sell - highest_buy > 3:
             return False
+
+        return True
 
     # TODO: implement for buy side (if needed) - don't know exactly, do we need for buy
     def move_intervals(self, side: str, step: int):
@@ -823,7 +826,7 @@ class LazyWhale:
                     'amount': amount_to_open
                 })
                 self.cancel_sell_interval_by_index(self.intervals, index)
-                self.execute_orders(self.intervals, [], self.prepare_orders(intervals_to_open))
+            self.execute_orders(self.intervals, [], self.prepare_orders(intervals_to_open))
             # return intervals_to_open
 
     def check_intervals_equal(self, new_intervals):
@@ -857,7 +860,6 @@ class LazyWhale:
         self.strat_init()
         self.set_safety_orders()
 
-    # TODO: Implement working with case, when intervals are not close to spread_bot, spread_top
     def main_cycle(self):
         """One cycle of LW activity"""
         new_intervals = self.connector.get_intervals()
@@ -865,6 +867,9 @@ class LazyWhale:
         if not is_equal:
             self.cancel_safety_orders()
             self.compare_intervals(new_intervals)
+            # TODO: here only sell moves to buy (spread_top closer to spread_bot) - redo if needed
+            if not self.check_intervals_position():
+                self.move_intervals('sell', -1)
 
             self.limit_nb_intervals()
             self.backup_spread_value()
