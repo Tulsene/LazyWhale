@@ -107,6 +107,20 @@ class UserInterface:
 
         return choice
 
+    def get_lw_backup(self):
+        import jsonpickle
+        import os
+        lw = None
+        backup_path = f'{self.root_path}config/backup_lw.json'
+        if os.path.exists(backup_path):
+            try:
+                with open(backup_path, 'r') as f:
+                    lw = jsonpickle.decode(f.read())
+            except json.JSONDecodeError as e:
+                self.log.exception(f"There was an error while restoring lw from backup_lw.json: {e}")
+
+        return lw
+
     def ask_for_params(self, test_file_path=None):
         """Allow user to use previous parameter if they exist and backup it.
         At the end of this section, parameters are set and LW can be initialized.
@@ -114,6 +128,13 @@ class UserInterface:
         if test_file_path:
             # TODO
             return self.check_for_enough_funds(self.params_reader(test_file_path))
+
+        backup_lw = self.get_lw_backup()
+        if backup_lw is not None:
+            q = 'You have complete previous version of LW, do want to continue it?'
+            # backup is fully ready for work
+            if self.simple_question(q):
+                return backup_lw
 
         file_path = f'{self.root_path}config/params.json'
         params = self.params_reader(file_path)

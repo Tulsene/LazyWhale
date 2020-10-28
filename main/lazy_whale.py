@@ -2,6 +2,7 @@ import json
 from copy import deepcopy
 from decimal import Decimal
 from time import sleep
+import jsonpickle
 
 import ccxt
 
@@ -844,24 +845,21 @@ class LazyWhale:
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.
         """
-        if self.preset_params:
-            params = self.ui.check_params(self.preset_params)
-            self.params = self.ui.check_for_enough_funds(params)
-        else:
-            self.params = self.ui.ask_for_params()  # f'{self.root_path}config/params.json')
-
         self.connector = self.params['api_connector']
         self.intervals = self.params['intervals']
         self.allocation = self.params['allocation']
         self.connector.set_params(self.params)
 
-        # TODO: do not cancel all existing orders
         self.connector.cancel_all(self.params['market'])
 
         self.log.ext_info('LW is starting')
 
         self.strat_init()
         self.set_safety_orders()
+
+    def backup_lw(self):
+        with open(f'{self.root_path}config/backup_lw.json', 'w') as f:
+            f.write(jsonpickle.encode(self))
 
     def main_cycle(self):
         """One cycle of LW activity"""
@@ -879,11 +877,12 @@ class LazyWhale:
 
             self.limit_nb_intervals()
             self.backup_spread_value()
+            self.backup_lw()
 
             self.set_safety_orders()
 
     def main(self):
-        self.lw_initialisation()
+        self.backup_lw()
         while True:
             self.log.info(f'CYCLE START')
 

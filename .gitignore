@@ -15,6 +15,7 @@ venv/*
 keys.json
 keys2.json
 params.json
+backup_lw.json
 keys.txt
 keys2.txt
 params.txt

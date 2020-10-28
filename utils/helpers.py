@@ -82,6 +82,8 @@ def params_writer(file_path, params):
         del updated['intervals']
     if 'api_connector' in updated.keys():
         del updated['api_connector']
+    if 'allocation' in updated.keys():
+        del updated['allocation']
     simple_file_writer(file_path, convert.dict_to_str(updated))
 
 
