@@ -4,7 +4,6 @@ from datetime import datetime
 from decimal import Decimal
 
 import utils.helpers as helpers
-from utils.checkers import is_equal_decimal
 import utils.converters as convert
 from exchanges.zebitexFormatted import ZebitexFormatted
 from main.order import Order
@@ -26,24 +25,22 @@ class APIManager:
         self.fees_coef = config.FEES_COEFFICIENT
         self.intervals = []
         self.empty_intervals = []
-        self.market = ''
+        self.market = ""
         self.profits_alloc = 0
 
     def set_zebitex(self, keys, network):
-        if network == 'zebitex_testnet':
-            self.exchange = ZebitexFormatted(
-                keys['apiKey'], keys['secret'], True)
-        elif network == 'zebitex':
-            self.exchange = ZebitexFormatted(
-                keys['apiKey'], keys['secret'], False)
+        if network == "zebitex_testnet":
+            self.exchange = ZebitexFormatted(keys["apiKey"], keys["secret"], True)
+        elif network == "zebitex":
+            self.exchange = ZebitexFormatted(keys["apiKey"], keys["secret"], False)
         else:
-            raise ValueError(f'{keys} unsupported')
+            raise ValueError(f"{keys} unsupported")
 
     def set_params(self, params):
-        self.intervals = params['intervals']
+        self.intervals = params["intervals"]
         self.empty_intervals = deepcopy(self.intervals)
-        self.market = params['market']
-        self.profits_alloc = params['profits_alloc']
+        self.market = params["market"]
+        self.profits_alloc = params["profits_alloc"]
 
     def load_markets(self):
         """Load the market list from a marketplace to self.exchange.
@@ -52,7 +49,7 @@ class APIManager:
         try:
             self.exchange.load_markets()
         except Exception as e:
-            self.log.warning(f'WARNING: {e}')
+            self.log.warning(f"WARNING: {e}")
             sleep(0.5)
             self.api_fail_message_handler()
             self.load_markets()
@@ -64,7 +61,7 @@ class APIManager:
         try:
             return self.exchange.fetch_balance()
         except Exception as e:
-            self.log.warning(f'WARNING: {e}')
+            self.log.warning(f"WARNING: {e}")
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_balance()
@@ -79,23 +76,26 @@ class APIManager:
                 market = self.market
             return self.exchange.fetch_open_orders(market)
         except Exception as e:
-            self.log.warning(f'WARNING: {e}')
+            self.log.warning(f"WARNING: {e}")
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_open_orders(market)
 
     def format_open_orders(self, raw_orders):
         """Format orders from fetch_open_orders in the correct way: [Order]"""
-        orders = [Order(
-            order['id'],
-            convert.quantizator(Decimal(order['price'])),
-            convert.quantizator(Decimal(order['amount'])),
-            order['side'],
-            int(order['timestamp']),
-            date=order['datetime'],
-            fee=self.fees_coef,
-            filled=convert.quantizator(Decimal(order['filled']) / Decimal('100'))
-        ) for order in raw_orders]
+        orders = [
+            Order(
+                order["id"],
+                convert.quantizator(Decimal(order["price"])),
+                convert.quantizator(Decimal(order["amount"])),
+                order["side"],
+                int(order["timestamp"]),
+                date=order["datetime"],
+                fee=self.fees_coef,
+                filled=convert.quantizator(Decimal(order["filled"]) / Decimal("100")),
+            )
+            for order in raw_orders
+        ]
         return sorted(orders, key=lambda x: x.price)
 
     def get_open_orders(self, market=None):
@@ -115,7 +115,7 @@ class APIManager:
                 market = self.market
             return self.exchange.fetch_trades(market)
         except Exception as e:
-            self.log.warning(f'WARNING: {e}')
+            self.log.warning(f"WARNING: {e}")
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_trades(market)
@@ -130,7 +130,7 @@ class APIManager:
                 market = self.market
             return self.exchange.fetch_ticker(market)
         except Exception as e:
-            self.log.warning(f'WARNING: {e}')
+            self.log.warning(f"WARNING: {e}")
             sleep(0.5)
             self.api_fail_message_handler()
             return self.fetch_ticker(market)
@@ -149,14 +149,15 @@ class APIManager:
         return: list, formatted trade history by ccxt."""
         try:
             order = self.exchange.create_limit_buy_order(market, amount, price)
-            date = self.order_logger_formatter('buy', order['id'], price,
-                                               amount)
-            return Order(order['id'], price, amount, 'buy', date[0], date[1], self.fees_coef)
+            date = self.order_logger_formatter("buy", order["id"], price, amount)
+            return Order(
+                order["id"], price, amount, "buy", date[0], date[1], self.fees_coef
+            )
         except Exception as e:
-            self.log.warning(f'WARNING: {e}')
+            self.log.warning(f"WARNING: {e}")
             sleep(0.5)
             self.api_fail_message_handler()
-            rsp = self.check_limit_order(market, price, 'buy')
+            rsp = self.check_limit_order(market, price, "buy")
             if not rsp:
                 return self.create_limit_buy_order(market, amount, price)
             else:
@@ -165,7 +166,9 @@ class APIManager:
     def set_several_buy(self, orders_to_open: [dict]) -> [Order]:
         buy_orders = []
         for order in orders_to_open:
-            buy_orders.append(self.init_limit_buy_order(self.market, order['amount'], order['price']))
+            buy_orders.append(
+                self.init_limit_buy_order(self.market, order["amount"], order["price"])
+            )
         return buy_orders
 
     def init_limit_sell_order(self, market, amount, price):
@@ -182,17 +185,16 @@ class APIManager:
         return: list, formatted trade history by ccxt
                 or boolean True when the order is already filled"""
         try:
-            order = self.exchange.create_limit_sell_order(market,
-                                                          amount,
-                                                          price)
-            date = self.order_logger_formatter('sell', order['id'], price,
-                                               amount)
-            return Order(order['id'], price, amount, 'sell', date[0], date[1], self.fees_coef)
+            order = self.exchange.create_limit_sell_order(market, amount, price)
+            date = self.order_logger_formatter("sell", order["id"], price, amount)
+            return Order(
+                order["id"], price, amount, "sell", date[0], date[1], self.fees_coef
+            )
         except Exception as e:
-            self.log.warning(f'WARNING: {e}')
+            self.log.warning(f"WARNING: {e}")
             sleep(0.5)
             self.api_fail_message_handler()
-            rsp = self.check_limit_order(market, price, 'sell')
+            rsp = self.check_limit_order(market, price, "sell")
             if not rsp:
                 return self.create_limit_sell_order(market, amount, price)
             else:
@@ -201,7 +203,9 @@ class APIManager:
     def set_several_sell(self, orders_to_open: [dict]) -> [Order]:
         sell_orders = []
         for order in orders_to_open:
-            sell_orders.append(self.init_limit_sell_order(self.market, order['amount'], order['price']))
+            sell_orders.append(
+                self.init_limit_sell_order(self.market, order["amount"], order["price"])
+            )
         return sell_orders
 
     def check_limit_order(self, market, price, side):
@@ -223,12 +227,18 @@ class APIManager:
 
     def find_interval_for_price(self, price):
         """return idx of correct interval for price"""
-        if price < self.intervals[0].get_bottom() or price >= self.intervals[-1].get_top():
+        if (
+            price < self.intervals[0].get_bottom()
+            or price >= self.intervals[-1].get_top()
+        ):
             return None
 
         interval_idx = 0
-        while not (self.intervals[interval_idx].get_bottom() <=
-                   price < self.intervals[interval_idx].get_top()):
+        while not (
+            self.intervals[interval_idx].get_bottom()
+            <= price
+            < self.intervals[interval_idx].get_top()
+        ):
             interval_idx += 1
 
         return interval_idx
@@ -243,7 +253,7 @@ class APIManager:
         if idx is None:
             return False
 
-        if side == 'buy':
+        if side == "buy":
             return intervals[idx].find_buy_order_by_price(price)
         else:
             return intervals[idx].find_buy_order_by_price(price)
@@ -256,16 +266,16 @@ class APIManager:
         timestamp: int, timestamp of the order.
         return: boolean."""
         price = self.get_market_last_price(market)
-        if side == 'buy':
+        if side == "buy":
             for item in a_list:
                 if item.timestamp >= timestamp:
-                    if price * Decimal('1.005') <= item.price <= target:
+                    if price * Decimal("1.005") <= item.price <= target:
                         return True
 
-        if side == 'sell':
+        if side == "sell":
             for item in a_list:
                 if item.timestamp >= timestamp:
-                    if price * Decimal('1.005') >= item.price >= target:
+                    if price * Decimal("1.005") >= item.price >= target:
                         return True
 
         return False
@@ -276,9 +286,9 @@ class APIManager:
             if isinstance(history, list):
                 return history
             else:
-                self.log.warning(f'WARNING: Unexpected order history: {history}')
+                self.log.warning(f"WARNING: Unexpected order history: {history}")
         except Exception as e:
-            self.log.warning(f'WARNING: {e}')
+            self.log.warning(f"WARNING: {e}")
 
     def cancel_orders(self, orders):
         """Cancel multiple orders"""
@@ -295,22 +305,26 @@ class APIManager:
         side: string, buy or sell.
         return: boolean, True if the order is canceled correctly, False when the
         order have been filled before it's cancellation"""
-        cancel_side = 'cancel_buy' if order.side == 'buy' else 'cancel_sell'
+        cancel_side = "cancel_buy" if order.side == "buy" else "cancel_sell"
         try:
-            self.log.debug(f'Init cancel {order.side} order {order.id} {order.price}')
+            self.log.debug(f"Init cancel {order.side} order {order.id} {order.price}")
             rsp = self.exchange.cancel_order(order.id)
             if rsp:
-                self.order_logger_formatter(cancel_side, order.id, order.price, order.amount)
+                self.order_logger_formatter(
+                    cancel_side, order.id, order.price, order.amount
+                )
                 return True
 
             else:
-                msg = (f'The {order.side} {order.id} have been filled '
-                       f'before being canceled')
+                msg = (
+                    f"The {order.side} {order.id} have been filled "
+                    f"before being canceled"
+                )
                 self.log.warning(msg)
 
                 return rsp
         except Exception as e:
-            self.log.warning(f'WARNING: {e}')
+            self.log.warning(f"WARNING: {e}")
             sleep(0.5)
             self.api_fail_message_handler()
             is_open = self.check_an_order_is_open(order.price, order.side)
@@ -322,16 +336,22 @@ class APIManager:
                     return rsp
 
             trades = self.get_user_history(self.market)[order.side]
-            is_traded = self.order_in_history(self.market, order.price, trades, order.side, order.timestamp)
+            is_traded = self.order_in_history(
+                self.market, order.price, trades, order.side, order.timestamp
+            )
 
             if is_traded:
-                msg = (f'The {order.side} {order.id} have been filled '
-                       f'before being canceled')
+                msg = (
+                    f"The {order.side} {order.id} have been filled "
+                    f"before being canceled"
+                )
                 self.log.warning(msg)
                 return False
 
             else:
-                self.order_logger_formatter(cancel_side, order.id, order.price, order.amount)
+                self.order_logger_formatter(
+                    cancel_side, order.id, order.price, order.amount
+                )
                 return True
 
     def cancel_all(self, market, open_orders=None):
@@ -344,7 +364,7 @@ class APIManager:
         """Send an alert where ther eis too much fail with the exchange API"""
         self.err_counter += 1
         if self.err_counter >= 10:
-            self.log.ext_warning('api error >= 10')
+            self.log.ext_warning("api error >= 10")
             self.err_counter = 0
 
     """
@@ -362,8 +382,8 @@ class APIManager:
         balance = self.fetch_balance()
         user_balance = {}
         for key, value in balance.items():
-            if 'total' in value:
-                if float(value['total']) != 0.0:
+            if "total" in value:
+                if float(value["total"]) != 0.0:
                     for item in value:
                         value[item] = Decimal(str(value[item]))
                     user_balance.update({key: value})
@@ -378,21 +398,24 @@ class APIManager:
 
         for coin in user_balance.keys():
             for item in user_balance[coin]:
-                if item == 'None':
-                    user_balance[coin][item] = Decimal('0')
+                if item == "None":
+                    user_balance[coin][item] = Decimal("0")
 
         for order in orders:
-            if order['side'] == 'buy':
-                coin = order['symbol'].split('/')[1]
-                user_balance[coin]['used'] += Decimal(order['price']) * Decimal(order['amount'])
+            if order["side"] == "buy":
+                coin = order["symbol"].split("/")[1]
+                user_balance[coin]["used"] += Decimal(order["price"]) * Decimal(
+                    order["amount"]
+                )
 
             else:
-                coin = order['symbol'].split('/')[0]
-                user_balance[coin]['used'] += Decimal(order['amount'])
+                coin = order["symbol"].split("/")[0]
+                user_balance[coin]["used"] += Decimal(order["amount"])
 
         for coin in user_balance:
-            user_balance[coin]['free'] = user_balance[coin]['total'] \
-                                         - user_balance[coin]['used']
+            user_balance[coin]["free"] = (
+                user_balance[coin]["total"] - user_balance[coin]["used"]
+            )
 
         return user_balance
 
@@ -413,7 +436,9 @@ class APIManager:
             market = self.market
 
         orders = self.get_open_orders(market)
-        safety_buys = [order for order in orders if order.price == self.safety_buy_value]
+        safety_buys = [
+            order for order in orders if order.price == self.safety_buy_value
+        ]
         if len(safety_buys) > 0:
             return safety_buys[0]
         return None
@@ -423,7 +448,9 @@ class APIManager:
             market = self.market
 
         orders = self.get_open_orders(market)
-        safety_sells = [order for order in orders if order.price == self.safety_sell_value]
+        safety_sells = [
+            order for order in orders if order.price == self.safety_sell_value
+        ]
         if len(safety_sells) > 0:
             return safety_sells[0]
         return None
@@ -435,21 +462,22 @@ class APIManager:
         if market is None:
             market = self.market
 
-        orders = {'sell': [], 'buy': []}
+        orders = {"sell": [], "buy": []}
         raw_orders = self.fetch_trades(market)
         for order in raw_orders:
             formatted_order = Order(
-                order['id'],
-                Decimal(str(order['price'])),
-                Decimal(str(order['amount'])),
-                order['side'],
-                str(order['timestamp']),
-                order['datetime'],
-                self.fees_coef)
-            if order['side'] == 'buy':
-                orders['buy'].append(formatted_order)
-            if order['side'] == 'sell':
-                orders['sell'].append(formatted_order)
+                order["id"],
+                Decimal(str(order["price"])),
+                Decimal(str(order["amount"])),
+                order["side"],
+                str(order["timestamp"]),
+                order["datetime"],
+                self.fees_coef,
+            )
+            if order["side"] == "buy":
+                orders["buy"].append(formatted_order)
+            if order["side"] == "sell":
+                orders["sell"].append(formatted_order)
         return orders
 
     def order_logger_formatter(self, side, order_id, price, amount):
@@ -460,17 +488,18 @@ class APIManager:
         amount: Decimal.
         return: tuple with strings."""
         timestamp = convert.timestamp_formater()
-        date_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')
+        date_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
         msg = (
-            f'side: {str(side)}, order_id: {str(order_id)}, '
-            f'price: {str(price)}, amount: {str(amount)}, '
-            f'timestamp: {timestamp}, datetime: {date_time}')
+            f"side: {str(side)}, order_id: {str(order_id)}, "
+            f"price: {str(price)}, amount: {str(amount)}, "
+            f"timestamp: {timestamp}, datetime: {date_time}"
+        )
 
-        if price in [self.safety_buy_value, self.safety_sell_value, '0.00000001']:
+        if price in [self.safety_buy_value, self.safety_sell_value, "0.00000001"]:
             slack = False
         else:
             slack = True
-            helpers.append_to_file(f'{self.root_path}logs/history.txt', f'{msg}\n')
+            helpers.append_to_file(f"{self.root_path}logs/history.txt", f"{msg}\n")
 
         if slack:
             self.log.ext_info(msg)

@@ -10,9 +10,9 @@ def str_to_decimal(value, error_message=None):
     error_message: string, error message detail to display if fail.
     return: Decimal."""
     try:
-        return Decimal(str(value).replace(',', '.'))
+        return Decimal(str(value).replace(",", "."))
     except Exception as e:
-        raise ValueError(f'{error_message} {e}')
+        raise ValueError(f"{error_message} {e}")
 
 
 def str_to_datetime(str_date):
@@ -21,9 +21,9 @@ def str_to_datetime(str_date):
     return: datetime object.
     """
     try:
-        return datetime.strptime(str_date, '%Y-%m-%d %H:%M:%S.%f')
+        return datetime.strptime(str_date, "%Y-%m-%d %H:%M:%S.%f")
     except Exception as e:
-        raise ValueError(f'{str_date} is not a valid date: {e}')
+        raise ValueError(f"{str_date} is not a valid date: {e}")
 
 
 def datetime_to_string(dt):
@@ -39,12 +39,12 @@ def str_to_bool(s, error_message=None):
     return: bool.
     """
     s = s.lower()
-    if s in ['true', 'y', 'yes', 'o', 'oui', 'j', 'ja']:
+    if s in ["true", "y", "yes", "o", "oui", "j", "ja"]:
         return True
-    elif s in ['false', 'n', 'no', 'nein']:
+    elif s in ["false", "n", "no", "nein"]:
         return False
     else:
-        raise ValueError(f'{error_message} {s}')
+        raise ValueError(f"{error_message} {s}")
 
 
 def str_to_int(s, error_message=None):
@@ -56,7 +56,7 @@ def str_to_int(s, error_message=None):
     try:
         return int(s)
     except Exception as e:
-        raise ValueError(f'{error_message} {e}')
+        raise ValueError(f"{error_message} {e}")
 
 
 def dict_to_str(a_dict):
@@ -73,11 +73,11 @@ def timestamp_formater():
     """Format time.time() into the same format as timestamp.
     used in ccxt: 13 numbers.
     return: string, formated timestamp"""
-    timestamp = str(time()).split('.')
-    return int(f'{timestamp[0]}{timestamp[1][:3]}')
+    timestamp = str(time()).split(".")
+    return int(f"{timestamp[0]}{timestamp[1][:3]}")
 
 
-def multiplier(nb1, nb2, nb3=Decimal('1')):
+def multiplier(nb1, nb2, nb3=Decimal("1")):
     """Do a simple multiplication between Decimal.
     nb1: Decimal.
     nb2: Decimal.
@@ -100,15 +100,15 @@ def quantizator(nb):
     """Format a Decimal object to 8 decimals
     return: Decimal"""
     try:
-        if nb < Decimal('1'):
-            return nb.quantize(Decimal('1E-8'), rounding=ROUND_HALF_EVEN)
+        if nb < Decimal("1"):
+            return nb.quantize(Decimal("1E-8"), rounding=ROUND_HALF_EVEN)
         else:
-            whole_part, fractional_part = str(nb).split('.')
-            return (Decimal(whole_part) + 
-                    Decimal(f'0.{fractional_part}').quantize(
-                        Decimal('1E-8'), rounding=ROUND_HALF_EVEN))
-    
+            whole_part, fractional_part = str(nb).split(".")
+            return Decimal(whole_part) + Decimal(f"0.{fractional_part}").quantize(
+                Decimal("1E-8"), rounding=ROUND_HALF_EVEN
+            )
+
     except Exception as e:
         if Decimal(str(int(nb))) == nb:
             return nb
-        raise SystemExit(f'Quantizator error: {e}, nb: {nb}')
+        raise SystemExit(f"Quantizator error: {e}, nb: {nb}")
