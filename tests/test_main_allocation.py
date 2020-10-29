@@ -20,10 +20,6 @@ def is_equal_big_decimal(first, second, epsilon=EPSILON):
     return abs(first - second) < epsilon
 
 
-def get_random_decimal(bot, top):
-    return Decimal(str(round(random.uniform(float(bot), float(top)), 8)))
-
-
 class TestNoSpecificAllocation(unittest.TestCase):
     def setUp(self):
         self.intervals_count = INTERVALS_COUNT

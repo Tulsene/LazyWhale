@@ -1,14 +1,7 @@
-from random import uniform
 from decimal import Decimal
 
 from main.order import Order
-from utils.checkers import is_equal_decimal
-import config.config as config
-
-
-def get_random_decimal(bot, top):
-    return Decimal(str(round(uniform(float(bot + Decimal('1E-8')), float(top - Decimal('1e-8'))),  # failsafe
-                             config.DECIMAL_PRECISION)))
+from utils.checkers import is_equal_decimal, get_random_decimal
 
 
 class Interval:

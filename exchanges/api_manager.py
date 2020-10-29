@@ -384,8 +384,7 @@ class APIManager:
         for order in orders:
             if order['side'] == 'buy':
                 coin = order['symbol'].split('/')[1]
-                user_balance[coin]['used'] += Decimal(order['price']) \
-                                              * Decimal(order['amount'])
+                user_balance[coin]['used'] += Decimal(order['price']) * Decimal(order['amount'])
 
             else:
                 coin = order['symbol'].split('/')[0]
@@ -414,7 +413,7 @@ class APIManager:
             market = self.market
 
         orders = self.get_open_orders(market)
-        safety_buys = [order for order in orders if is_equal_decimal(order.price, self.safety_buy_value)]
+        safety_buys = [order for order in orders if order.price == self.safety_buy_value]
         if len(safety_buys) > 0:
             return safety_buys[0]
         return None
@@ -424,7 +423,7 @@ class APIManager:
             market = self.market
 
         orders = self.get_open_orders(market)
-        safety_sells = [order for order in orders if is_equal_decimal(order.price, self.safety_sell_value)]
+        safety_sells = [order for order in orders if order.price == self.safety_sell_value]
         if len(safety_sells) > 0:
             return safety_sells[0]
         return None

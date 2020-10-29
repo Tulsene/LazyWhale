@@ -26,7 +26,6 @@ class UserInterface:
         self.allowed_exchanges = self.set_keys(api_keys)
         self.root_path = helper.set_root_path()
         self.fees_coef = fees_coef
-        #  TODO need to be improved, like with an automatic selection if there is already a bot running on the same market
         self.safety_buy_value = safety_buy_value
         self.safety_sell_value = safety_sell_value
 
@@ -147,7 +146,7 @@ class UserInterface:
 
             q = 'Do you want to use those params?'
             if self.simple_question(q):
-
+                self.check_safety_buy_sell_values(params)
                 params = self.check_for_enough_funds(params)
             else:
                 params = None
@@ -171,12 +170,35 @@ class UserInterface:
         )
         return allocation_factory.get_allocation()
 
+    def check_safety_buy_sell_values(self, params: dict):
+        max_tries = 100
+        count_tries = 0
+        while (params['api_connector'].get_safety_buy(params['market']) is not None
+               or params['api_connector'].get_safety_sell(params['market']) is not None) \
+                and count_tries < max_tries:
+            self.safety_buy_value = check.get_random_decimal(
+                convert.multiplier(self.safety_buy_value, Decimal('2')),
+                convert.multiplier(self.safety_buy_value, Decimal('10'))
+            )
+            self.safety_sell_value = check.get_random_decimal(
+                convert.multiplier(self.safety_sell_value, Decimal('0.99')),
+                convert.multiplier(self.safety_sell_value, Decimal('1.01'))
+            )
+
+            params['api_connector'].safety_buy_value = self.safety_buy_value
+            params['api_connector'].safety_sell_value = self.safety_sell_value
+            count_tries += 1
+
     def enter_params(self):
         """Series of questions to setup LW parameters.
         return: dict, valid parameters """
         params = {'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}
         params.update(self.set_marketplace())
         params.update(self.select_market(params['api_connector']))
+
+        # check and correct if safety_buy/sell_value set before is correct:
+        self.check_safety_buy_sell_values(params)
+
         params.update(self.ask_range_setup())
         params.update(self.ask_params_spread(params['api_connector'],
                                              params['market'],

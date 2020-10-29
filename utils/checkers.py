@@ -107,3 +107,9 @@ def nb_orders_per_interval(nb, max_size):
 def is_equal_decimal(first: Decimal, second: Decimal):
     eps = Decimal(Decimal('10') ** (-config.DECIMAL_PRECISION + 2))
     return (first - second).copy_abs() <= eps
+
+
+def get_random_decimal(bot, top):
+    from random import uniform
+    return Decimal(str(round(uniform(float(bot + Decimal('1E-8')), float(top - Decimal('1e-8'))),  # failsafe
+                             config.DECIMAL_PRECISION)))

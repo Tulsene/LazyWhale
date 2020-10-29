@@ -29,12 +29,14 @@ class LazyWhale:
         self.keys = self.keys_initialisation()
         self.fees_coef = config.FEES_COEFFICIENT
 
-        self.safety_buy_value = config.SAFETY_BUY_VALUE
-        self.safety_sell_value = config.SAFETY_SELL_VALUE
         self.ui = UserInterface(self.keys,
                                 self.fees_coef,
-                                self.safety_buy_value,
-                                self.safety_sell_value)
+                                config.SAFETY_BUY_VALUE,
+                                config.SAFETY_SELL_VALUE)
+
+        self.safety_buy_value = self.ui.safety_buy_value
+        self.safety_sell_value = self.ui.safety_sell_value
+
         self.open_orders = {'sell': [], 'buy': []}
         self.params = {}
         self.connector = None
@@ -108,51 +110,6 @@ class LazyWhale:
                 raise SystemExit
 
         return api_keys
-
-    def update_id_list(self):
-        """
-        :return: None
-        """
-        id_list = []
-        for side in self.open_orders:
-            for order in self.open_orders[side]:
-                try:
-                    interval_index = self.intervals.index(order[1])
-                except ValueError as e:
-                    raise ValueError(f'Wrong order price for self.intervals, '
-                                     f'intervals: {str(self.intervals)}, got: '
-                                     f'{str(order[1])}, raw error: {e}')
-                self.id_list[interval_index] = order[0]
-                id_list.append(order[0])
-        # Remove id or orders no longer in open_order.
-        self.id_list[:] = [None if x not in id_list else x for x in self.id_list]
-        self.log.debug(f'self.id_list: {self.id_list}')
-
-    def remove_safety_before_init(self, open_orders):
-        """Remove safety orders before strat init if there is some.
-        open_orders: dict.
-        return: dict."""
-        if open_orders['buy']:
-            if open_orders['buy'][0][1] == self.safety_buy_value:
-                self.connector.cancel_order(
-                    self.params['market'],
-                    open_orders['buy'][0][0],
-                    open_orders['buy'][0][1],
-                    open_orders['buy'][0][4],
-                    'buy')
-                del open_orders['buy'][0]
-
-        if open_orders['sell']:
-            if open_orders['sell'][-1][1] == self.safety_sell_value:
-                self.connector.cancel_order(
-                    self.params['market'],
-                    open_orders['sell'][-1][0],
-                    open_orders['sell'][-1][1],
-                    open_orders['sell'][-1][4],
-                    'sell')
-                del open_orders['sell'][-1]
-
-        return open_orders
 
     def strat_init(self):
         """Prepare open orders on the market by asking to the user if he want
@@ -750,6 +707,8 @@ class LazyWhale:
     def lw_initialisation(self):
         """Initializing parameters, check parameters then initialize LW.
         """
+        self.safety_buy_value = self.ui.safety_buy_value
+        self.safety_sell_value = self.ui.safety_sell_value
         self.connector = self.params['api_connector']
         self.intervals = self.params['intervals']
         self.allocation = self.params['allocation']
