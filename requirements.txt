@@ -2,3 +2,4 @@ ccxt
 mock
 python-json-logger
 jsonpickle
+black

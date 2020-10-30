@@ -33,9 +33,7 @@ def range_top(r_top, r_bot):
     if r_bot > Decimal("0.99"):
         raise ValueError("The top of the range is too high")
     if r_bot >= r_top:
-        raise ValueError(
-            f"range_top ({r_top}) must be superior to range_bot ({r_bot})"
-        )
+        raise ValueError(f"range_top ({r_top}) must be superior to range_bot ({r_bot})")
     return True
 
 

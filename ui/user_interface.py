@@ -125,14 +125,10 @@ class UserInterface:
 
         return lw
 
-    def ask_for_params(self, test_file_path=None):
+    def ask_for_params(self):
         """Allow user to use previous parameter if they exist and backup it.
         At the end of this section, parameters are set and LW can be initialized.
         """
-        if test_file_path:
-            # TODO
-            return self.check_for_enough_funds(self.params_reader(test_file_path))
-
         backup_lw = self.get_lw_backup()
         if backup_lw is not None:
             q = "You have complete previous version of LW, do want to continue it?"
