@@ -2,6 +2,8 @@ import json
 from datetime import datetime
 from decimal import Decimal
 
+import ccxt
+
 import utils.helpers as helper
 import utils.converters as convert
 import utils.checkers as check
