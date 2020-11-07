@@ -864,7 +864,7 @@ class LazyWhale:
             )
 
     def check_intervals_equal(self, new_intervals):
-        return self.intervals == new_intervals
+        return self.amount_compare_intervals(new_intervals) == (Decimal('0'), Decimal('0'))
 
     def set_min_amount(self):
         """In crypto there is a minimal value for each order to open
