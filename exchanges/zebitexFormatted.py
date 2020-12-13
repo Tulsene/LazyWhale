@@ -216,10 +216,11 @@ class ZebitexFormatted:
             "limit",
         )
 
-    def cancel_order(self, order_id):
+    def cancel_order(self, order_id, market=None):
+        # Market is added to match ccxt cancel_order format
         return self.ze.cancel_order(int(order_id))
 
-    def cancel_all_orders(self):
+    def cancel_all_orders(self, market=None):
         return self.ze.cancel_all_orders()
 
     def get_order_book(self, market):

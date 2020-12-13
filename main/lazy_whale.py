@@ -886,7 +886,7 @@ class LazyWhale:
         self.log.ext_info("LW is starting")
 
         self.strat_init()
-        self.set_safety_orders()
+        #self.set_safety_orders()
 
     def backup_lw(self):
         with open(f"{self.root_path}config/backup_lw.json", "w") as f:
@@ -900,7 +900,7 @@ class LazyWhale:
 
         is_equal = self.check_intervals_equal(new_intervals)
         if not is_equal:
-            self.cancel_safety_orders()
+            #self.cancel_safety_orders()
             self.compare_intervals(new_intervals)
             # TD: here only sell moves to buy (spread_top closer to spread_bot) - redo if needed
             if not self.check_intervals_position():
@@ -910,7 +910,7 @@ class LazyWhale:
             self.backup_spread_value()
             self.backup_lw()
 
-            self.set_safety_orders()
+            #self.set_safety_orders()
 
     def main(self):
         self.backup_lw()

@@ -308,7 +308,7 @@ class APIManager:
         cancel_side = "cancel_buy" if order.side == "buy" else "cancel_sell"
         try:
             self.log.debug(f"Init cancel {order.side} order {order.id} {order.price}")
-            rsp = self.exchange.cancel_order(order.id)
+            rsp = self.exchange.cancel_order(order.id, self.market)
             if rsp:
                 self.order_logger_formatter(
                     cancel_side, order.id, order.price, order.amount
