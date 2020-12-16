@@ -669,6 +669,10 @@ class LazyWhale:
 
         # some cheats to use things, that spread_bot - spread_top = 3
         if amount_buys > 0 and amount_sells > 0:
+            log.ext_warning(
+                f"A buy of {amount_buys} and a sell of"
+                f"{amount_sells} has occured"
+            )
             buy_intervals_to_open = self.where_to_open_buys(
                 new_intervals, amount_to_open_buy
             )
@@ -677,6 +681,7 @@ class LazyWhale:
             )
 
         elif amount_buys > 0:
+            log.ext_info(f"A buy of {amount_buys} has occured")
             buy_intervals_to_open = self.where_to_open_buys(
                 new_intervals, amount_to_open_buy
             )
@@ -691,6 +696,7 @@ class LazyWhale:
             )
 
         elif amount_sells > 0:
+            log.ext_info("A sell of {amount_sells} has occured")
             sell_intervals_to_open = self.where_to_open_sells(
                 new_intervals, amount_to_open_sell
             )

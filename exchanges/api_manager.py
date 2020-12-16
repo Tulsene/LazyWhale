@@ -102,8 +102,14 @@ class APIManager:
         if market is None:
             market = self.market
         """Format orders from fetch_open_orders in the correct way and sort by price: [Order]"""
-        raw_orders = self.exchange.fetch_open_orders(market)
-        return self.format_open_orders(raw_orders)
+        try:
+            raw_orders = self.exchange.fetch_open_orders(market)
+            return self.format_open_orders(raw_orders)
+        except Exception as e:
+            self.log.warning("WARNING: {e}")
+            sleep(0.5)
+            self.api_fail_message_handler()
+            return self.get_open_orders(market)
 
     def fetch_trades(self, market=None):
         """Get trading history of a market from a marketplace.
