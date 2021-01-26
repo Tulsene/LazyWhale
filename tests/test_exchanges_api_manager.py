@@ -210,6 +210,13 @@ class APIManagerTests(TestCase):
         )
         self.assertTrue(self.api_manager.check_an_order_is_open(price, "buy"))
 
+        price = Decimal("0.01110101")
+        self.api_manager.create_limit_sell_order(self.market, Decimal(0.016), price)
+        self.assertEqual(
+            len(self.api_manager.fetch_open_orders(self.market)), count_orders + 2
+        )
+        self.assertTrue(self.api_manager.check_an_order_is_open(price, "sell"))
+
     def test_get_order_book(self):
         """Tests response from user order_book"""
         order_book = self.api_manager.get_order_book(self.market)

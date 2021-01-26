@@ -106,7 +106,7 @@ class APIManager:
             raw_orders = self.exchange.fetch_open_orders(market)
             return self.format_open_orders(raw_orders)
         except Exception as e:
-            self.log.warning("WARNING: {e}")
+            self.log.warning(f"WARNING: {e}")
             sleep(0.5)
             self.api_fail_message_handler()
             return self.get_open_orders(market)
@@ -262,7 +262,7 @@ class APIManager:
         if side == "buy":
             return intervals[idx].find_buy_order_by_price(price)
         else:
-            return intervals[idx].find_buy_order_by_price(price)
+            return intervals[idx].find_sell_order_by_price(price)
 
     def order_in_history(self, market, target, a_list, side, timestamp):
         """Verify that an order is in user history.

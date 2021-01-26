@@ -898,18 +898,18 @@ class AnotherUserTests(TestCase):
         self.helper_test_bottom_is_reached_big()
 
     # SCENARIO 5
-    def test_mad_market_volatility_tp_is_reached_no_specific_allocation(self):
+    def test_mad_market_volatility_top_is_reached_no_specific_allocation(self):
         self.helper_test_mad_market_volatility_top_is_reached()
 
     def test_mad_market_volatility_top_is_reached_linear_allocation(self):
         self.lazy_whale.allocation = self.linear_allocation
         self.helper_test_mad_market_volatility_top_is_reached()
 
-    def test_mad_market_volatility_tp_is_reached_curved_allocation(self):
+    def test_mad_market_volatility_top_is_reached_curved_allocation(self):
         self.lazy_whale.allocation = self.curved_allocation
         self.helper_test_mad_market_volatility_top_is_reached()
 
-    def test_mad_market_volatility_tp_is_reached_profit_allocation(self):
+    def test_mad_market_volatility_top_is_reached_profit_allocation(self):
         self.lazy_whale.allocation = self.profit_allocation
         self.helper_test_mad_market_volatility_top_is_reached()
 
