@@ -943,3 +943,35 @@ class LazyWhaleTests(TestCase):
             self.api_manager.get_intervals()
         )
         self.assertEqual(len(self.lazy_whale.get_orders_id_list()), 12)
+
+    def test_lazy_whale_error_handling_check_interval_position(self):
+        """Checks, that if intervals are placed not correctly
+        (difference between highest buy and lowest sell is lower/greater than needed)
+         - than LW throws correct errors"""
+        self.lazy_whale.params["spread_bot"] = 6
+        self.lazy_whale.params["spread_top"] = 9
+        self.lazy_whale.params["amount"] = Decimal("0.02")
+        self.lazy_whale.strat_init()
+
+        self.lazy_whale.check_intervals_position()
+        self.lazy_whale.move_intervals("sell", -1)
+        self.lazy_whale.move_intervals("sell", -1)
+        self.lazy_whale.check_intervals_position()
+        self.lazy_whale.move_intervals("sell", -1)
+        self.assertRaises(SystemExit, self.lazy_whale.check_intervals_position)
+
+    def test_lazy_whale_error_handling_check_interval_amount_count(self):
+        """Checks, that if interval has more than needed orders/amounts - LW correctly throws an error"""
+        self.lazy_whale.params["spread_bot"] = 6
+        self.lazy_whale.params["spread_top"] = 9
+        self.lazy_whale.params["amount"] = Decimal("0.02")
+        self.lazy_whale.strat_init()
+        self.lazy_whale.check_intervals_amount_count()
+
+        order = self.api_manager.create_limit_buy_order(
+            self.market,
+            Decimal("0.01"),
+            self.lazy_whale.intervals[5].get_random_price_in_interval(),
+        )
+        self.lazy_whale.intervals[5].insert_buy_order(order)
+        self.assertRaises(SystemExit, self.lazy_whale.check_intervals_amount_count)

@@ -342,7 +342,6 @@ class LazyWhale:
     def when_bottom_is_reached(self):
         """Stop if stop_at_bot"""
         if self.params["stop_at_bot"]:
-            self.cancel_safety_orders()
             self.cancel_all_intervals()
             self.log.ext_critical(f"Bottom target reached!")
             raise SystemExit()
@@ -350,7 +349,6 @@ class LazyWhale:
     def when_top_is_reached(self):
         """Stop if stop_at_top"""
         if self.params["stop_at_bot"]:
-            self.cancel_safety_orders()
             self.cancel_all_intervals()
             self.log.ext_critical(f"Top target reached!")
             raise SystemExit()
@@ -825,19 +823,81 @@ class LazyWhale:
             nb_buy_intervals = len(helper.get_indexes_buy_intervals(self.intervals))
             nb_sell_intervals = len(helper.get_indexes_sell_intervals(self.intervals))
 
-    # TD: think if we need not only check but return side and step for move_intervals
-    def check_intervals_position(self) -> bool:
-        """Checks if intervals spread has correct difference between buys and sells"""
+    def critical_error_exit(self, self_intervals=None, new_intervals=None):
+        self.log.error(f"Critical error exit: Error in LW strategy")
+        if self_intervals is not None:
+            self.log.error(f"self.intervals:\n {self_intervals}")
+        if new_intervals is not None:
+            self.log.error(f"last new_intervals:\n {new_intervals}")
+        self.log.error(
+            f"in the error moment market intervals:\n {self.connector.get_intervals()}"
+        )
+        self.log.ext_critical(f"Closing all orders due to critical error in LW!")
+        self.backup_lw(error=True)
+        self.cancel_all_intervals()
+        raise SystemExit()
+
+    def check_intervals_position(self) -> None:
+        """Checks if intervals spread has correct difference between buys and sells
+        If more than needed - just simply move intervals to correct state,
+        If less than needed - notify with slack for the possible error in strategy
+        """
+
         buy_indexes = helper.get_indexes_buy_intervals(self.intervals)
         sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
         if not buy_indexes or not sell_indexes:
-            return True
+            return
         highest_buy = max(buy_indexes)
         lowest_sell = min(sell_indexes)
         if lowest_sell - highest_buy > 3:
-            return False
+            self.log.warning("Distance between highest buy and lowest sell is to big!")
+            self.log.warning("Moving sell intervals one interval lower")
+            self.move_intervals("sell", -1)
 
-        return True
+        elif lowest_sell - highest_buy == 1:
+            self.log.ext_error(
+                "Your orders are getting extremely close to each other -"
+                " highest buy is near lowest sell. \n"
+                "That's a possible strategy error warning!\n"
+                "Please, be extremely cautious about next bot movements!\n"
+            )
+            self.log.error(f"self.intervals:\n {self.intervals}")
+
+        elif lowest_sell <= highest_buy:
+            self.log.ext_critical(
+                "LazyWhale has buys and sells in one interval simultaneously!"
+            )
+            self.critical_error_exit(self.intervals)
+
+    def check_intervals_amount_count(self):
+        max_interval_amount = convert.multiplier(
+            self.params["amount"], config.MAX_AMOUNT_COEFFICIENT
+        )
+        for interval in self.intervals:
+            error_message = ""
+            if interval.get_buy_orders_amount() > max_interval_amount:
+                error_message += (
+                    f"Buy interval {interval} has more amount, than maximum possible!\n"
+                )
+
+            if interval.get_sell_orders_amount() > max_interval_amount:
+                error_message += f"Sell interval {interval} has more amount, than maximum possible!\n"
+
+            if len(interval.get_buy_orders()) > self.params["orders_per_interval"]:
+                error_message += f"Buy interval {interval} has more opened buy orders, than maximum possible!\n"
+
+            if len(interval.get_sell_orders()) > self.params["orders_per_interval"]:
+                error_message += f"sell interval {interval} has more opened sell orders, than maximum possible!\n"
+
+            if (
+                len(interval.get_buy_orders()) > 0
+                and len(interval.get_sell_orders()) > 0
+            ):
+                error_message += f"Interval {interval} has buys and sells together!"
+
+            if error_message != "":
+                self.log.ext_error(error_message)
+                self.critical_error_exit()
 
     # TD: implement for buy side (if needed) - don't know exactly, do we need for buy
     def move_intervals(self, side: str, step: int):
@@ -864,7 +924,10 @@ class LazyWhale:
             )
 
     def check_intervals_equal(self, new_intervals):
-        return self.amount_compare_intervals(new_intervals) == (Decimal('0'), Decimal('0'))
+        return self.amount_compare_intervals(new_intervals) == (
+            Decimal("0"),
+            Decimal("0"),
+        )
 
     def set_min_amount(self):
         """In crypto there is a minimal value for each order to open
@@ -886,10 +949,15 @@ class LazyWhale:
         self.log.ext_info("LW is starting")
 
         self.strat_init()
-        #self.set_safety_orders()
+        # self.set_safety_orders()
 
-    def backup_lw(self):
-        with open(f"{self.root_path}config/backup_lw.json", "w") as f:
+    def backup_lw(self, error=False):
+        filename = (
+            f"{self.root_path}config/error_backup_lw.json"
+            if error
+            else f"{self.root_path}config/backup_lw.json"
+        )
+        with open(filename, "w") as f:
             f.write(jsonpickle.encode(self))
 
     def main_cycle(self):
@@ -900,17 +968,16 @@ class LazyWhale:
 
         is_equal = self.check_intervals_equal(new_intervals)
         if not is_equal:
-            #self.cancel_safety_orders()
+            # self.cancel_safety_orders()
             self.compare_intervals(new_intervals)
-            # TD: here only sell moves to buy (spread_top closer to spread_bot) - redo if needed
-            if not self.check_intervals_position():
-                self.move_intervals("sell", -1)
+            self.check_intervals_position()
 
             self.limit_nb_intervals()
+            self.check_intervals_amount_count()
             self.backup_spread_value()
             self.backup_lw()
 
-            #self.set_safety_orders()
+            # self.set_safety_orders()
 
     def main(self):
         self.backup_lw()

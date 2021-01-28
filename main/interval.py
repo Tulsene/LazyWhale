@@ -162,15 +162,15 @@ class Interval:
         )
 
     def __str__(self):
-        str_interval = f"Interval({self.__bottom}, {self.__top})"
+        str_interval = f"\nInterval({self.__bottom}, {self.__top})"
         str_interval += (
-            f"\nCount buy orders: {len(self.__buy_orders)}"
+            f" Count buy orders: {len(self.__buy_orders)}"
             f" buy_orders_amount: {self.get_buy_orders_amount()}"
             if self.__buy_orders
             else ""
         )
         str_interval += (
-            f"\nCount sell orders: {len(self.__sell_orders)}"
+            f" Count sell orders: {len(self.__sell_orders)}"
             f" sell_orders_amount: {self.get_sell_orders_amount()}"
             if self.__sell_orders
             else ""
