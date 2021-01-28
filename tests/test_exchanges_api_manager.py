@@ -204,14 +204,14 @@ class APIManagerTests(TestCase):
         """Tests that creating order is completed and order is open"""
         price = Decimal("0.01010101")
         count_orders = len(self.api_manager.fetch_open_orders(self.market))
-        self.api_manager.create_limit_buy_order(self.market, Decimal(0.017), price)
+        self.api_manager.create_limit_buy_order(self.market, Decimal("0.017"), price)
         self.assertEqual(
             len(self.api_manager.fetch_open_orders(self.market)), count_orders + 1
         )
         self.assertTrue(self.api_manager.check_an_order_is_open(price, "buy"))
 
         price = Decimal("0.01110101")
-        self.api_manager.create_limit_sell_order(self.market, Decimal(0.016), price)
+        self.api_manager.create_limit_sell_order(self.market, Decimal("0.016"), price)
         self.assertEqual(
             len(self.api_manager.fetch_open_orders(self.market)), count_orders + 2
         )
@@ -229,7 +229,7 @@ class APIManagerTests(TestCase):
         self.assertEqual(len(orders), 0)
 
         self.api_manager.create_limit_buy_order(
-            self.market, Decimal("1"), Decimal(0.001)
+            self.market, Decimal("1"), Decimal("0.001")
         )
         orders = self.api_manager.fetch_open_orders(self.market)
         self.assertEqual(len(orders), 1)
@@ -240,7 +240,7 @@ class APIManagerTests(TestCase):
 
     def test_cancel_order(self):
         order = self.api_manager.create_limit_buy_order(
-            self.market, Decimal("1"), Decimal(0.01)
+            self.market, Decimal("1"), Decimal("0.01")
         )
         self.assertTrue(self.api_manager.check_an_order_is_open(order.price, "buy"))
 
