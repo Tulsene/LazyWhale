@@ -157,7 +157,7 @@ class APIManager:
             order = self.exchange.create_limit_buy_order(market, amount, price)
             date = self.order_logger_formatter("buy", order["id"], price, amount)
             return Order(
-                order["id"], order["buy"], order["volume"], "buy", date[0], date[1], self.fees_coef
+                order["id"], order["price"], order["volume"], "buy", date[0], date[1], self.fees_coef
             )
         except Exception as e:
             self.log.warning(f"WARNING: {e}")
