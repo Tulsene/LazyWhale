@@ -96,7 +96,7 @@ class AnotherUserTests(TestCase):
             Decimal("0.02"), Decimal("0.016"), Decimal("0.024"), 40
         )
         self.profit_allocation = ProfitAllocation(
-            self.lazy_whale.intervals, 50, self.lazy_whale.fees_coef, Decimal("0.2")
+            self.lazy_whale.intervals, 50, self.lazy_whale.fees_coef, Decimal("0.02")
         )
 
     def tearDown(self) -> None:
@@ -808,7 +808,6 @@ class AnotherUserTests(TestCase):
         self.assertEqual(self.lazy_whale.params["spread_top"], spr_top + 2)
 
         # 2
-        self.lazy_whale.allocation = deepcopy(self.profit_allocation)
         self.lazy_whale.params["spread_bot"] = len(self.intervals) - 11
         self.lazy_whale.params["spread_top"] = len(self.intervals) - 8
         spr_top = self.lazy_whale.params["spread_top"]

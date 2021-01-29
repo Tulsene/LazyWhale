@@ -37,9 +37,9 @@ class Order:
     def __str__(self):
         return (
             f"id: {self.id} "
+            f"side: {self.side} "
             f"price: {self.price} "
             f"amount: {self.amount} "
-            f"side: {self.side} "
             f"filled: {self.filled} "
             f"value: {self.value} "
             f"timestamp: {self.timestamp} "

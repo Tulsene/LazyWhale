@@ -975,3 +975,31 @@ class LazyWhaleTests(TestCase):
         )
         self.lazy_whale.intervals[5].insert_buy_order(order)
         self.assertRaises(SystemExit, self.lazy_whale.check_intervals_amount_count)
+
+    def test_different_count_buys_sells(self):
+        """Tests strategy, when nb_buys_to_display != nb_sells_to_display"""
+        self.lazy_whale.params["spread_bot"] = 6
+        self.lazy_whale.params["spread_top"] = 9
+        self.lazy_whale.params["nb_buys_to_display"] = 3
+        self.lazy_whale.params["nb_sells_to_display"] = 5
+        self.lazy_whale.params["amount"] = Decimal("0.02")
+        self.lazy_whale.strat_init()
+        self.assertEqual(len(self.api_manager.get_open_orders()), 16)
+
+        self.user.create_limit_buy_order(
+            self.market,
+            Decimal("0.101"),
+            self.lazy_whale.intervals[14].get_top()
+        )
+        self.user.cancel_all_orders()
+
+        self.assertEqual(len(self.api_manager.get_open_orders()), 6)
+
+        self.lazy_whale.main_cycle()
+        self.assertEqual(len(self.api_manager.get_open_orders()), 16)
+
+        self.assertEqual(self.lazy_whale.params["spread_bot"], 3)
+        self.assertEqual(self.lazy_whale.remaining_amount_to_open_buy, Decimal("0.04"))
+
+        self.lazy_whale.main_cycle()
+        self.assertEqual(self.lazy_whale.params["spread_bot"], 1)

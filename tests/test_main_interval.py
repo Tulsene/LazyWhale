@@ -76,6 +76,15 @@ class IntervalTests(TestCase):
         self.assertEqual(amount_all_buy, Decimal("0.036"))
         self.assertEqual(amount_all_sell, Decimal("0.024"))
 
+    def test_get_empty_amount_order(self):
+        """Test, that check for empty amounts works"""
+        self.assertFalse(self.interval.get_empty_amount_orders())
+        self.interval.insert_buy_order(Order("12344321", Decimal("0E-8"), Decimal("0"), "buy/sell", "1", "_"))
+        self.assertTrue(self.interval.get_empty_amount_orders())
+        self.interval.remove_empty_amount_orders()
+        self.assertFalse(self.interval.get_empty_amount_orders())
 
-if __name__ == "__main__":
-    unittest.main()
+        self.interval.insert_sell_order(Order("12344321", Decimal("0E-8"), Decimal("0"), "buy/sell", "1", "_"))
+        self.assertTrue(self.interval.get_empty_amount_orders())
+        self.interval.remove_empty_amount_orders()
+        self.assertFalse(self.interval.get_empty_amount_orders())

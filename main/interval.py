@@ -153,6 +153,20 @@ class Interval:
     def check_empty_sell(self):
         return len(self.__sell_orders) == 0
 
+    def get_empty_amount_orders(self) -> [Order]:
+        """returns True, if there is an order with 0 amount and removes them"""
+        return self.get_empty_amount_buy() + self.get_empty_amount_sell()
+
+    def get_empty_amount_buy(self) -> [Order]:
+        return [order for order in self.__buy_orders if order.amount == Decimal("0")]
+
+    def get_empty_amount_sell(self) -> [Order]:
+        return [order for order in self.__sell_orders if order.amount == Decimal("0")]
+
+    def remove_empty_amount_orders(self):
+        self.__buy_orders = [order for order in self.__buy_orders if order.amount != Decimal("0")]
+        self.__sell_orders = [order for order in self.__sell_orders if order.amount != Decimal("0")]
+
     def __eq__(self, other):
         return (
             self.__bottom == other.__bottom
