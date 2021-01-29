@@ -4,7 +4,7 @@ from unittest import TestCase
 
 from main.interval import Interval
 from main.order import Order
-from utils.checkers import is_equal_decimal
+from utils.checkers import is_equal_decimal_amount
 from utils.helpers import interval_generator, get_amount_to_open
 
 
@@ -17,17 +17,17 @@ class UtilsTests(TestCase):
         self.assertIsInstance(intervals[0], Interval)
         self.assertEqual(len(intervals), 40)
 
-    def test_is_equal_decimal(self):
+    def test_is_equal_decimal_amount(self):
         """Test comparing decimal with precision set in config"""
-        first = Decimal("0.000000000000000000010001")
-        second = Decimal("0.00000000000000000010011")
-        self.assertTrue(is_equal_decimal(first, second))
+        first = Decimal("0.000000000000000001010001")
+        second = Decimal("0.00000000000000001010011")
+        self.assertTrue(is_equal_decimal_amount(first, second))
 
         first = Decimal("0.01999999")
         second = Decimal("0.02000000")
-        self.assertTrue(is_equal_decimal(first, second))
+        self.assertTrue(is_equal_decimal_amount(first, second))
 
-        self.assertFalse(is_equal_decimal(Decimal("1"), Decimal("2")))
+        self.assertFalse(is_equal_decimal_amount(Decimal("1"), Decimal("2")))
 
     def test_get_amount_to_open(self):
         """Test that missing orders that are in prev_orders but not in new_orders are found correctly

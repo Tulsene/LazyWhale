@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from utils.checkers import is_equal_decimal
+from utils.checkers import is_equal_decimal_amount
 from utils.converters import multiplier
 import config.config as config
 
@@ -28,8 +28,8 @@ class Order:
 
     def __eq__(self, other):
         return (
-            is_equal_decimal(self.price, other.price)
-            and is_equal_decimal(self.amount, other.amount)
+            self.price == other.price
+            and is_equal_decimal_amount(self.amount, other.amount)
             and self.id == other.id
             and self.side == other.side
         )

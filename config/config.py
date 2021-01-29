@@ -7,9 +7,13 @@ FEES_COEFFICIENT = Decimal("0.9975")
 # Change those value if you want to launch several instance on the same market
 SAFETY_BUY_VALUE = Decimal("1E-8")
 SAFETY_SELL_VALUE = Decimal("1")
-DECIMAL_PRECISION = 8
+DECIMAL_PRECISION = Decimal("1E-8")
 
-# Use Decimal('0.001') or near for deploy purpose, but Decimal('1E-5') for testing
+# may be changed during runtime
+PRICE_RANDOM_PRECISION = Decimal("1E-8")
+AMOUNT_RANDOM_PRECISION = Decimal("1E-8")
+
+# Use Decimal('0.0001') or near for deploy purpose, but Decimal('1E-5') for testing
 MIN_VALUE_ORDER = Decimal("0.00001")
 
 # to calculate max_amount for linear/curved allocation

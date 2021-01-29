@@ -6,7 +6,7 @@ from decimal import Decimal
 import utils.converters as convert
 from main.interval import Interval
 from main.order import Order
-from utils.checkers import is_equal_decimal
+from utils.checkers import is_equal_decimal_amount
 
 
 def set_root_path():
@@ -183,9 +183,9 @@ def get_amount_to_open(prev_orders: [Order], new_orders: [Order]) -> Decimal:
         ]
         if temp_orders:
             prev_order = temp_orders[0]
-            # TODO: think here, if we need to use is_equal_decimal, or just pass this (they will go to remaining amount)
+            # TODO: think here, if we need to use is_equal_decimal_amount, or just pass this (they will go to remaining amount)
             if prev_order.filled != new_order.filled and not (
-                is_equal_decimal(prev_order.amount, new_order.amount)
+                is_equal_decimal_amount(prev_order.amount, new_order.amount)
             ):
                 amount_to_open += prev_order.amount - new_order.amount
 

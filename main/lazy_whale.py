@@ -12,7 +12,7 @@ from main.allocation import ProfitAllocation
 from main.interval import Interval
 from main.order import Order
 from ui.user_interface import UserInterface
-from utils.checkers import is_equal_decimal
+from utils.checkers import is_equal_decimal_amount
 import config.config as config
 import utils.logger_factory as lf
 from utils.logger_factory import Logger
@@ -171,7 +171,7 @@ class LazyWhale:
         intervals_sell = []
 
         for interval_idx in reversed(
-                range(lowest_interval, self.params["spread_bot"] + 1)
+            range(lowest_interval, self.params["spread_bot"] + 1)
         ):
             if existing_intervals[interval_idx].get_buy_orders():
                 self.connector.cancel_orders(
@@ -394,8 +394,8 @@ class LazyWhale:
 
         for index in reversed(buy_indexes):
             if intervals[index].get_buy_orders_amount() > self.allocation.get_amount(
-                    index, "buy"
-            ) or is_equal_decimal(
+                index, "buy"
+            ) or is_equal_decimal_amount(
                 intervals[index].get_buy_orders_amount(),
                 self.allocation.get_amount(index, "buy"),
             ):
@@ -414,8 +414,8 @@ class LazyWhale:
         sell_indexes = helper.get_indexes_sell_intervals(intervals)
         for index in sell_indexes:
             if intervals[index].get_sell_orders_amount() > self.allocation.get_amount(
-                    index, "sell"
-            ) or is_equal_decimal(
+                index, "sell"
+            ) or is_equal_decimal_amount(
                 intervals[index].get_sell_orders_amount(),
                 self.allocation.get_amount(index, "sell"),
             ):
@@ -430,7 +430,7 @@ class LazyWhale:
             )
 
     def where_to_open_buys(
-            self, new_intervals: [Interval], amount_to_open_buy: Decimal
+        self, new_intervals: [Interval], amount_to_open_buy: Decimal
     ):
         """Decide, depending on amount_to_open and new_intervals, where to open intervals"""
         buy_intervals_to_open = []
@@ -448,7 +448,7 @@ class LazyWhale:
 
         intervals_opened_counter = 0
         while amount_to_open_buy > convert.multiplier(
-                self.min_amount, self.params["orders_per_interval"]
+            self.min_amount, self.params["orders_per_interval"]
         ):
             # fail safe, if interval will go so high
             if highest_buy_index >= len(new_intervals):
@@ -461,8 +461,8 @@ class LazyWhale:
 
             # if opened more that enough, when there were no more buy_indexes
             elif (
-                    intervals_opened_counter >= self.params["nb_buy_to_display"]
-                    and not buy_indexes
+                intervals_opened_counter >= self.params["nb_buy_to_display"]
+                and not buy_indexes
             ):
                 index_to_open = max(self.params["spread_bot"], highest_buy_index) + 1
                 amount_to_open = min(
@@ -482,8 +482,8 @@ class LazyWhale:
                     highest_buy_index
                 ].get_buy_orders_amount()
                 missing_amount = (
-                        self.allocation.get_amount(highest_buy_index, "buy")
-                        - highest_buy_amount
+                    self.allocation.get_amount(highest_buy_index, "buy")
+                    - highest_buy_amount
                 )
                 if missing_amount > Decimal("0"):
                     self.cancel_buy_interval_by_index(new_intervals, highest_buy_index)
@@ -510,7 +510,7 @@ class LazyWhale:
         return buy_intervals_to_open
 
     def where_to_open_sells(
-            self, new_intervals: [Interval], amount_to_open_sell: Decimal
+        self, new_intervals: [Interval], amount_to_open_sell: Decimal
     ):
         """Decide, depending on amount_to_open and new_intervals, where to open intervals"""
         sell_intervals_to_open = []
@@ -528,7 +528,7 @@ class LazyWhale:
 
         intervals_opened_counter = 0
         while amount_to_open_sell > convert.multiplier(
-                self.min_amount, self.params["orders_per_interval"]
+            self.min_amount, self.params["orders_per_interval"]
         ):
             # fail safe, if interval will go so low
             if lowest_sell_index < 0:
@@ -541,8 +541,8 @@ class LazyWhale:
 
             # if opened more that enough, when there were no more sell_indexes
             elif (
-                    intervals_opened_counter >= self.params["nb_buy_to_display"]
-                    and not sell_indexes
+                intervals_opened_counter >= self.params["nb_buy_to_display"]
+                and not sell_indexes
             ):
                 index_to_open = min(self.params["spread_top"], lowest_sell_index) - 1
                 amount_to_open = min(
@@ -563,8 +563,8 @@ class LazyWhale:
                     lowest_sell_index
                 ].get_sell_orders_amount()
                 missing_amount = (
-                        self.allocation.get_amount(lowest_sell_index, "sell")
-                        - lowest_sell_amount
+                    self.allocation.get_amount(lowest_sell_index, "sell")
+                    - lowest_sell_amount
                 )
                 if missing_amount > Decimal("0"):
                     # cancel existing orders
@@ -604,10 +604,10 @@ class LazyWhale:
             ].get_actual_benefit()
             self.allocation.set_benefit(interval["interval_index"], interval["amount"])
             additional_benefit = (
-                    self.allocation.benefits[
-                        interval["interval_index"]
-                    ].get_actual_benefit()
-                    - prev_actual_benefit
+                self.allocation.benefits[
+                    interval["interval_index"]
+                ].get_actual_benefit()
+                - prev_actual_benefit
             )
             interval["amount"] += additional_benefit
 
@@ -794,20 +794,20 @@ class LazyWhale:
 
         for _ in range(iterations):
             if nb_buy_intervals > self.params["nb_buy_to_display"] + 1 or (
-                    nb_buy_intervals == self.params["nb_buy_to_display"] + 1
-                    and buy_indexes[-1] == self.get_spread_bot(self.intervals)
+                nb_buy_intervals == self.params["nb_buy_to_display"] + 1
+                and buy_indexes[-1] == self.get_spread_bot(self.intervals)
             ):
                 self.cancel_extra_buy_interval()
 
             if nb_sell_intervals > self.params["nb_sell_to_display"] + 1 or (
-                    nb_sell_intervals == self.params["nb_sell_to_display"] + 1
-                    and sell_indexes[0] == self.get_spread_top(self.intervals)
+                nb_sell_intervals == self.params["nb_sell_to_display"] + 1
+                and sell_indexes[0] == self.get_spread_top(self.intervals)
             ):
                 self.cancel_extra_sell_interval()
 
             if (
-                    self.params["spread_bot"] - self.params["nb_buy_to_display"] + 1 >= 0
-                    and nb_buy_intervals < self.params["nb_buy_to_display"]
+                self.params["spread_bot"] - self.params["nb_buy_to_display"] + 1 >= 0
+                and nb_buy_intervals < self.params["nb_buy_to_display"]
             ):
                 buy_interval = self.open_deficit_buy_interval()
                 if buy_interval:
@@ -816,9 +816,9 @@ class LazyWhale:
                     )
 
             if (
-                    self.params["spread_top"] + self.params["nb_sell_to_display"] - 1
-                    < len(self.intervals)
-                    and nb_sell_intervals < self.params["nb_sell_to_display"]
+                self.params["spread_top"] + self.params["nb_sell_to_display"] - 1
+                < len(self.intervals)
+                and nb_sell_intervals < self.params["nb_sell_to_display"]
             ):
                 sell_interval = self.open_deficit_sell_interval()
                 if sell_interval:
@@ -882,9 +882,11 @@ class LazyWhale:
         for interval in self.intervals:
             empty_amount_orders = interval.get_empty_amount_orders()
             if len(interval.get_empty_amount_orders()) > 0:
-                self.log.ext_error(f"There are some orders: {empty_amount_orders} with zero amount"
-                                   f" - possible strategy error!"
-                                   f"We simply remove them for now")
+                self.log.ext_error(
+                    f"There are some orders: {empty_amount_orders} with zero amount"
+                    f" - possible strategy error!"
+                    f"We simply remove them for now"
+                )
                 interval.remove_empty_amount_orders()
 
             error_message = ""
@@ -903,8 +905,8 @@ class LazyWhale:
                 error_message += f"sell interval {interval} has more opened sell orders, than maximum possible!\n"
 
             if (
-                    len(interval.get_buy_orders()) > 0
-                    and len(interval.get_sell_orders()) > 0
+                len(interval.get_buy_orders()) > 0
+                and len(interval.get_sell_orders()) > 0
             ):
                 error_message += f"Interval {interval} has buys and sells together!"
 

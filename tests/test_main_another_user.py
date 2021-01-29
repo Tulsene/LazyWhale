@@ -12,7 +12,7 @@ from main.allocation import (
     CurvedAllocation,
     ProfitAllocation,
 )
-from utils.checkers import is_equal_decimal
+from utils.checkers import is_equal_decimal_amount
 from utils.converters import multiplier
 from utils.helpers import (
     interval_generator,
@@ -326,7 +326,7 @@ class AnotherUserTests(TestCase):
                     self.lazy_whale.params["spread_bot"] + 1,
                 ):
                     self.assertTrue(
-                        is_equal_decimal(
+                        is_equal_decimal_amount(
                             self.lazy_whale.intervals[i].get_buy_orders_amount(),
                             self.lazy_whale.allocation.get_amount(i, "buy"),
                         )
@@ -364,7 +364,7 @@ class AnotherUserTests(TestCase):
 
                 for i in get_indexes_sell_intervals(self.lazy_whale.intervals):
                     self.assertTrue(
-                        is_equal_decimal(
+                        is_equal_decimal_amount(
                             self.lazy_whale.intervals[i].get_sell_orders_amount(),
                             self.lazy_whale.allocation.get_amount(i, "sell"),
                         )
@@ -378,7 +378,7 @@ class AnotherUserTests(TestCase):
                     self.lazy_whale.params["spread_bot"] + 1,
                 ):
                     self.assertTrue(
-                        is_equal_decimal(
+                        is_equal_decimal_amount(
                             self.lazy_whale.intervals[i].get_buy_orders_amount(),
                             self.lazy_whale.allocation.get_amount(i, "buy"),
                         )
@@ -390,7 +390,7 @@ class AnotherUserTests(TestCase):
                     + self.lazy_whale.params["nb_sell_to_display"],
                 ):
                     self.assertTrue(
-                        is_equal_decimal(
+                        is_equal_decimal_amount(
                             self.lazy_whale.intervals[i].get_sell_orders_amount(),
                             self.lazy_whale.allocation.get_amount(i, "sell"),
                         )

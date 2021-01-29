@@ -4,6 +4,7 @@ from decimal import Decimal
 
 import ccxt
 
+from config import config
 import utils.helpers as helper
 import utils.converters as convert
 import utils.checkers as check
@@ -227,6 +228,8 @@ class UserInterface:
         params.update(self.ask_if_stop())
         params.update(self.ask_nb_to_display(params["intervals"]))
         params.update(self.ask_nb_orders_per_interval())
+        params.update(self.ask_price_random_precision(params))
+        params.update(self.ask_amount_random_precision(params["amount"]))
 
         return params
 
@@ -425,6 +428,54 @@ class UserInterface:
         return {
             "orders_per_interval": self.ask_question(
                 q, convert.str_to_int, check.nb_orders_per_interval, max_size
+            )
+        }
+
+    @staticmethod
+    def _found_suggested_precision(max_suggested: Decimal):
+        result = Decimal("1e-8")
+        while result * 10 <= max_suggested:
+            result *= 10
+
+        return result
+
+    def ask_price_random_precision(self, params):
+        """Ask user, about possible price precision for performing random"""
+        suggested = max(
+            self._found_suggested_precision(
+                convert.divider(
+                    params["intervals"][0].get_top()
+                    - params["intervals"][0].get_bottom(),
+                    Decimal(params["orders_per_interval"]),
+                )
+            ),
+            config.DECIMAL_PRECISION,
+        )
+        q = (
+            f"What should be the precision in random price? (Must be >= 1e-8, <= {suggested})"
+            f"\nDefault: 1e-8, Suggested: {suggested}"
+        )
+        return {
+            "price_random_precision": self.ask_question(
+                q, convert.str_to_decimal, check.random_precision, suggested
+            )
+        }
+
+    def ask_amount_random_precision(self, amount_per_interval):
+        """Ask user, about possible amount precision for performing random"""
+        suggested = max(
+            self._found_suggested_precision(
+                convert.divider(amount_per_interval, Decimal("1000"))
+            ),
+            config.DECIMAL_PRECISION,
+        )
+        q = (
+            f"What should be the precision in random amount? (Must be >= 1e-8, <= {suggested})"
+            f"\nDefault: 1e-8, Suggested: {suggested}"
+        )
+        return {
+            "amount_random_precision": self.ask_question(
+                q, convert.str_to_decimal, check.random_precision, suggested
             )
         }
 
@@ -641,6 +692,8 @@ class UserInterface:
             "allocation_type",
             "nb_sell_to_display",
             "profits_alloc",
+            "price_random_precision",
+            "amount_random_precision",
         ]
 
         for name in params_names:
@@ -656,6 +709,8 @@ class UserInterface:
             "increment_coef",
             "amount",
             "profits_alloc",
+            "price_random_precision",
+            "amount_random_precision",
         ]
 
         for name in decimal_to_test:

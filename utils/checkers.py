@@ -1,3 +1,5 @@
+from random import uniform
+
 from decimal import Decimal
 from datetime import datetime
 
@@ -109,21 +111,26 @@ def nb_orders_per_interval(nb, max_size):
         )
 
 
-def is_equal_decimal(first: Decimal, second: Decimal):
-    eps = Decimal(Decimal("10") ** (-config.DECIMAL_PRECISION + 2))
+def random_precision(precision: Decimal, max_precision: Decimal):
+    if precision < Decimal("1e-8") or precision > max_precision:
+        raise ValueError(
+            "The precision is too low (<1e-8) " f"or high (>{max_precision})"
+        )
+
+
+def is_equal_decimal_amount(first: Decimal, second: Decimal):
+    """Compare amounts by checking if they have less than 0.01% difference"""
+    eps = max(convert.divider(first, Decimal("10000")), config.DECIMAL_PRECISION)
     return (first - second).copy_abs() <= eps
 
 
-def get_random_decimal(bot, top):
-    from random import uniform
-
-    return Decimal(
+def get_random_decimal(bot, top, precision: Decimal = config.DECIMAL_PRECISION):
+    result = Decimal(
         str(
             round(
-                uniform(
-                    float(bot + Decimal("1E-8")), float(top - Decimal("1e-8"))
-                ),  # failsafe
-                config.DECIMAL_PRECISION,
+                uniform(float(bot + precision), float(top - precision)),  # failsafe
+                8,  # round to satoshi
             )
         )
     )
+    return result - result % precision

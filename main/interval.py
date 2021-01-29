@@ -1,7 +1,8 @@
 from decimal import Decimal
 
+from config import config
 from main.order import Order
-from utils.checkers import is_equal_decimal, get_random_decimal
+from utils.checkers import get_random_decimal
 
 
 class Interval:
@@ -34,16 +35,12 @@ class Interval:
         self.__sell_orders.insert(idx_to_insert, order)
 
     def find_buy_order_by_price(self, price):
-        orders_filtered = [
-            order for order in self.__buy_orders if is_equal_decimal(order.price, price)
-        ]
+        orders_filtered = [order for order in self.__buy_orders if order.price == price]
         return len(orders_filtered) > 0
 
     def find_sell_order_by_price(self, price):
         orders_filtered = [
-            order
-            for order in self.__sell_orders
-            if is_equal_decimal(order.price, price)
+            order for order in self.__sell_orders if order.price == price
         ]
         return len(orders_filtered) > 0
 
@@ -74,7 +71,7 @@ class Interval:
         # populate with `count_order - 1` order
         for _ in range(count_order - 1):
             order_amount = min_amount + get_random_decimal(
-                rand_max / Decimal("2"), rand_max
+                rand_max / Decimal("2"), rand_max, config.AMOUNT_RANDOM_PRECISION
             )
             current_amount += order_amount
 
@@ -98,7 +95,9 @@ class Interval:
         return orders_to_open
 
     def get_random_price_in_interval(self):
-        return get_random_decimal(self.__bottom, self.__top)
+        return get_random_decimal(
+            self.__bottom, self.__top, config.PRICE_RANDOM_PRECISION
+        )
 
     def get_bottom(self) -> Decimal:
         return self.__bottom
@@ -164,8 +163,12 @@ class Interval:
         return [order for order in self.__sell_orders if order.amount == Decimal("0")]
 
     def remove_empty_amount_orders(self):
-        self.__buy_orders = [order for order in self.__buy_orders if order.amount != Decimal("0")]
-        self.__sell_orders = [order for order in self.__sell_orders if order.amount != Decimal("0")]
+        self.__buy_orders = [
+            order for order in self.__buy_orders if order.amount != Decimal("0")
+        ]
+        self.__sell_orders = [
+            order for order in self.__sell_orders if order.amount != Decimal("0")
+        ]
 
     def __eq__(self, other):
         return (
