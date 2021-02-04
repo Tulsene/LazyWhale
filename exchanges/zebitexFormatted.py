@@ -194,7 +194,7 @@ class ZebitexFormatted:
 
     def create_limit_buy_order(self, symbol, amount, price):
         symbol = symbol.lower().split("/")
-        return self.ze.new_order(
+        order = self.ze.new_order(
             symbol[0],
             symbol[1],
             "bid",
@@ -203,10 +203,12 @@ class ZebitexFormatted:
             f"{symbol[0]}{symbol[1]}",
             "limit",
         )
+        order["amount"] = order["volume"]
+        return order
 
     def create_limit_sell_order(self, symbol, amount, price):
         symbol = symbol.lower().split("/")
-        return self.ze.new_order(
+        order = self.ze.new_order(
             symbol[0],
             symbol[1],
             "ask",
@@ -215,6 +217,8 @@ class ZebitexFormatted:
             f"{symbol[0]}{symbol[1]}",
             "limit",
         )
+        order["amount"] = order["volume"]
+        return order
 
     def cancel_order(self, order_id, market=None):
         # Market is added to match ccxt cancel_order format

@@ -112,3 +112,8 @@ def quantizator(nb):
         if Decimal(str(int(nb))) == nb:
             return nb
         raise SystemExit(f"Quantizator error: {e}, nb: {nb}")
+
+
+def floor_decimal(number: Decimal, precision: Decimal) -> Decimal:
+    """Perform next floor on decimals: Decimal('3.11911'), precision = Decimal('1e-2') -> Decimal('3.11')"""
+    return quantizator(number - number % precision)

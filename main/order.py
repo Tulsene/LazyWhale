@@ -29,7 +29,8 @@ class Order:
     def __eq__(self, other):
         return (
             self.price == other.price
-            and is_equal_decimal_amount(self.amount, other.amount)
+            and ((is_equal_decimal_amount(self.amount, other.amount))
+                 or (is_equal_decimal_amount(self.amount, other.amount, Decimal('5')) and self.filled == other.filled))
             and self.id == other.id
             and self.side == other.side
         )

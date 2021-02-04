@@ -27,6 +27,8 @@ class APIManager:
         self.empty_intervals = []
         self.market = ""
         self.profits_alloc = 0
+        self.global_opened_orders = []
+        self.global_canceled_orders = []
 
     def set_zebitex(self, keys, network):
         if network == "zebitex_testnet":
@@ -86,8 +88,8 @@ class APIManager:
         orders = [
             Order(
                 order["id"],
-                convert.quantizator(Decimal(order["price"])),
-                convert.quantizator(Decimal(order["amount"])),
+                convert.quantizator(Decimal(str(order["price"]))),
+                convert.quantizator(Decimal(str(order["amount"]))),
                 order["side"],
                 int(order["timestamp"]),
                 date=order["datetime"],
@@ -156,15 +158,18 @@ class APIManager:
         try:
             order = self.exchange.create_limit_buy_order(market, amount, price)
             date = self.order_logger_formatter("buy", order["id"], price, amount)
-            return Order(
+            order = Order(
                 order["id"],
-                order["price"],
-                order["volume"],
+                convert.quantizator(Decimal(str(order["price"]))),
+                convert.quantizator(Decimal(str(order["amount"]))),
                 "buy",
                 date[0],
                 date[1],
                 self.fees_coef,
             )
+            self.global_opened_orders.append(order)
+
+            return order
         except Exception as e:
             self.log.warning(f"WARNING: {e}")
             sleep(0.5)
@@ -198,16 +203,19 @@ class APIManager:
                 or boolean True when the order is already filled"""
         try:
             order = self.exchange.create_limit_sell_order(market, amount, price)
+
             date = self.order_logger_formatter("sell", order["id"], price, amount)
-            return Order(
+            order = Order(
                 order["id"],
-                order["price"],
-                order["volume"],
+                convert.quantizator(Decimal(str(order["price"]))),
+                convert.quantizator(Decimal(str(order["amount"]))),
                 "sell",
                 date[0],
                 date[1],
                 self.fees_coef,
             )
+            self.global_opened_orders.append(order)
+            return order
         except Exception as e:
             self.log.warning(f"WARNING: {e}")
             sleep(0.5)
@@ -226,14 +234,14 @@ class APIManager:
             )
         return sell_orders
 
-    def check_limit_order(self, market, price, side):
+    def check_limit_order(self, market, price, side, order_id=None, intervals=None):
         """Verify if an order have been correctly created despite API error
         market: string, market name.
         price: string, price of the order.
         side: string, buy or sell
         return: list, in a formatted order"""
         sleep(0.5)
-        is_open = self.check_an_order_is_open(price, side)
+        is_open = self.check_an_order_is_open(price, side, order_id=order_id, intervals=intervals)
         if is_open:
             return is_open
         else:
@@ -261,15 +269,22 @@ class APIManager:
 
         return interval_idx
 
-    def check_an_order_is_open(self, price, side):
+    def check_an_order_is_open(self, price, side, order_id=None, intervals=None):
         """Verify if an order is contained in a list
         target: decimal, price of an order.
         a_list: list, user trade history.
         return: boolean."""
-        intervals = self.get_intervals(self.market)
+        if intervals is None:
+            intervals = self.get_intervals(self.market)
         idx = self.find_interval_for_price(price)
         if idx is None:
             return False
+
+        if order_id is not None:
+            if side == "buy":
+                return intervals[idx].find_buy_order_by_id(order_id)
+            else:
+                return intervals[idx].find_sell_order_by_id(order_id)
 
         if side == "buy":
             return intervals[idx].find_buy_order_by_price(price)
@@ -327,6 +342,7 @@ class APIManager:
         try:
             self.log.debug(f"Init cancel {order.side} order {order.id} {order.price}")
             rsp = self.exchange.cancel_order(order.id, self.market)
+            self.global_canceled_orders.append(order)
             if rsp:
                 self.order_logger_formatter(
                     cancel_side, order.id, order.price, order.amount
@@ -485,8 +501,8 @@ class APIManager:
         for order in raw_orders:
             formatted_order = Order(
                 order["id"],
-                Decimal(str(order["price"])),
-                Decimal(str(order["amount"])),
+                convert.quantizator(Decimal(str(order["price"]))),
+                convert.quantizator(Decimal(str(order["amount"]))),
                 order["side"],
                 str(order["timestamp"]),
                 order["datetime"],
@@ -531,3 +547,27 @@ class APIManager:
             market = self.market
 
         return self.exchange.get_order_book(market)
+
+    def check_opened_canceled_orders(self, critical_error_exit):
+        if self.err_counter >= 10:
+            self.log.ext_critical(f"There were >= 10 errors with opened orders: {self.fetch_open_orders(self.market)}"
+                                  f"These orders must be canceled: {self.global_canceled_orders}"
+                                  f"These orders must be opened: {self.global_opened_orders}")
+            critical_error_exit()
+
+        intervals = self.get_intervals(self.market)
+        for order in self.global_canceled_orders:
+            if self.check_an_order_is_open(order.price, order.side, order.id, intervals):
+                self.log.error(f"Order: {order} must be canceled, but it appears in opened_orders!")
+                self.err_counter += 1
+                return False
+
+        for order in self.global_opened_orders:
+            if not self.check_limit_order(self.market, order.price, order.side, order.id, intervals):
+                self.log.debug(f"Order: {order} should be in open_orders or in order history, but it doesn't!")
+
+        # if this code is reached - everything went ok
+        self.global_canceled_orders = []
+        self.global_opened_orders = []
+        self.err_counter = 0
+        return True

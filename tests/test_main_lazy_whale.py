@@ -14,7 +14,7 @@ from main.allocation import (
 )
 from main.lazy_whale import LazyWhale
 from utils import helpers
-from utils.converters import multiplier, divider
+from utils.converters import multiplier, divider, floor_decimal
 from utils.helpers import interval_generator
 import utils.logger_factory as lf
 
@@ -966,7 +966,7 @@ class LazyWhaleTests(TestCase):
         self.lazy_whale.params["spread_top"] = 9
         self.lazy_whale.params["amount"] = Decimal("0.02")
         self.lazy_whale.strat_init()
-        self.lazy_whale.check_intervals_amount_count()
+        self.lazy_whale.check_intervals_amount_count(self.lazy_whale.intervals)
 
         order = self.api_manager.create_limit_buy_order(
             self.market,
@@ -974,7 +974,7 @@ class LazyWhaleTests(TestCase):
             self.lazy_whale.intervals[5].get_random_price_in_interval(),
         )
         self.lazy_whale.intervals[5].insert_buy_order(order)
-        self.assertRaises(SystemExit, self.lazy_whale.check_intervals_amount_count)
+        self.assertRaises(SystemExit, self.lazy_whale.check_intervals_amount_count, self.lazy_whale.intervals)
 
     def test_different_count_buys_sells(self):
         """Tests strategy, when nb_buys_to_display != nb_sells_to_display"""
@@ -997,3 +997,46 @@ class LazyWhaleTests(TestCase):
         self.assertEqual(len(self.api_manager.get_open_orders()), 16)
 
         self.assertEqual(self.lazy_whale.params["spread_bot"], 11)
+        self.assertEqual(helpers.get_indexes_buy_intervals(self.lazy_whale.intervals), [9, 10, 11])
+        self.assertEqual(helpers.get_indexes_sell_intervals(self.lazy_whale.intervals), [14, 15, 16, 17, 18])
+
+    def test_price_amount_random_precision(self):
+        """Tests, that price and amount are opening with correct precision - if it is chosen in params"""
+        self.lazy_whale.params["price_random_precision"] = Decimal("1E-7")
+        self.lazy_whale.params["amount_random_precision"] = Decimal("1E-6")
+        self.lazy_whale.params["spread_bot"] = 6
+        self.lazy_whale.params["spread_top"] = 9
+        self.lazy_whale.params["amount"] = Decimal("0.02")
+        self.lazy_whale.strat_init()
+
+        orders = self.lazy_whale.intervals[6].get_buy_orders() + self.lazy_whale.intervals[6].get_sell_orders()
+        for order in orders:
+            self.assertEqual(str(order.price)[-1:], '0')
+            self.assertEqual(str(order.amount)[-2:], '00')
+
+        self.lazy_whale.params["price_random_precision"] = Decimal("1E-8")
+        self.lazy_whale.params["amount_random_precision"] = Decimal("1E-8")
+
+        self.lazy_whale.strat_init()
+
+    def test_market_rounding_intervals_equality(self):
+        """Tests, that even if there is rounding on the exchange side - equality of intervals is correct"""
+        for i in range(5):
+            total_amount = Decimal('0.2')
+            orders = self.lazy_whale.intervals[0].generate_orders_by_amount(total_amount, self.lazy_whale.min_amount)
+            precision = Decimal('1E-5')
+            for json_order in orders:
+                # simulate rounding on the market with floor_decimal
+                order = self.api_manager.create_limit_buy_order(self.market,
+                                                                floor_decimal(json_order['amount'], precision),
+                                                                floor_decimal(json_order['price'], precision))
+
+                if i % 2 == 0:
+                    order.amount = json_order['amount']
+                self.lazy_whale.intervals[0].insert_buy_order(order)
+
+            new_intervals = self.api_manager.get_intervals(self.market)
+            self.assertEqual(self.lazy_whale.intervals, new_intervals)
+            self.lazy_whale.cancel_all_intervals()
+
+

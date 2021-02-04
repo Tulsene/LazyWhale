@@ -133,10 +133,13 @@ class LazyWhale:
         self.log.debug("strat_init()")
         self.set_min_amount()
         self.connector.intervals = self.intervals
+        if 'price_random_precision' in self.params and 'amount_random_precision' in self.params:
+            config.PRICE_RANDOM_PRECISION = self.params["price_random_precision"]
+            config.AMOUNT_RANDOM_PRECISION = self.params["amount_random_precision"]
 
         lowest_buy, highest_sell = self.get_lowest_highest_interval_index()
 
-        self.log.info(
+        self.log.debug(
             f"self.intervals: {self.intervals}, "
             f'lowest_buy: {lowest_buy}, self.params["spread_bot"]: '
             f"{self.params['spread_bot']}, self.params['spread_top']: "
@@ -353,7 +356,7 @@ class LazyWhale:
             self.log.ext_critical(f"Top target reached!")
             raise SystemExit()
 
-    def amount_compare_intervals(self, new_intervals: [Interval]) -> (Decimal, Decimal):
+    def amount_compare_intervals(self, new_intervals: [Interval], read_only=False) -> (Decimal, Decimal):
         """Compare intervals and return amount of MANA to open with correct side"""
         interval_index = 0
         total_amount_consumed_buy = Decimal("0")
@@ -375,14 +378,18 @@ class LazyWhale:
                 total_amount_consumed_buy += amount_consumed_buy
                 total_amount_consumed_sell += amount_consumed_sell
 
-                amount_to_open_buy += self.allocation.get_buy_to_open(
-                    interval_index, amount_consumed_sell
-                )
-                amount_to_open_sell += self.allocation.get_sell_to_open(
-                    interval_index, amount_consumed_buy
-                )
+                if not read_only:
+                    amount_to_open_buy += self.allocation.get_buy_to_open(
+                        interval_index, amount_consumed_sell
+                    )
+                    amount_to_open_sell += self.allocation.get_sell_to_open(
+                        interval_index, amount_consumed_buy
+                    )
 
             interval_index += 1
+
+        if read_only:
+            return total_amount_consumed_buy, total_amount_consumed_sell
 
         self.log.warning(f"Total consumed buy: {total_amount_consumed_buy}")
         self.log.warning(f"Total consumed sell: {total_amount_consumed_sell}")
@@ -875,11 +882,11 @@ class LazyWhale:
             )
             self.critical_error_exit(self.intervals)
 
-    def check_intervals_amount_count(self):
+    def check_intervals_amount_count(self, intervals: [Interval]):
         max_interval_amount = convert.multiplier(
             self.params["amount"], config.MAX_AMOUNT_COEFFICIENT
         )
-        for interval in self.intervals:
+        for interval in intervals:
             empty_amount_orders = interval.get_empty_amount_orders()
             if len(interval.get_empty_amount_orders()) > 0:
                 self.log.ext_error(
@@ -939,7 +946,7 @@ class LazyWhale:
             )
 
     def check_intervals_equal(self, new_intervals):
-        return self.intervals == new_intervals
+        return self.amount_compare_intervals(new_intervals, read_only=True) == (Decimal("0"), Decimal("0"))
 
     def set_min_amount(self):
         """In crypto there is a minimal value for each order to open
@@ -977,16 +984,23 @@ class LazyWhale:
         new_intervals = self.connector.get_intervals()
         if not self.check_intervals_equal(new_intervals):
             new_intervals = self.omit_orders_off_strat(new_intervals)
+            self.check_intervals_amount_count(new_intervals)
 
         is_equal = self.check_intervals_equal(new_intervals)
         if not is_equal:
+            self.log.debug(f"new_intervals at just the beginning of main_cycle: {new_intervals}")
+            # additional check for all opened and canceled orders -
+            # significantly decreases LW speed - can be removed if not needed
+            if not self.connector.check_opened_canceled_orders(self.critical_error_exit):
+                sleep(config.LW_CYCLE_SLEEP_TIME)
+                self.main_cycle()
             # self.cancel_safety_orders()
             self.compare_intervals(new_intervals)
             self.check_intervals_position()
 
             self.limit_nb_intervals()
-            self.log.info(f"self.intervals before check: {self.intervals}")
-            self.check_intervals_amount_count()
+            self.log.debug(f"self.intervals before check: {self.intervals}")
+            self.check_intervals_amount_count(self.intervals)
             self.backup_spread_value()
             self.backup_lw()
 

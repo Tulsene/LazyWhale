@@ -71,6 +71,13 @@ class Zebitex:
         url = f"{self.url}{path}"
         headers = {**user_agent, **authorization_header}
         r = requests.request(method, url, params=params, headers=headers, json=True)
+        with open("zebitex-api-calls.txt", "a") as f:
+            f.write(f"{method} {url} params={params}\n")
+            try:
+                f.write(f"response: {r.json()}\n")
+            except json.JSONDecodeError:
+                pass
+
         status = {"status_code": r.status_code}
         if r.status_code not in status_code_list:
             raise ZebitexError({**status, **r.json()})

@@ -9,8 +9,6 @@ if __name__ == "__main__":
         config.AMOUNT_RANDOM_PRECISION = params.params["amount_random_precision"]
         lw = params
     else:
-        config.PRICE_RANDOM_PRECISION = params["price_random_precision"]
-        config.AMOUNT_RANDOM_PRECISION = params["amount_random_precision"]
         lw.params = params
         lw.lw_initialisation()
 

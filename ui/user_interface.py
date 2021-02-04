@@ -271,6 +271,8 @@ class UserInterface:
                     f"({self.allowed_exchanges[exchanges_list[choice]]})"
                 )
 
+        # for binance_testnet or other testnet purpose only
+        # api_connector.exchange.set_sandbox_mode(True)
         api_connector.load_markets()
 
         return {
@@ -441,7 +443,7 @@ class UserInterface:
 
     def ask_price_random_precision(self, params):
         """Ask user, about possible price precision for performing random"""
-        suggested = max(
+        max_precision = max(
             self._found_suggested_precision(
                 convert.divider(
                     params["intervals"][0].get_top()
@@ -451,8 +453,9 @@ class UserInterface:
             ),
             config.DECIMAL_PRECISION,
         )
+        suggested = max(convert.divider(max_precision, Decimal('10')), config.DECIMAL_PRECISION)
         q = (
-            f"What should be the precision in random price? (Must be >= 1e-8, <= {suggested})"
+            f"What should be the precision in random price? (Must be >= 1e-8, <= {max_precision})"
             f"\nDefault: 1e-8, Suggested: {suggested}"
         )
         return {
@@ -463,14 +466,15 @@ class UserInterface:
 
     def ask_amount_random_precision(self, amount_per_interval):
         """Ask user, about possible amount precision for performing random"""
-        suggested = max(
+        max_precision = max(
             self._found_suggested_precision(
-                convert.divider(amount_per_interval, Decimal("1000"))
+                convert.divider(amount_per_interval, Decimal("100"))
             ),
             config.DECIMAL_PRECISION,
         )
+        suggested = max(convert.divider(max_precision, Decimal('10')), config.DECIMAL_PRECISION)
         q = (
-            f"What should be the precision in random amount? (Must be >= 1e-8, <= {suggested})"
+            f"What should be the precision in random amount? (Must be >= 1e-8, <= {max_precision})"
             f"\nDefault: 1e-8, Suggested: {suggested}"
         )
         return {

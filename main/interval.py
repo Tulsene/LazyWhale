@@ -3,6 +3,7 @@ from decimal import Decimal
 from config import config
 from main.order import Order
 from utils.checkers import get_random_decimal
+from utils.converters import floor_decimal
 
 
 class Interval:
@@ -34,6 +35,16 @@ class Interval:
 
         self.__sell_orders.insert(idx_to_insert, order)
 
+    def find_buy_order_by_id(self, order_id):
+        orders_filtered = [order for order in self.__buy_orders if order.id == order_id]
+        return len(orders_filtered) > 0
+
+    def find_sell_order_by_id(self, order_id):
+        orders_filtered = [
+            order for order in self.__sell_orders if order.id == order_id
+        ]
+        return len(orders_filtered) > 0
+
     def find_buy_order_by_price(self, price):
         orders_filtered = [order for order in self.__buy_orders if order.price == price]
         return len(orders_filtered) > 0
@@ -59,6 +70,8 @@ class Interval:
         """Returns orders(dict) with random price inside interval and with amount sum = total_amount
         Does not store this orders in Interval (cause they are not opened yet)
         """
+        # for all orders to have correct rounded amount
+        total_amount = floor_decimal(total_amount, config.AMOUNT_RANDOM_PRECISION)
         # TD: redo this assert if needed
         assert min_amount * count_order < total_amount
 
