@@ -453,7 +453,9 @@ class UserInterface:
             ),
             config.DECIMAL_PRECISION,
         )
-        suggested = max(convert.divider(max_precision, Decimal('10')), config.DECIMAL_PRECISION)
+        suggested = max(
+            convert.divider(max_precision, Decimal("10")), config.DECIMAL_PRECISION
+        )
         q = (
             f"What should be the precision in random price? (Must be >= 1e-8, <= {max_precision})"
             f"\nDefault: 1e-8, Suggested: {suggested}"
@@ -472,7 +474,9 @@ class UserInterface:
             ),
             config.DECIMAL_PRECISION,
         )
-        suggested = max(convert.divider(max_precision, Decimal('10')), config.DECIMAL_PRECISION)
+        suggested = max(
+            convert.divider(max_precision, Decimal("10")), config.DECIMAL_PRECISION
+        )
         q = (
             f"What should be the precision in random amount? (Must be >= 1e-8, <= {max_precision})"
             f"\nDefault: 1e-8, Suggested: {suggested}"

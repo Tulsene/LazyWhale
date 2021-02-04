@@ -241,7 +241,9 @@ class APIManager:
         side: string, buy or sell
         return: list, in a formatted order"""
         sleep(0.5)
-        is_open = self.check_an_order_is_open(price, side, order_id=order_id, intervals=intervals)
+        is_open = self.check_an_order_is_open(
+            price, side, order_id=order_id, intervals=intervals
+        )
         if is_open:
             return is_open
         else:
@@ -550,21 +552,31 @@ class APIManager:
 
     def check_opened_canceled_orders(self, critical_error_exit):
         if self.err_counter >= 10:
-            self.log.ext_critical(f"There were >= 10 errors with opened orders: {self.fetch_open_orders(self.market)}"
-                                  f"These orders must be canceled: {self.global_canceled_orders}"
-                                  f"These orders must be opened: {self.global_opened_orders}")
+            self.log.ext_critical(
+                f"There were >= 10 errors with opened orders: {self.fetch_open_orders(self.market)}"
+                f"These orders must be canceled: {self.global_canceled_orders}"
+                f"These orders must be opened: {self.global_opened_orders}"
+            )
             critical_error_exit()
 
         intervals = self.get_intervals(self.market)
         for order in self.global_canceled_orders:
-            if self.check_an_order_is_open(order.price, order.side, order.id, intervals):
-                self.log.error(f"Order: {order} must be canceled, but it appears in opened_orders!")
+            if self.check_an_order_is_open(
+                order.price, order.side, order.id, intervals
+            ):
+                self.log.error(
+                    f"Order: {order} must be canceled, but it appears in opened_orders!"
+                )
                 self.err_counter += 1
                 return False
 
         for order in self.global_opened_orders:
-            if not self.check_limit_order(self.market, order.price, order.side, order.id, intervals):
-                self.log.debug(f"Order: {order} should be in open_orders or in order history, but it doesn't!")
+            if not self.check_limit_order(
+                self.market, order.price, order.side, order.id, intervals
+            ):
+                self.log.debug(
+                    f"Order: {order} should be in open_orders or in order history, but it doesn't!"
+                )
 
         # if this code is reached - everything went ok
         self.global_canceled_orders = []

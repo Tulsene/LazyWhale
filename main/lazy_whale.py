@@ -133,7 +133,10 @@ class LazyWhale:
         self.log.debug("strat_init()")
         self.set_min_amount()
         self.connector.intervals = self.intervals
-        if 'price_random_precision' in self.params and 'amount_random_precision' in self.params:
+        if (
+            "price_random_precision" in self.params
+            and "amount_random_precision" in self.params
+        ):
             config.PRICE_RANDOM_PRECISION = self.params["price_random_precision"]
             config.AMOUNT_RANDOM_PRECISION = self.params["amount_random_precision"]
 
@@ -356,7 +359,9 @@ class LazyWhale:
             self.log.ext_critical(f"Top target reached!")
             raise SystemExit()
 
-    def amount_compare_intervals(self, new_intervals: [Interval], read_only=False) -> (Decimal, Decimal):
+    def amount_compare_intervals(
+        self, new_intervals: [Interval], read_only=False
+    ) -> (Decimal, Decimal):
         """Compare intervals and return amount of MANA to open with correct side"""
         interval_index = 0
         total_amount_consumed_buy = Decimal("0")
@@ -946,7 +951,10 @@ class LazyWhale:
             )
 
     def check_intervals_equal(self, new_intervals):
-        return self.amount_compare_intervals(new_intervals, read_only=True) == (Decimal("0"), Decimal("0"))
+        return self.amount_compare_intervals(new_intervals, read_only=True) == (
+            Decimal("0"),
+            Decimal("0"),
+        )
 
     def set_min_amount(self):
         """In crypto there is a minimal value for each order to open
@@ -988,10 +996,14 @@ class LazyWhale:
 
         is_equal = self.check_intervals_equal(new_intervals)
         if not is_equal:
-            self.log.debug(f"new_intervals at just the beginning of main_cycle: {new_intervals}")
+            self.log.debug(
+                f"new_intervals at just the beginning of main_cycle: {new_intervals}"
+            )
             # additional check for all opened and canceled orders -
             # significantly decreases LW speed - can be removed if not needed
-            if not self.connector.check_opened_canceled_orders(self.critical_error_exit):
+            if not self.connector.check_opened_canceled_orders(
+                self.critical_error_exit
+            ):
                 sleep(config.LW_CYCLE_SLEEP_TIME)
                 self.main_cycle()
             # self.cancel_safety_orders()

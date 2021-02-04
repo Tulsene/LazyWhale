@@ -30,8 +30,16 @@ class UtilsTests(TestCase):
 
         self.assertFalse(is_equal_decimal_amount(Decimal("1"), Decimal("2")))
 
-        self.assertTrue(is_equal_decimal_amount(Decimal("100"), Decimal("97"), allow_percent_difference=Decimal("5")))
-        self.assertFalse(is_equal_decimal_amount(Decimal("100"), Decimal("97"), allow_percent_difference=Decimal("2")))
+        self.assertTrue(
+            is_equal_decimal_amount(
+                Decimal("100"), Decimal("97"), allow_percent_difference=Decimal("5")
+            )
+        )
+        self.assertFalse(
+            is_equal_decimal_amount(
+                Decimal("100"), Decimal("97"), allow_percent_difference=Decimal("2")
+            )
+        )
 
     def test_get_amount_to_open(self):
         """Test that missing orders that are in prev_orders but not in new_orders are found correctly
@@ -92,15 +100,27 @@ class UtilsTests(TestCase):
     def test_get_random_decimal(self):
         """Test getting random decimal with correct precision"""
         for _ in range(100):
-            self.assertLess(get_random_decimal(Decimal('1'), Decimal('2')), Decimal('2'))
-            self.assertGreater(get_random_decimal(Decimal('1'), Decimal('2')), Decimal('1'))
+            self.assertLess(
+                get_random_decimal(Decimal("1"), Decimal("2")), Decimal("2")
+            )
+            self.assertGreater(
+                get_random_decimal(Decimal("1"), Decimal("2")), Decimal("1")
+            )
 
-            random_decimal = get_random_decimal(Decimal('1'), Decimal('2'), Decimal('1E-5'))
+            random_decimal = get_random_decimal(
+                Decimal("1"), Decimal("2"), Decimal("1E-5")
+            )
             self.assertEqual(str(random_decimal)[-3:], "000")
 
-            random_decimal = get_random_decimal(Decimal('1000'), Decimal('2000'), Decimal('10'))
+            random_decimal = get_random_decimal(
+                Decimal("1000"), Decimal("2000"), Decimal("10")
+            )
             self.assertEqual(random_decimal % 10, 0)
 
     def test_floor_decimal(self):
-        self.assertEqual(floor_decimal(Decimal('12345.12345'), Decimal('1e-3')), Decimal('12345.123'))
-        self.assertEqual(floor_decimal(Decimal('12345.12345'), Decimal('1000')), Decimal('12000'))
+        self.assertEqual(
+            floor_decimal(Decimal("12345.12345"), Decimal("1e-3")), Decimal("12345.123")
+        )
+        self.assertEqual(
+            floor_decimal(Decimal("12345.12345"), Decimal("1000")), Decimal("12000")
+        )

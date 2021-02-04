@@ -118,9 +118,11 @@ def random_precision(precision: Decimal, max_precision: Decimal):
         )
 
 
-def is_equal_decimal_amount(first: Decimal, second: Decimal, allow_percent_difference: Decimal = Decimal('0.1')):
+def is_equal_decimal_amount(
+    first: Decimal, second: Decimal, allow_percent_difference: Decimal = Decimal("0.1")
+):
     """Compare amounts by checking if they have less than 0.01% difference"""
-    coefficient = (Decimal('1') / allow_percent_difference) * Decimal('100')
+    coefficient = (Decimal("1") / allow_percent_difference) * Decimal("100")
     eps = max(convert.divider(first, coefficient), config.DECIMAL_PRECISION)
     return (first - second).copy_abs() <= eps
 
