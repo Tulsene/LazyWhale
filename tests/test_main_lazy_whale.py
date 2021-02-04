@@ -857,19 +857,23 @@ class LazyWhaleTests(TestCase):
     def test_remaining_amount_to_open_buy(self):
         self.lazy_whale.params["spread_bot"] = 3
         self.lazy_whale.params["spread_top"] = 6
-        self.lazy_whale.params["amount"] = Decimal("0.02")
+        self.lazy_whale.params["amount"] = Decimal("0.2")
+        self.lazy_whale.allocation = NoSpecificAllocation(
+            self.lazy_whale.params["amount"]
+        )
+        self.lazy_whale.min_amount = Decimal("0.001")
         self.lazy_whale.strat_init()
         self.user.create_limit_sell_order(
-            self.market, Decimal("0.01"), self.intervals[3].get_bottom()
+            self.market, Decimal("0.1"), self.intervals[3].get_bottom()
         )
         self.lazy_whale.main_cycle()
         self.user.create_limit_buy_order(
-            self.market, Decimal("0.010002"), self.intervals[7].get_top()
+            self.market, Decimal("0.1002"), self.intervals[7].get_top()
         )
         self.assertEqual(self.lazy_whale.remaining_amount_to_open_buy, Decimal("0"))
         self.lazy_whale.main_cycle()
         self.assertEqual(
-            self.lazy_whale.remaining_amount_to_open_buy, Decimal("0.000002")
+            self.lazy_whale.remaining_amount_to_open_buy, Decimal("0.0002")
         )
 
         self.user.create_limit_buy_order(
@@ -878,25 +882,29 @@ class LazyWhaleTests(TestCase):
         self.lazy_whale.main_cycle()
         self.assertEqual(self.lazy_whale.remaining_amount_to_open_buy, Decimal("0"))
         self.assertEqual(
-            self.lazy_whale.intervals[4].get_buy_orders_amount(), Decimal("0.005002")
+            self.lazy_whale.intervals[4].get_buy_orders_amount(), Decimal("0.0052")
         )
 
     def test_remaining_amount_to_open_sell(self):
         self.lazy_whale.params["spread_bot"] = 3
         self.lazy_whale.params["spread_top"] = 6
-        self.lazy_whale.params["amount"] = Decimal("0.02")
+        self.lazy_whale.params["amount"] = Decimal("0.2")
+        self.lazy_whale.allocation = NoSpecificAllocation(
+            self.lazy_whale.params["amount"]
+        )
+        self.lazy_whale.min_amount = Decimal("0.001")
         self.lazy_whale.strat_init()
         self.user.create_limit_buy_order(
-            self.market, Decimal("0.01"), self.intervals[6].get_top()
+            self.market, Decimal("0.1"), self.intervals[6].get_top()
         )
         self.assertEqual(self.lazy_whale.remaining_amount_to_open_sell, Decimal("0"))
         self.lazy_whale.main_cycle()
         self.user.create_limit_sell_order(
-            self.market, Decimal("0.010002"), self.intervals[2].get_bottom()
+            self.market, Decimal("0.1002"), self.intervals[2].get_bottom()
         )
         self.lazy_whale.main_cycle()
         self.assertEqual(
-            self.lazy_whale.remaining_amount_to_open_sell, Decimal("0.000002")
+            self.lazy_whale.remaining_amount_to_open_sell, Decimal("0.0002")
         )
 
         self.user.create_limit_sell_order(
@@ -905,7 +913,7 @@ class LazyWhaleTests(TestCase):
         self.lazy_whale.main_cycle()
         self.assertEqual(self.lazy_whale.remaining_amount_to_open_sell, Decimal("0"))
         self.assertEqual(
-            self.lazy_whale.intervals[5].get_sell_orders_amount(), Decimal("0.005002")
+            self.lazy_whale.intervals[5].get_sell_orders_amount(), Decimal("0.0052")
         )
 
     def test_move_intervals(self):
