@@ -34,7 +34,7 @@ class APIManagerTests(TestCase):
         }
         self.api_manager.set_zebitex(keys, "zebitex_testnet")
 
-        self.market = "DASH/BTC"
+        self.market = "CVC/BTC"
         self.raw_orders = [
             {
                 "id": "1",
@@ -42,7 +42,7 @@ class APIManagerTests(TestCase):
                 "datetime": "_",
                 "lastTradeTimestamp": None,
                 "status": "open",
-                "symbol": "DASH/BTC",
+                "symbol": "CVC/BTC",
                 "type": "limit",
                 "side": "buy",
                 "price": 0.0001,
@@ -59,7 +59,7 @@ class APIManagerTests(TestCase):
                 "datetime": "_",
                 "lastTradeTimestamp": None,
                 "status": "open",
-                "symbol": "DASH/BTC",
+                "symbol": "CVC/BTC",
                 "type": "limit",
                 "side": "buy",
                 "price": 0.010104,
@@ -76,7 +76,7 @@ class APIManagerTests(TestCase):
                 "datetime": "_",
                 "lastTradeTimestamp": None,
                 "status": "open",
-                "symbol": "DASH/BTC",
+                "symbol": "CVC/BTC",
                 "type": "limit",
                 "side": "buy",
                 "price": 0.01052081,
@@ -93,7 +93,7 @@ class APIManagerTests(TestCase):
                 "datetime": "_",
                 "lastTradeTimestamp": None,
                 "status": "open",
-                "symbol": "DASH/BTC",
+                "symbol": "CVC/BTC",
                 "type": "limit",
                 "side": "buy",
                 "price": 1,
@@ -110,7 +110,7 @@ class APIManagerTests(TestCase):
                 "datetime": "_",
                 "lastTradeTimestamp": None,
                 "status": "open",
-                "symbol": "DASH/BTC",
+                "symbol": "CVC/BTC",
                 "type": "limit",
                 "side": "buy",
                 "price": 0.010105,
@@ -127,7 +127,7 @@ class APIManagerTests(TestCase):
                 "datetime": "_",
                 "lastTradeTimestamp": None,
                 "status": "open",
-                "symbol": "DASH/BTC",
+                "symbol": "CVC/BTC",
                 "type": "limit",
                 "side": "buy",
                 "price": 0.01020510,
@@ -144,7 +144,7 @@ class APIManagerTests(TestCase):
                 "datetime": "_",
                 "lastTradeTimestamp": None,
                 "status": "open",
-                "symbol": "DASH/BTC",
+                "symbol": "CVC/BTC",
                 "type": "limit",
                 "side": "sell",
                 "price": 0.01041528,

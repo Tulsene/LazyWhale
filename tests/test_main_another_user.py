@@ -30,13 +30,13 @@ class AnotherUserTests(TestCase):
     @patch("utils.helpers.set_root_path")
     def setUp(self, set_root_path_patch) -> None:
         self.time_to_sleep = 0.1
-        self.market = "DASH/BTC"
+        self.market = "CVC/BTC"
         set_root_path_patch.return_value = keys_config.PATH_TO_PROJECT_ROOT
         lf.set_simple_logger(keys_config.PATH_TO_PROJECT_ROOT)
         params = {
             "datetime": "2020-09-25 12:45:16.243709",
             "marketplace": "zebitex_testnet",
-            "market": "DASH/BTC",
+            "market": "CVC/BTC",
             "range_bot": Decimal("0.01"),
             "range_top": Decimal("0.015"),
             "increment_coef": Decimal("1.0102"),

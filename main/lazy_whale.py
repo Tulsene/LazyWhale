@@ -435,7 +435,7 @@ class LazyWhale:
 
         # fail safe
         if sell_indexes:
-            return sell_indexes[-1]
+            return sell_indexes[0]
         else:
             raise ValueError(
                 "Could not get spread_top because there is no sell intervals!"
@@ -802,7 +802,12 @@ class LazyWhale:
         sell_indexes = helper.get_indexes_sell_intervals(self.intervals)
         nb_buy_intervals = len(buy_indexes)
         nb_sell_intervals = len(sell_indexes)
-        iterations = abs(nb_buy_intervals - nb_sell_intervals)
+        iterations = max(
+            nb_sell_intervals,
+            nb_buy_intervals,
+            self.params["nb_buy_to_display"],
+            self.params["nb_sell_to_display"]
+        )
 
         for _ in range(iterations):
             if nb_buy_intervals > self.params["nb_buy_to_display"] + 1 or (

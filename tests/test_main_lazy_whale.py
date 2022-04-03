@@ -27,7 +27,7 @@ class LazyWhaleTests(TestCase):
         set_root_path_patch.return_value = keys_config.PATH_TO_PROJECT_ROOT
         lf.set_simple_logger(keys_config.PATH_TO_PROJECT_ROOT)
 
-        self.market = "DASH/BTC"
+        self.market = "CVC/BTC"
         self.intervals = interval_generator(
             Decimal("0.01"),
             Decimal("0.015"),
@@ -67,7 +67,7 @@ class LazyWhaleTests(TestCase):
         self.lazy_whale.params = {
             "datetime": "2020-09-25 12:45:16.243709",
             "marketplace": "zebitex_testnet",
-            "market": "DASH/BTC",
+            "market": "CVC/BTC",
             "range_bot": Decimal("0.01"),
             "range_top": Decimal("0.015"),
             "increment_coef": Decimal("1.0102"),
