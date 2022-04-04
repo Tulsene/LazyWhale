@@ -111,7 +111,7 @@ class Zebitex:
 
     def open_orders(self, page=1, per=10):
         query = {"page": page, "per": per}
-        return self.__call__("PRIVATE", "GET", "/api/v1/orders/current", query)
+        return self.__call__("PRIVATE", "GET", "/api/v1/orders/opened", query)
 
     def trade_history(self, side, start_date, end_date, page, per):
         query = {

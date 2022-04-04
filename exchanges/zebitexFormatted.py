@@ -13,6 +13,7 @@ class ZebitexFormatted:
         self.fees = Decimal("0.0015")
         self.symbols = self.load_markets()
 
+
     def fetch_balance(self):
         """balance = {'COIN': {'isFiat': bool,
         'depositFee': int,
@@ -48,7 +49,16 @@ class ZebitexFormatted:
         return fetched_balance
 
     def fetch_open_orders(self, market=None):
-        open_orders = self.ze.open_orders("1", "1000")
+        open_orders = []
+        page = 1
+        while True:
+            open_orders_page = self.ze.open_orders(page=str(page), per="100")
+            if len(open_orders_page) == 0:
+                break
+
+            open_orders.extend(open_orders_page["items"])
+            page += 1
+
         fetched_open_order = []
         for order in open_orders:
             market_name = self.from_zebitex_market_name(order["base"], order["quote"])
